@@ -590,6 +590,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 ## Documentation
 
 - **[Tool Documentation](tools/README.md)** — Reference for the available tools, including optional feature-gated tools
+- **[SDM Canvas Authoring Workflow](docs/sdm-canvas-authoring-workflow.md)** — Local MCP-to-Canvas safety, formatting, module, and verification practices
 - **[Student Guide](https://canvas-mcp.illinihunt.org/student-guide.html)** — Getting started as a student
 - **[Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html)** — FERPA considerations and educator workflows
 - **[Bulk Grading Example](examples/bulk_grading_example.md)** — Batch grading walkthrough

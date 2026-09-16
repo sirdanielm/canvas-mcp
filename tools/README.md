@@ -1637,7 +1637,7 @@ Create a new module in a course.
 - `unlock_at` (optional): Date/time when module unlocks (ISO 8601)
 - `require_sequential_progress` (optional): Students must complete items in order
 - `prerequisite_module_ids` (optional): Comma-separated IDs of prerequisite modules
-- `published` (optional): Whether module is published (default: true)
+- `published` (optional): Whether module is published (default: false)
 
 **Example:**
 ```
@@ -1699,6 +1699,7 @@ Add an item to a module.
 - `page_url` (optional): Page URL slug (required for Page type)
 - `external_url` (optional): URL (required for ExternalUrl type)
 - `new_tab` (optional): Open external links in new tab
+- `published` (optional): Whether the module item is published (default: false)
 - `completion_requirement_type` (optional): must_view, must_submit, must_contribute, min_score, must_mark_done
 - `completion_requirement_min_score` (optional): Minimum score (for min_score type)
 

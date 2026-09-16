@@ -226,7 +226,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         unlock_at: str | None = None,
         require_sequential_progress: bool = False,
         prerequisite_module_ids: str | None = None,
-        published: bool = True
+        published: bool = False
     ) -> str:
         """Create a new module in a course.
 
@@ -237,7 +237,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             unlock_at: Unlock date/time (ISO 8601)
             require_sequential_progress: Students must complete items in order
             prerequisite_module_ids: Comma-separated module IDs that must be completed first
-            published: Whether the module is published (default: True)
+            published: Whether the module is published (default: False)
         """
         # Backstop for issue 239: never publish our provenance markers.
         if contains_fence_markers(name):
@@ -469,6 +469,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         page_url: str | None = None,
         external_url: str | None = None,
         new_tab: bool = False,
+        published: bool = False,
         completion_requirement_type: str | None = None,
         completion_requirement_min_score: int | None = None
     ) -> str:
@@ -487,6 +488,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             page_url: URL slug of the page (required for Page type)
             external_url: URL for ExternalUrl items
             new_tab: Open external links in new tab (default: False)
+            published: Whether the module item is published (default: False)
             completion_requirement_type: One of: must_view, must_submit, must_contribute, min_score, must_mark_done
             completion_requirement_min_score: Minimum score (only for min_score type)
         """
@@ -548,6 +550,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         if new_tab:
             item_params["module_item[new_tab]"] = "true"
 
+        item_params["module_item[published]"] = str(published).lower()
+
         # Completion requirements
         if completion_requirement_type:
             valid_completion_types = ["must_view", "must_submit", "must_contribute",
@@ -577,6 +581,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         item_title = response.get("title", title or "Untitled")
         item_position = response.get("position")
         item_indent = response.get("indent", 0)
+        item_published = response.get("published", False)
 
         course_display = await get_course_code(course_id) or course_identifier
         result = "✅ Module item added successfully!\n\n"
@@ -586,6 +591,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         result += f"  Item ID: {item_id}\n"
         result += f"  Type: {item_type}\n"
         result += f"  Position: {item_position}\n"
+        result += f"  Published: {'Yes' if item_published else 'No'}\n"
 
         if item_indent > 0:
             result += f"  Indent: {item_indent}\n"
