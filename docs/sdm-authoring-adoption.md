@@ -95,3 +95,26 @@ The sample `config/sdm-authoring.toml.example` contains this workstation's absol
 ### Pending live verification
 
 Credential entry and a user-selected test course remain pending at this checkpoint. No live Canvas read or write has occurred. Once credentials are available, first verify authentication with a read-only request. Only then run the user-selected assignment/rubric/module pilot, record the exact created IDs, and verify each resulting object. Existing grading records are outside the pilot.
+
+
+## Read-only verification checkpoint — September 15, 2026
+
+The user authorized up to 30 minutes of verification and development with no destructive Canvas operations or publishing. The active Codex entry was narrowed from 20 tools to these nine readers: `list_courses`, `get_course_details`, `list_assignments`, `get_assignment_details`, `list_rubrics`, `get_rubric`, `list_modules`, `list_module_items`, and `get_course_structure`. The full authoring example remains available for later explicit use; `config/sdm-readonly.toml.example` records the currently active list. No server API implementation was changed.
+
+Observed live result: the local credential exists and is readable from macOS Keychain. Two diagnostic `GET /api/v1/users/self/profile` requests received **HTTP 401**. The second classified the response without printing its contents: Canvas explicitly reported an invalid access token, with no insufficient-scope or expiry indication detected. Checks stopped before course enumeration. This establishes rejection of that credential for the configured website; it does not distinguish a revoked, mistyped, or wrong-site token. No replacement credential is assumed valid without a successful check.
+
+The actual configured Keychain-backed launcher also completed a stdio MCP handshake with network access denied. All nine configured tools exist and advertise read-only behavior; generic TypeScript execution is absent. This verifies local launch/tool discovery, not successful Canvas authentication.
+
+Setup improvements:
+
+- Clearly distinguish the example website from a saved/default website.
+- Allow Return to keep an explicitly displayed saved website; retry invalid or empty input when no default exists.
+- Verify a replacement token using exactly one GET with redirects disabled before saving it. Rejected credentials leave the previous Keychain entry and connection settings unchanged.
+- Show redacted authentication errors and keep the setup window open so the operator can read them.
+- Add `--verify` for a deliberate read-only authentication check; `--check` still checks only local credential availability.
+
+Validation: **1,567 passed, 21 skipped in 7.98 seconds** in the full suite with network denied and dummy credentials. The 25 launcher tests cover single-GET authentication, failed-response redaction, input retries, and preservation of existing credentials when a replacement is rejected. Ruff and diff checks passed.
+
+Current course impact: **no content creation, editing, deletion, grading, module changes, or publishing**. The initial probe did not reach course data. Manual setup validation also uses GET only. The improved local setup window was reopened; a corrected credential must be accepted before continuing live reader checks.
+
+The backup before enabling this read-only list is `~/.codex/config.toml.before-canvas-readonly-20260916T0017`. A future authorized authoring session can restore the full 20-tool list after verifying the exact intended course and operation.

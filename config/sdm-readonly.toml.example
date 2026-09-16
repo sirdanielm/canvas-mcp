@@ -1,0 +1,9 @@
+[mcp_servers.canvas-authoring]
+command = "/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring/.venv/bin/python"
+args = ["/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring/scripts/sdm_canvas_launcher.py"]
+cwd = "/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring"
+enabled = true
+required = false
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+enabled_tools = ["list_courses", "get_course_details", "list_assignments", "get_assignment_details", "list_rubrics", "get_rubric", "list_modules", "list_module_items", "get_course_structure"]

@@ -91,3 +91,95 @@ def test_keychain_error_is_redacted(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "dummy-sensitive-error" not in captured.err
     assert not captured.out
+
+
+def test_authentication_uses_one_get_without_redirects(monkeypatch):
+    response = Mock(status_code=200)
+    response.json.return_value = {"id": 42, "name": "not printed"}
+    request = Mock(return_value=response)
+    monkeypatch.setattr(launcher.httpx, "get", request)
+    launcher.verify_credentials("https://school.example", "dummy-secret")
+    request.assert_called_once_with(
+        "https://school.example/api/v1/users/self/profile",
+        headers={
+            "Authorization": "Bearer dummy-secret",
+            "User-Agent": "sdm-canvas-authoring/1.0",
+        },
+        timeout=15,
+        follow_redirects=False,
+    )
+
+
+@pytest.mark.parametrize("status", [401, 403, 302, 500])
+def test_authentication_failure_does_not_expose_response(monkeypatch, status):
+    response = Mock(status_code=status, text="dummy-sensitive-response")
+    request = Mock(return_value=response)
+    monkeypatch.setattr(launcher.httpx, "get", request)
+    with pytest.raises(launcher.ConnectionCheckError) as error:
+        launcher.verify_credentials("https://school.example", "dummy-secret")
+    assert str(status) in str(error.value)
+    assert "dummy-sensitive-response" not in str(error.value)
+    assert "dummy-secret" not in str(error.value)
+    request.assert_called_once()
+
+
+@pytest.mark.parametrize("profile", [{}, [], {"unexpected": True}])
+def test_non_canvas_response_is_rejected(monkeypatch, profile):
+    response = Mock(status_code=200)
+    response.json.return_value = profile
+    monkeypatch.setattr(launcher.httpx, "get", Mock(return_value=response))
+    with pytest.raises(launcher.ConnectionCheckError):
+        launcher.verify_credentials("https://school.example", "dummy-secret")
+
+
+def test_setup_retries_blank_website_and_verifies_before_saving(monkeypatch, capsys):
+    monkeypatch.setattr(launcher.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(
+        launcher, "read_connection", Mock(side_effect=FileNotFoundError)
+    )
+    answers = iter(["", "https://school.example"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    monkeypatch.setattr(launcher.getpass, "getpass", lambda _: "dummy-secret")
+    operations = Mock()
+    monkeypatch.setattr(launcher, "verify_credentials", operations.verify)
+    monkeypatch.setattr(launcher, "save_connection", operations.save)
+    assert launcher.setup_connection() == 0
+    assert [call[0] for call in operations.mock_calls] == ["verify", "save"]
+    assert "dummy-secret" not in capsys.readouterr().out
+
+
+def test_rejected_replacement_preserves_existing_credential(monkeypatch, capsys):
+    monkeypatch.setattr(launcher.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(launcher, "read_connection", lambda: "https://school.example")
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    monkeypatch.setattr(launcher.getpass, "getpass", lambda _: "dummy-secret")
+    verify = Mock(
+        side_effect=launcher.ConnectionCheckError(
+            "Canvas rejected the token (HTTP 401)."
+        )
+    )
+    save = Mock()
+    monkeypatch.setattr(launcher, "verify_credentials", verify)
+    monkeypatch.setattr(launcher, "save_connection", save)
+    assert launcher.setup_connection() == 1
+    verify.assert_called_once_with("https://school.example", "dummy-secret")
+    save.assert_not_called()
+    result = capsys.readouterr()
+    assert "not saved" in result.err
+    assert "dummy-secret" not in result.err + result.out
+
+
+def test_network_failure_is_redacted(monkeypatch):
+    request = Mock(side_effect=launcher.httpx.ConnectError("dummy-sensitive-error"))
+    monkeypatch.setattr(launcher.httpx, "get", request)
+    with pytest.raises(launcher.ConnectionCheckError) as error:
+        launcher.verify_credentials("https://school.example", "dummy-secret")
+    assert "dummy-sensitive-error" not in str(error.value)
+
+
+def test_invalid_token_does_not_make_a_request(monkeypatch):
+    request = Mock()
+    monkeypatch.setattr(launcher.httpx, "get", request)
+    with pytest.raises(launcher.ConnectionCheckError):
+        launcher.verify_credentials("https://school.example", "")
+    request.assert_not_called()
