@@ -46,6 +46,7 @@ Issues = "https://github.com/vishalsachdev/canvas-mcp/issues"
 canvas-mcp-server = "canvas_mcp.server:main"
 
 [project.optional-dependencies]
+local-keychain = ["keyring>=25.7,<26"]
 hosted = [
     "azure-data-tables>=12.5.0",
     "azure-communication-email>=1.0.0",

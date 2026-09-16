@@ -15,8 +15,9 @@ The user does not need in-place rubric editing. Remove the proposed custom `upda
 - Main clone: `/Users/sdm/coding projects/repos/canvas-mcp`
 - Working checkout: `/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring`
 - Working branch: `feature/sdm-authoring`
-- Remote `upstream` points to the original project. No personal GitHub fork or `origin` remote has been created.
-- Preferred remote setup: create a GitHub fork of upstream, then add that fork as `origin`. Preserve upstream history and the MIT license. A blank repository is unnecessary.
+- Remote `upstream` points to the original project.
+- Personal fork and remote `origin`: https://github.com/sirdanielm/canvas-mcp
+- Preserve upstream history and the MIT license when taking updates.
 
 ## Rubric workflow
 
@@ -47,7 +48,7 @@ Sources:
 
 No new rubric-edit tool, rubric-delete tool, grading integration, paid model calls, remote publication or live Canvas operation is part of this setup branch.
 
-## Checkpoint
+## Initial baseline checkpoint
 
 Local repository and branch prepared. Locked runtime and development dependencies installed into the worktree's ignored `.venv` using Python 3.12.14 and `uv sync --frozen --group dev`. The upstream application code and lockfile are unchanged.
 
@@ -56,3 +57,41 @@ Validation: the full Python test suite completed with **1,542 passed, 21 skipped
 The server has not been connected to Canvas or installed into an MCP client. No real credentials, course IDs or student data were used. No changes were made to GrAss or sdmGrAss.
 
 Estimated remaining work: 30–60 minutes for MCP client setup/tool selection and an authorized test-course pilot if credentials and a suitable test course are available. No rubric-editor development estimate applies to this scope.
+
+
+## Local integration checkpoint — September 15, 2026
+
+The existing server is installed in Codex as `canvas-authoring`. Its configuration exposes 20 course-content, assignment, rubric and module tools. Grading, messaging, enrollment and generic code-execution tools are not exposed through this Codex entry. The server itself retains its upstream educator profile; this is a client tool allowlist, not a change to Canvas account permissions.
+
+- Added a small macOS Keychain launcher and an interactive setup entry point; no upstream API tool implementations were changed.
+- Declared `local-keychain` as an optional dependency. The dependency versions in the lockfile were preserved.
+- `codex mcp get canvas-authoring --json` verifies the installed configuration and exact tool allowlist. There are no tokens in its arguments, environment table or config example.
+- Full offline suite after launcher changes: **1,555 passed, 21 skipped in 8.54 seconds**. Ruff passed for the new Python files, and `git diff --check` passed.
+- An actual stdio MCP handshake initialized `canvas-api` and found all 20 configured tools. The upstream educator server registered 91 tools; general TypeScript execution was absent. Network access was denied throughout this probe, and it made no Canvas API calls.
+- Previous Codex configuration was backed up to `~/.codex/config.toml.before-canvas-20260915T2358`; all other parsed configuration was verified unchanged.
+
+### Finish credential setup
+
+Open `scripts/Setup Canvas Connection.command`. It asks for the Canvas HTTPS home URL and uses hidden terminal input for the token. The token is stored with the native macOS Keychain backend under service `sdm.canvas-authoring`, keyed by the Canvas origin. The only disk setting is the non-secret origin in `~/.config/canvas-authoring/connection.json`; neither the token nor connection file is added to Git.
+
+The setup helper never sends the token to chat, passes it as a command-line argument, or falls back to a plaintext keyring. On startup it retrieves the token in-process and supplies it to the upstream server's environment. Dotenv loading and general TypeScript execution are disabled by the launcher. A missing credential fails startup with a short redacted error.
+
+After saving the credential, this command verifies local credential availability without making an API call:
+
+```sh
+.venv/bin/python scripts/sdm_canvas_launcher.py --check
+```
+
+Start a fresh Codex session so it loads the newly added MCP configuration. If the desktop app does not refresh the server entry, restart the app. Authentication and test-course behavior still need live verification; successful offline startup is not evidence of a working Canvas token.
+
+For a fresh local checkout, install with:
+
+```sh
+uv sync --frozen --group dev --extra local-keychain
+```
+
+The sample `config/sdm-authoring.toml.example` contains this workstation's absolute paths; adapt them when using a different checkout. The token is never part of that sample.
+
+### Pending live verification
+
+Credential entry and a user-selected test course remain pending at this checkpoint. No live Canvas read or write has occurred. Once credentials are available, first verify authentication with a read-only request. Only then run the user-selected assignment/rubric/module pilot, record the exact created IDs, and verify each resulting object. Existing grading records are outside the pilot.
