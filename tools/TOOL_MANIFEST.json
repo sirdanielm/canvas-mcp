@@ -1124,6 +1124,13 @@
           "description": "Open external links in new tab (default: False)"
         },
         {
+          "name": "published",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Whether the module item is published (default: False)"
+        },
+        {
           "name": "completion_requirement_type",
           "type": "string",
           "required": false,
@@ -1445,8 +1452,8 @@
           "name": "published",
           "type": "boolean",
           "required": false,
-          "default": true,
-          "description": "Whether the module is published (default: True)"
+          "default": false,
+          "description": "Whether the module is published (default: False)"
         }
       ],
       "returns": "Created module details including ID, name, and position",

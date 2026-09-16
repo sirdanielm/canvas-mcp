@@ -1,12 +1,14 @@
 # SDM Canvas authoring adoption
 
-Date: September 15, 2026
+Date: September 15–16, 2026
 
 ## Decision
 
 Use this upstream Canvas MCP implementation as a standalone local service. Keep its Python dependencies, release history and upstream updates separate from the Apps Script grading projects GrAss and sdmGrAss. The existing grading repositories were inspected and left unchanged.
 
 The user does not need in-place rubric editing. Remove the proposed custom `update_rubric` feature from the adoption scope. Start with the existing assignment, module, `create_rubric` and `associate_rubric` tools.
+
+The production operating contract is documented in [SDM Canvas authoring workflow](sdm-canvas-authoring-workflow.md). It records the publication boundary, draft assignment workflow, embedded rubric standard, module safety sequence and readback requirements established during the first live curriculum-authoring rollout.
 
 ## Repository state
 
@@ -118,3 +120,18 @@ Validation: **1,567 passed, 21 skipped in 7.98 seconds** in the full suite with 
 Current course impact: **no content creation, editing, deletion, grading, module changes, or publishing**. The initial probe did not reach course data. Manual setup validation also uses GET only. The improved local setup window was reopened; a corrected credential must be accepted before continuing live reader checks.
 
 The backup before enabling this read-only list is `~/.codex/config.toml.before-canvas-readonly-20260916T0017`. A future authorized authoring session can restore the full 20-tool list after verifying the exact intended course and operation.
+
+## Live authoring checkpoint — September 16, 2026
+
+Authentication and the selected authoring tools were subsequently verified against the intended Canvas courses. The first controlled rollout created and revised unpublished assignment drafts, updated assignment-description HTML, managed native rubric associations under explicit authorization, and built Core and Advanced course modules. Publication was limited to the exact items authorized by the teacher.
+
+The rollout established these operational rules:
+
+- Canvas `points_possible` is the authority for rubric totals.
+- New drafts use `published=false` and temporary `on_paper` submission mode. The teacher initializes Google Assignments LTI in Canvas.
+- Student-facing rubrics normally live as styled HTML tables in assignment descriptions. Canvas-native rubric associations are omitted unless explicitly requested.
+- Description-only edits pass only the `description` field and require before/after metadata verification.
+- Publishing a populated module can change child visibility. Module, module-item and linked-assignment publication states must be verified independently.
+- Course-specific labels use A/B block codes such as `A13/B13 slides`.
+
+No student submissions, grades or messages were accessed through this curriculum-authoring connection. Exact course and assignment IDs remain in local audit receipts rather than public repository documentation.

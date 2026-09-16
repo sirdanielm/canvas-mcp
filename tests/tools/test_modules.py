@@ -188,6 +188,9 @@ class TestCreateModule:
         assert "New Module" in result
         assert "12348" in result
 
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assert ("module[published]", "false") in call_args.kwargs["data"]
+
     @pytest.mark.asyncio
     async def test_create_module_with_options(self, mock_canvas_api):
         """Test module creation with all options."""
@@ -336,6 +339,31 @@ class TestAddModuleItem:
 
         assert "successfully" in result
         assert "Assignment" in result
+
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assert call_args.kwargs["data"]["module_item[published]"] == "false"
+
+    @pytest.mark.asyncio
+    async def test_add_published_item_explicitly(self, mock_canvas_api):
+        """Test that callers must explicitly opt in to item publication."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 55010,
+            "title": "Released Assignment",
+            "type": "Assignment",
+            "position": 4,
+            "indent": 0,
+            "content_id": 98765,
+            "published": True,
+        }
+
+        add_module_item = get_tool_function('add_module_item')
+        result = await add_module_item(
+            "60366", 12345, "Assignment", content_id=98765, published=True
+        )
+
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assert call_args.kwargs["data"]["module_item[published]"] == "true"
+        assert "Published: Yes" in result
 
     @pytest.mark.asyncio
     async def test_add_item_missing_content_id(self, mock_canvas_api):
