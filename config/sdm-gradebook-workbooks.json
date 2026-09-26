@@ -1,0 +1,34 @@
+{
+  "core": {
+    "label": "Core",
+    "course_id": "363308",
+    "spreadsheet_id": "13ps0FZLBj2qpclMNKo7Eb95kE4Sb_fgf9s7Ki2_KoNc",
+    "sheets": {
+      "Canvas": 2026092101,
+      "Working": 2026092102,
+      "_Sync": 2026092103
+    },
+    "tab_names": {
+      "Canvas": "Core GET",
+      "Working": "Core Edit",
+      "_Sync": "_Core Sync"
+    },
+    "working_protection_id": 2026092120
+  },
+  "advanced": {
+    "label": "Advanced",
+    "course_id": "374070",
+    "spreadsheet_id": "13ps0FZLBj2qpclMNKo7Eb95kE4Sb_fgf9s7Ki2_KoNc",
+    "sheets": {
+      "Canvas": 2026092104,
+      "Working": 2026092105,
+      "_Sync": 2026092106
+    },
+    "tab_names": {
+      "Canvas": "Adv GET",
+      "Working": "Adv Edit",
+      "_Sync": "_Adv Sync"
+    },
+    "working_protection_id": 2026092121
+  }
+}

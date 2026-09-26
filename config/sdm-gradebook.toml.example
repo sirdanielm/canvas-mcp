@@ -1,0 +1,9 @@
+[mcp_servers.canvas-gradebook]
+command = "/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring/.venv/bin/python"
+args = ["/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring/scripts/sdm_gradebook_launcher.py"]
+cwd = "/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring"
+enabled = true
+required = false
+startup_timeout_sec = 20
+tool_timeout_sec = 180
+enabled_tools = ["get_canvas_gradebook", "preview_gradebook_changes", "prepare_gradebook_refresh", "verify_gradebook_refresh", "prepare_gradebook_push", "get_gradebook_push_status", "reconcile_gradebook_push"]

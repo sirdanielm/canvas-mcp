@@ -20,8 +20,51 @@ No student data is stored in that configuration or in Git.
 Ask Codex to **refresh both Canvas gradebooks** or **preview the changes in my
 Core gradebook**. The workflow uses the Canvas gradebook MCP together with the
 connected Google Drive tools. It currently needs the agent to perform that
-exchange; there is no Apps Script menu, background poller, or direct Google
-credential in the Canvas server.
+exchange; there is no supported Apps Script refresh menu, background poller,
+or direct Google credential in the Canvas server. A legacy **GrAss Submissions**
+menu can still appear in the main workbook; it does not refresh these grade tabs.
+
+### Legacy GET menu error
+
+If **GrAss Submissions → Snapshot submissions (GET only)** reports
+`Submission snapshot stopped: submission_output_unowned_preserved`, do not
+clear ownership properties or run **Set up central workbench** to force it past
+the guard. The main workbook's bound project is still **GrAss Submission
+Workbench**. Its `snapshotGrAssSubmissions()` handler runs the standalone
+submission-workbench runtime, which requires its own output sheets and ownership
+records. Those sheets are absent from the current six-visible-tab gradebook.
+The runtime stops while capturing output ownership, before fetching Canvas or
+replacing outputs. This is a stale menu/layout mismatch, not evidence of an
+expired Canvas credential.
+
+Use the agent refresh protocol below for this workbook. A permanent one-click
+GET feature requires a controller for the current gradebook layout; removing the
+legacy guard is not a repair. Before installing that controller, preserve the
+bound project's source and verify these requirements:
+
+- Exact workbook, course, and sheet-ID bindings; no sheet creation or adoption
+  merely because a name matches.
+- Complete Canvas GET pagination and course/permission checks, with no Canvas
+  write transport.
+- Stable student and assignment IDs, literal values, submission notes, status
+  colors, and protected mirror sheets.
+- Preservation of pending Edit proposals and their original trusted baselines,
+  including continued compatibility with the local push-preview parser.
+- No changes to Student Info or Assignment, an execution lock, a fresh-input
+  check before writing, and complete readback after one atomic Sheets update.
+
+The local workflow stores immutable baselines outside Apps Script. A menu
+controller must explicitly integrate with that store or introduce and validate
+a compatible baseline handoff; it must not silently replace `_Sync!B2` with an
+unavailable or untrusted snapshot.
+
+On September 23, 2026, the legacy menu and its handler were verified in the
+live bound script. An agent-assisted refresh at 10:17 PM EDT then read back
+successfully for 120 Core students and 51 Advanced students, with 17 published
+graded assignments per course and zero pending edits. Student Info and
+Assignment values were unchanged. Both private refresh receipts reported zero
+Canvas writes. The bound script was inspected, not replaced; the menu repair
+remains outstanding.
 
 For each course, the two grade tabs behave as follows:
 

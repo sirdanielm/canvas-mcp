@@ -58,6 +58,7 @@ show_student_mappings.py
 
 # Local de-anonymization maps (contains PII)
 local_maps/
+local_gradebooks/
 docs/hybrid_builder_launch.md
 
 # Internal planning/tracking files
