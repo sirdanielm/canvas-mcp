@@ -29,8 +29,8 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 ```
 # In .env:
 CANVAS_ROLE=student    # ~37 tools (student + shared)
-CANVAS_ROLE=educator   # 91 tools (educator + shared)
-CANVAS_ROLE=all        # Default profile; 97 tools by default, 102 with all feature-gated tools enabled
+CANVAS_ROLE=educator   # 92 tools (educator + shared)
+CANVAS_ROLE=all        # Default profile; 98 tools by default, 103 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -98,6 +98,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |
 | `create_rubric` | Create rubric with criteria, ratings, and optional assignment association |
+| `update_rubric` | Safely replace rubric text/points while preserving every criterion/rating ID; two-step preview and confirmation |
 | `create_rubric_from_csv` | Create rubric(s) from a CSV string. Requires a `Rubric Name` column; imported rubrics are `Draft` and do **not** appear in `list_rubrics` |
 | `associate_rubric` | Associate existing rubric with an assignment |
 | `grade_with_rubric` | Grade single submission with rubric |
@@ -324,7 +325,7 @@ usual cause).
 - Submit grades with or without rubrics
 - Send Canvas messages and announcements
 - Create rubrics programmatically with defined criteria and ratings
-- Use existing rubrics for grading (edit rubrics via Canvas UI if needed)
+- Edit rubric text and points with `update_rubric` (structural changes via Canvas UI)
 - Analyze peer review completion
 - Execute TypeScript for bulk operations
 - Access student data (with optional identity anonymization controls)
@@ -342,11 +343,11 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 
 | Tool | Issue | Workaround |
 |------|-------|------------|
-| `update_rubric` | Partial updates wipe all criteria (full replacement, not PATCH) | Edit rubrics via Canvas web UI |
+| `update_rubric` | Canvas performs full replacement, not PATCH | Supply the complete existing ID-keyed criteria/rating set; the tool rejects structural additions/removals and requires preview + confirmation |
 
-**Working rubric tools:** `create_rubric`, `list_rubrics`, `get_rubric`, `get_rubric_assessment`, `associate_rubric`, `grade_with_rubric`, `bulk_grade_submissions`
+**Working rubric tools:** `create_rubric`, `update_rubric`, `list_rubrics`, `get_rubric`, `get_rubric_assessment`, `associate_rubric`, `grade_with_rubric`, `bulk_grade_submissions`
 
-**Rubric workflow:** Use `create_rubric` to create rubrics programmatically. Edit rubrics via Canvas UI when needed, then use `associate_rubric` to link them to assignments.
+**Rubric workflow:** Use `create_rubric` for new rubrics. Before calling `update_rubric`, fetch the rubric and preserve every criterion ID, rating ID, and the exact rubric-association ID. Show the returned preview to the educator, then confirm with the single-use token. Structural additions/removals still belong in the Canvas UI.
 
 ### Data Access Rules
 | User Type | Can Access |
@@ -364,9 +365,9 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 
 ### Recommendations
 - Use `bulk_grade_submissions` with `max_concurrent: 5` for grading
-- Add `rate_limit_delay: 1000` (1 second) between batches
-- Use `execute_typescript` for operations on 30+ items
-- Always use `dry_run: true` first for bulk operations
+- `rate_limit_delay` is seconds between batches (default `1.0`)
+- `execute_typescript` (only if the operator enabled it) suits 30+ items needing custom per-item logic; it has no preview/confirm step, so get explicit approval first
+- `bulk_grade_submissions` and `fix_accessibility_issues` take `dry_run`; bulk deletes and multi-recipient sends preview on the first call and act only on a second call with the returned `confirmation_token`
 
 ## Error Handling
 
