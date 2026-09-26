@@ -592,6 +592,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 - **[Tool Documentation](tools/README.md)** — Reference for the available tools, including optional feature-gated tools
 - **[SDM Canvas Authoring Workflow](docs/sdm-canvas-authoring-workflow.md)** — Local MCP-to-Canvas safety, formatting, module, and verification practices
 - **[SDM Canvas Gradebooks](docs/sdm-gradebook-workflow.md)** — Protected GET/Edit workbook pairs, verified read-only refreshes, and an explicit reviewed Canvas-push boundary
+- **[SDM Local Course Mirror](docs/course-mirror.md)** — GET-only course-content snapshots, deterministic QC, link inventory, and offline change proposals
 - **[Student Guide](https://canvas-mcp.illinihunt.org/student-guide.html)** — Getting started as a student
 - **[Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html)** — FERPA considerations and educator workflows
 - **[Bulk Grading Example](examples/bulk_grading_example.md)** — Batch grading walkthrough
