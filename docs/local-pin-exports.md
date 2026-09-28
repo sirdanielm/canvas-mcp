@@ -2,16 +2,19 @@
 
 Every supported local gradebook export ingested for archiving runs through this explicit command. This is automatic within the ingest action; there is no folder watcher, timer, or background access. Existing working files and live Sheets remain unchanged.
 
-Install the local dependency with `python -m pip install -e '.[local-exports]'`. Then create a private archive directory outside Git (permissions `0700`) and run:
+Use Python 3.11 or newer (the CLI refuses older interpreters before reading exports). Install the local dependency with `python -m pip install -e '.[local-exports]'`. Then create a private archive directory outside Git (permissions `0700`) and run:
 
 ```sh
 python scripts/pseudonymize_gradebook_export.py ingest \
   --source /absolute/private/export.xlsx \
-  --central-roster /absolute/private/central-gradebook.xlsx \
   --output /absolute/private-archive/export-pins.xlsx
 ```
 
-CSV uses the same command with `.csv` source/output. The authoritative roster must be an XLSX export of the exact central gradebook. The command reads `Student Info` or `Student Numbers`; if both exist, choose the exact one with `--roster-sheet`. It requires existing four-digit **text** Student Number values. It never creates, renumbers, pads, or guesses PINs. Canvas Name, IC Name, Roster Name, Student Name, and Email aliases are matched exactly. Ambiguous names require other matching row evidence; conflicting or unknown identity cells stop the export. Canonical GET/Edit name-plus-section labels are resolved using the exact name component, then the entire label is replaced by its PIN.
+CSV uses the same command with `.csv` source/output. The CLI always uses the shared source registry at `~/QuinnOperator/config/student-pin-source.json`, or an explicit operator-reviewed `--source-registry`. Its roster path and exact SHA-256 must validate through the shared LocalGrAss `binding()` and `roster_index()` implementation. Arbitrary `--central-roster` substitution is not accepted; the current contract requires `Student Info`.
+
+The shared implementation is discovered in the canonical sibling `LocalGrAss-github`, including when this renderer runs in a Git worktree. `--shared-pin-tool /absolute/LocalGrAss-github/scripts/export-student-pins.py` can select an explicit installation. Missing implementation, invalid registry, changed roster hash or rejected mapping stops before an archive is created. This renderer does not initialize a Canvas server or contact services.
+
+Every PIN comes from that shared validated index. Original roster spellings are retained only for exact substitution in the private whole-workbook renderer. Existing four-digit text PINs retain leading zeros; none are created, padded or renumbered. Conflicting or unknown identity cells stop the export. Canonical GET/Edit name-plus-section labels use the exact name component and replace the entire label. Whole-workbook archives remain operator-private and are not Quinn library admissions; the shared table exporter remains the path for explicitly selected, allowlisted `student_pin` JSON tables.
 
 For each populated identity row, the entire recognized name and email columns become the same PIN, including previously blank identity cells. Existing PIN text retains leading zeros. Hidden sheets are included. Known identity references elsewhere (including embedded JSON) are replaced exactly; unknown emails and ambiguous references stop the export. Source comments, hyperlinks, metadata, defined names, validation lists and formatting are omitted from the rebuilt values-only XLSX. Nonempty drawings, media, macros, external workbooks, embedded objects, oversized files and formulas without cached values are unsupported and stop the export. CSV formula-like cells also stop the export. No successful output exists after a validation hold.
 

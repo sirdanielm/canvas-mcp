@@ -8,15 +8,18 @@ from __future__ import annotations
 import csv
 import hashlib
 import html
+import importlib.util
 import io
 import json
 import os
 import re
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 from urllib.parse import unquote
 from zipfile import ZipFile
@@ -294,7 +297,14 @@ def replace_columns(
 
 
 def sanitize_export(
-    source: Path, central_roster: Path, output: Path, roster_sheet: str | None = None
+    source: Path,
+    central_roster: Path,
+    output: Path,
+    roster_sheet: str | None = None,
+    *,
+    verified_mapping: tuple[dict[str, set[str]], set[str]] | None = None,
+    expected_roster_hash: str | None = None,
+    authority_check: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     source, central_roster, output = map(Path, (source, central_roster, output))
     require(
@@ -325,7 +335,15 @@ def sanitize_export(
         "FORMAT_NOT_SUPPORTED",
     )
     before, roster_before = fingerprint(source), fingerprint(central_roster)
-    aliases, pins = roster_mapping(central_roster, roster_sheet)
+    require(
+        expected_roster_hash is None or expected_roster_hash == roster_before,
+        "SHARED_PIN_ROSTER_CHANGED",
+    )
+    aliases, pins = (
+        verified_mapping
+        if verified_mapping is not None
+        else roster_mapping(central_roster, roster_sheet)
+    )
     sanitize = text_sanitizer(aliases)
     count = 0
     if source.suffix.lower() == ".csv":
@@ -407,6 +425,8 @@ def sanitize_export(
         fingerprint(source) == before and fingerprint(central_roster) == roster_before,
         "INPUT_CHANGED",
     )
+    if authority_check is not None:
+        authority_check()
     require(output.parent.is_dir(), "OUTPUT_DIRECTORY_REQUIRED")
     fd, temporary = tempfile.mkstemp(prefix=".pin-export-", dir=output.parent)
     try:
@@ -414,6 +434,8 @@ def sanitize_export(
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
+        if authority_check is not None:
+            authority_check()
         os.link(temporary, output)  # Exclusive creation; never overwrite an archive.
     finally:
         Path(temporary).unlink(missing_ok=True)
@@ -426,3 +448,131 @@ def sanitize_export(
         "originals_preserved": True,
         "live_calls": 0,
     }
+
+
+def default_shared_pin_tool(repository: Path) -> Path:
+    """Resolve the canonical sibling even when this renderer runs in a worktree."""
+    marker = repository / ".git"
+    canonical = repository
+    if marker.is_file():
+        text = marker.read_text(encoding="utf-8").strip()
+        require(text.startswith("gitdir: "), "GIT_WORKTREE_METADATA_INVALID")
+        gitdir = (repository / text[8:]).resolve()
+        common = gitdir / "commondir"
+        require(common.is_file(), "GIT_WORKTREE_METADATA_INVALID")
+        canonical = (
+            (gitdir / common.read_text(encoding="utf-8").strip()).resolve().parent
+        )
+    return canonical.parent / "LocalGrAss-github" / "scripts" / "export-student-pins.py"
+
+
+def load_shared_pin_module(tool: Path) -> ModuleType:
+    require(
+        tool.is_absolute() and tool.is_file() and not tool.is_symlink(),
+        "SHARED_PIN_TOOL_UNAVAILABLE",
+    )
+    package = tool.parent.parent / "localgrass"
+    require(
+        (package / "__init__.py").is_file() and (package / "student_pin.py").is_file(),
+        "SHARED_PIN_TOOL_UNAVAILABLE",
+    )
+    namespace = (
+        "_grass_shared_pins_" + hashlib.sha256(str(package).encode()).hexdigest()[:16]
+    )
+    spec = importlib.util.spec_from_file_location(
+        namespace, package / "__init__.py", submodule_search_locations=[str(package)]
+    )
+    require(spec is not None and spec.loader is not None, "SHARED_PIN_TOOL_UNAVAILABLE")
+    assert spec is not None and spec.loader is not None
+    loaded_package = importlib.util.module_from_spec(spec)
+    sys.modules[namespace] = loaded_package
+    spec.loader.exec_module(loaded_package)
+    spec = importlib.util.spec_from_file_location(
+        namespace + ".student_pin", package / "student_pin.py"
+    )
+    require(spec is not None and spec.loader is not None, "SHARED_PIN_TOOL_UNAVAILABLE")
+    assert spec is not None and spec.loader is not None
+    shared = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = shared
+    spec.loader.exec_module(shared)
+    require(
+        all(
+            callable(getattr(shared, name, None))
+            for name in ("binding", "read_table", "roster_index")
+        ),
+        "SHARED_PIN_CONTRACT_UNAVAILABLE",
+    )
+    return shared
+
+
+def registry_bound_export(
+    source: Path, output: Path, registry_path: Path, shared_tool: Path
+) -> dict[str, Any]:
+    """Use the shared authority/index; this module only renders a private archive."""
+    shared = load_shared_pin_module(shared_tool)
+    require(registry_path.is_absolute(), "ABSOLUTE_PATH_REQUIRED")
+    registry_before = fingerprint(registry_path)
+    try:
+        registry, roster, raw, registry_hash = shared.binding(registry_path)
+        require(
+            registry.get("roster_sheet") == "Student Info",
+            "CURRENT_ROSTER_SHEET_REQUIRED",
+        )
+        headers, rows = shared.read_table(roster, raw, registry["roster_sheet"])
+        index, names = shared.roster_index(headers, rows, registry)
+    except ExportHeld:
+        raise
+    except Exception as error:
+        raise ExportHeld("SHARED_PIN_AUTHORITY_REJECTED") from error
+    require(
+        registry_hash == registry_before
+        and fingerprint(registry_path) == registry_before,
+        "SHARED_PIN_REGISTRY_CHANGED",
+    )
+    require(
+        fingerprint(roster) == registry["roster_sha256"], "SHARED_PIN_ROSTER_CHANGED"
+    )
+    # Retain original spellings for exact substitution, obtaining every PIN
+    # from the shared index. No second assignment/normalization policy here.
+    aliases: dict[str, set[str]] = defaultdict(set)
+    for row in rows:
+        if not any(value is not None and str(value).strip() for value in row.values()):
+            continue
+        email = row[registry.get("email_column", "Email")]
+        require(isinstance(email, str), "SHARED_PIN_MAPPING_INVALID")
+        pin = index[email.strip().casefold()]
+        require(
+            isinstance(pin, str) and PIN.fullmatch(pin), "SHARED_PIN_MAPPING_INVALID"
+        )
+        aliases[email].add(pin)
+        for column in registry.get("name_columns", []):
+            name = row[column]
+            if name in (None, ""):
+                continue
+            require(
+                isinstance(name, str)
+                and pin in names.get(name.strip().casefold(), set()),
+                "SHARED_PIN_MAPPING_INVALID",
+            )
+            aliases[name].add(pin)
+
+    def authority_check() -> None:
+        require(
+            fingerprint(registry_path) == registry_hash, "SHARED_PIN_REGISTRY_CHANGED"
+        )
+        require(
+            fingerprint(roster) == registry["roster_sha256"],
+            "SHARED_PIN_ROSTER_CHANGED",
+        )
+
+    result = sanitize_export(
+        source,
+        roster,
+        output,
+        registry["roster_sheet"],
+        verified_mapping=(dict(aliases), set(index.values())),
+        expected_roster_hash=registry["roster_sha256"],
+        authority_check=authority_check,
+    )
+    result.update(registry_sha256=registry_hash, shared_pin_authority=True)
+    return result

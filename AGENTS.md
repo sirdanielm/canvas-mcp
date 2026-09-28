@@ -473,8 +473,9 @@ For LinkedIn posts: prepare the text, optionally paste it into the composer, the
 
 For local classroom spreadsheet analysis and archival work, automatically run
 `scripts/pseudonymize_gradebook_export.py ingest` on each authorized export before
-using the archival copy. Use a freshly verified export of the central gradebook's
-Student Info or Student Numbers roster as the exact PIN authority. Replace whole
+using the archival copy. Use the shared registry-bound central gradebook
+Student Info mapping through LocalGrAss's existing binding and index; do not
+select an independent roster or use the historical Student Numbers layout. Replace whole
 student-name and student-email columns with that student's four-digit text PIN;
 preserve leading zeros and never invent, renumber, or guess a match. A missing or
 conflicting mapping stops archival processing.
@@ -484,3 +485,6 @@ values-only copy is private pseudonymous student data, not a public artifact or
 a workbook to feed back into gradebook refresh or publication. This ingest step
 does not install a folder watcher, alter live Sheets, or authorize Canvas writes.
 See `docs/local-pin-exports.md` for the supported command and validation limits.
+The existing Desktop import/QC shortcuts are the intended integration point;
+automatic fleet PIN copies remain held until the complete workbook batch passes
+the archive checks in `docs/post-qc-pin-archives.md`.

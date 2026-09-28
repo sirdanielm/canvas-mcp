@@ -235,3 +235,132 @@ def test_nested_encoding_beyond_bounded_decoder_is_held():
     clean = module.text_sanitizer({"alpha@example.test": {"0123"}})
     with pytest.raises(module.ExportHeld, match="ENCODING_DEPTH_NOT_SUPPORTED"):
         clean(encoded)
+
+
+@pytest.fixture
+def shared_authority(files, monkeypatch):
+    from types import SimpleNamespace
+
+    root, roster = files
+    registry_path = root / "registry.json"
+    registry = {
+        "roster_sheet": "Student Info",
+        "roster_sha256": module.fingerprint(roster),
+        "roster_path": str(roster),
+        "email_column": "Email",
+        "pin_column": "Student Number",
+        "name_columns": ["Canvas Name", "IC Name"],
+    }
+    registry_path.write_text(json.dumps(registry))
+    calls = []
+
+    def binding(path):
+        calls.append("binding")
+        bound = json.loads(path.read_text())
+        if module.fingerprint(roster) != bound["roster_sha256"]:
+            raise ValueError("synthetic mismatch")
+        return bound, roster, roster.read_bytes(), module.fingerprint(path)
+
+    def read_table(path, raw, sheet):
+        calls.append("read_table")
+        w = load_workbook(path)
+        records = list(w[sheet].values)
+        return list(records[0]), [
+            dict(zip(records[0], r, strict=True)) for r in records[1:]
+        ]
+
+    def roster_index(headers, rows, bound):
+        calls.append("roster_index")
+        index, names = {}, {}
+        for row in rows:
+            pin, email = row["Student Number"], row["Email"]
+            if pin in index.values() or email in index:
+                raise ValueError("synthetic conflict")
+            index[email] = pin
+            for column in bound["name_columns"]:
+                names.setdefault(row[column].casefold(), set()).add(pin)
+        return index, names
+
+    fake = SimpleNamespace(
+        binding=binding, read_table=read_table, roster_index=roster_index
+    )
+    monkeypatch.setattr(module, "load_shared_pin_module", lambda path: fake)
+    return root, roster, registry_path, calls
+
+
+def test_registry_path_reuses_shared_binding_and_index(shared_authority):
+    root, roster, registry, calls = shared_authority
+    result = module.registry_bound_export(
+        roster, root / "archive.xlsx", registry, root / "shared.py"
+    )
+    assert calls == ["binding", "read_table", "roster_index"]
+    assert result["shared_pin_authority"] is True
+    assert result["registry_sha256"] == module.fingerprint(registry)
+    assert load_workbook(root / "archive.xlsx").active["A2"].value == "0123"
+
+
+def test_registry_roster_hash_mismatch_fails_closed(shared_authority):
+    root, roster, registry, _ = shared_authority
+    roster.write_bytes(roster.read_bytes() + b"changed")
+    with pytest.raises(module.ExportHeld, match="SHARED_PIN_AUTHORITY_REJECTED"):
+        module.registry_bound_export(
+            roster, root / "archive.xlsx", registry, root / "shared.py"
+        )
+    assert not (root / "archive.xlsx").exists()
+
+
+def test_shared_mapping_conflict_is_not_replaced_by_local_mapping(shared_authority):
+    root, roster, registry, _ = shared_authority
+    w = load_workbook(roster)
+    w.active["D3"] = "0123"
+    w.save(roster)
+    value = json.loads(registry.read_text())
+    value["roster_sha256"] = module.fingerprint(roster)
+    registry.write_text(json.dumps(value))
+    with pytest.raises(module.ExportHeld, match="SHARED_PIN_AUTHORITY_REJECTED"):
+        module.registry_bound_export(
+            roster, root / "archive.xlsx", registry, root / "shared.py"
+        )
+    assert not (root / "archive.xlsx").exists()
+
+
+def test_missing_shared_implementation_fails_closed(files):
+    root, roster = files
+    with pytest.raises(module.ExportHeld, match="SHARED_PIN_TOOL_UNAVAILABLE"):
+        module.registry_bound_export(
+            roster, root / "archive.xlsx", root / "registry.json", root / "missing.py"
+        )
+    assert not (root / "archive.xlsx").exists()
+
+
+def test_shared_default_resolves_canonical_worktree_sibling(tmp_path):
+    canonical = tmp_path / "repos" / "canvas"
+    gitdir = canonical / ".git" / "worktrees" / "isolated"
+    gitdir.mkdir(parents=True)
+    (gitdir / "commondir").write_text("../..")
+    worktree = tmp_path / "isolated"
+    worktree.mkdir()
+    (worktree / ".git").write_text("gitdir: " + str(gitdir))
+    assert (
+        module.default_shared_pin_tool(worktree)
+        == canonical.parent / "LocalGrAss-github/scripts/export-student-pins.py"
+    )
+
+
+def test_registry_change_during_rendering_prevents_archive(
+    shared_authority, monkeypatch
+):
+    root, roster, registry, _ = shared_authority
+    original_save = Workbook.save
+
+    def changed_registry_save(book, destination):
+        original_save(book, destination)
+        registry.write_text(registry.read_text() + " ")
+
+    monkeypatch.setattr(Workbook, "save", changed_registry_save)
+    with pytest.raises(module.ExportHeld, match="SHARED_PIN_REGISTRY_CHANGED"):
+        module.registry_bound_export(
+            roster, root / "archive.xlsx", registry, root / "shared.py"
+        )
+    assert not (root / "archive.xlsx").exists()
+    assert not list(root.glob(".pin-export-*"))
