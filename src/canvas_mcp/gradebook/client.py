@@ -8,6 +8,9 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
+MAX_SNAPSHOT_ASSIGNMENTS = 100
+SNAPSHOT_TIMEOUT_SECONDS = 120
+
 
 class GradebookError(Exception):
     """Safe operational error: never include Canvas bodies or credentials."""
@@ -102,7 +105,18 @@ class GradebookClient:
         raise GradebookError("Canvas pagination exceeded the safety limit.")
 
     async def snapshot(self, course_id: str) -> dict[str, Any]:
-        from .model import normalize_snapshot
+        try:
+            # One deadline covers discovery, pagination and rate-limit backoff.
+            # Callers save only a returned snapshot, never this partial read.
+            async with asyncio.timeout(SNAPSHOT_TIMEOUT_SECONDS):
+                return await self._snapshot(course_id)
+        except TimeoutError:
+            raise GradebookError(
+                "Canvas snapshot exceeded the time limit; previous snapshot retained."
+            ) from None
+
+    async def _snapshot(self, course_id: str) -> dict[str, Any]:
+        from .model import identifier, normalize_snapshot
 
         if not course_id.isascii() or not course_id.isdecimal():
             raise GradebookError("Course ID must be numeric.")
@@ -130,14 +144,42 @@ class GradebookClient:
             ],
         )
         assignments = await self.pages(root + "/assignments", {"per_page": 100})
-        submissions = await self.pages(
-            root + "/students/submissions",
-            {
-                "per_page": 100,
-                "student_ids[]": "all",
-                "include[]": "visibility",
-            },
-        )
+        assignment_ids: list[str] = []
+        for assignment in assignments:
+            if str(assignment.get("course_id")) != course_id:
+                raise GradebookError("Canvas assignment course identity did not match.")
+            if (
+                assignment.get("published") is not True
+                or assignment.get("grading_type") == "not_graded"
+            ):
+                continue
+            aid = identifier(assignment.get("id"))
+            if aid in assignment_ids:
+                raise GradebookError("Duplicate Canvas assignment in snapshot.")
+            assignment_ids.append(aid)
+        if len(assignment_ids) > MAX_SNAPSHOT_ASSIGNMENTS:
+            raise GradebookError("Canvas snapshot exceeds the assignment safety limit.")
+
+        # The course-wide students/submissions endpoint can report incorrect
+        # visibility. Read complete cells from each exact assignment instead;
+        # never invert false, synthesize true, or merge conflicting endpoints.
+        submissions: list[dict[str, Any]] = []
+        for aid in assignment_ids:
+            records = await self.pages(
+                root + "/assignments/" + aid + "/submissions",
+                {"per_page": 100, "include[]": "visibility"},
+            )
+            seen_users: set[str] = set()
+            for record in records:
+                if identifier(record.get("assignment_id")) != aid:
+                    raise GradebookError(
+                        "Canvas submission assignment identity did not match."
+                    )
+                uid = identifier(record.get("user_id"))
+                if uid in seen_users:
+                    raise GradebookError("Duplicate Canvas submission in snapshot.")
+                seen_users.add(uid)
+            submissions.extend(records)
         return normalize_snapshot(
             self.origin, course, sections, enrollments, assignments, submissions
         )
