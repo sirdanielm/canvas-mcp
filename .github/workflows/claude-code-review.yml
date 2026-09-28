@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   claude-review:
+    # Draft implementation work has no authorization for paid model review.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
