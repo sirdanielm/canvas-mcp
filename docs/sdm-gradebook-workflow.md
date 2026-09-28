@@ -9,11 +9,18 @@ The main workbook is [FDHS Chemistry Gradebook — 2026–2027](https://docs.goo
 5. Student Info
 6. Assignment
 
-The mirror tabs are protected GET-only snapshots. The edit tabs have the same layout, with only score cells editable. Student Info retains all 173 permanent numbers, including two students outside the current active roster; never renumber or recycle them. Assignment contains all 52 Canvas assignments, including those outside the published, graded mirror scope, plus prior IC mappings. Refreshing grade tabs must preserve both reference tabs; reconcile their metadata separately by exact IDs, retaining IC fields and permanent numbers.
+The mirror tabs are protected GET-only snapshots. The edit tabs have the same layout, with only score cells editable. At the September 20, 2026 migration checkpoint, Student Info retained 173 permanent numbers, including two students outside the active roster, and Assignment contained 52 Canvas assignments plus prior IC mappings. Those are historical counts, not configured limits or a live inventory. Never renumber or recycle permanent numbers. Refreshing grade tabs must preserve both reference tabs; reconcile their metadata separately by exact IDs, retaining IC fields and permanent numbers.
 
 `_Core Sync` and `_Adv Sync` are hidden system tabs. Course-specific `tab_names` in the binding file normalize these names to the internal Canvas/Working/_Sync roles. The previous standalone workbooks and the user's [backup](https://docs.google.com/spreadsheets/d/1CKIzzHVaSilKa8Aeo8D9sVsTldblQmRRNGuLBD6pUNQ/edit) remain available. The 36 old tabs were removed from the main workbook only after full replacement readback and backup/student-number checks.
 The course/workbook/sheet bindings are in `config/sdm-gradebook-workbooks.json`.
 No student data is stored in that configuration or in Git.
+
+This workflow contains private student grades and submission-status metadata.
+The separate [GET-only course-content mirror](course-mirror.md) archives course
+materials and structure without rosters, grades, or student submissions. Running
+`scripts/course_mirror.py get` does not refresh this workbook, and fetching a
+gradebook snapshot does not update Google Sheets until the refresh protocol is
+completed.
 
 ## Everyday use
 
@@ -94,7 +101,10 @@ inactive enrollments. Canvas's status colors do not indicate mastery.
 
 ## Available tools
 
-The installed connection exposes seven read-only tools, plus the separately confirmed push tool when enabled:
+The tracked connection template exposes seven tools that do not write Canvas,
+plus the separately confirmed push tool when explicitly enabled. Snapshot,
+review, refresh, and push-preparation tools create private local artifacts;
+push preparation and reconciliation also update the local operation ledger.
 
 | Tool | Result |
 | --- | --- |
@@ -113,14 +123,40 @@ transport follows complete Link pagination, rejects changed pagination
 origins/endpoints, and checks course identity and grade-management permission.
 An incomplete read cannot replace an earlier snapshot.
 
-Install or upgrade the recognized initial two-tool entry:
+### Local setup
+
+The dedicated launcher is specific to macOS and the configured FCPS Core and
+Advanced courses. It accepts `core` or `advanced`; Advisory belongs to the
+content mirror, not this gradebook service. It rejects a saved Canvas origin
+other than `https://fcps.instructure.com` and disables dotenv loading.
+
+For a fresh checkout, install the locked dependencies including native Keychain
+support:
+
+```sh
+uv sync --frozen --group dev --extra local-keychain
+```
+
+Run `scripts/Setup Canvas Connection.command` interactively if credentials are
+not already saved. The shared setup validates the token with one GET and stores
+it in macOS Keychain under service `sdm.canvas-authoring`; only the Canvas origin
+is saved in `~/.config/canvas-authoring/connection.json`. Tokens do not belong in
+tool arguments, workbook cells, or repository files. The gradebook requires
+Canvas to confirm `manage_grades` permission even for its read-only snapshots.
+
+The paths in `config/sdm-gradebook.toml.example` are workstation-specific; review
+them before installing on another checkout. Install a missing entry or upgrade
+the recognized initial two-tool entry:
 
 ```sh
 .venv/bin/python scripts/install_gradebook_connection.py --upgrade
 ```
 
-The installer preserves unrelated settings, saves a private configuration
-backup, and refuses unknown customizations. Reload/reconnect the desktop MCP
+The installer requires an existing configuration file (by default
+`~/.codex/config.toml`; override with `--config`). It preserves unrelated
+settings, saves a private configuration backup, and refuses unknown
+customizations, including an already customized push-enabled entry. An exact
+template match is a no-op. Reload/reconnect the desktop MCP
 connection if an existing task still has the earlier tool list. A CLI invocation
 of the same MCP tool is also available:
 
@@ -128,6 +164,12 @@ of the same MCP tool is also available:
 .venv/bin/python scripts/sdm_gradebook_launcher.py --call get_canvas_gradebook \
   --arguments '{"course":"core"}'
 ```
+
+`--snapshot core` is a direct GET-only shortcut. Local artifacts default to
+`local_gradebooks/`; `--state-dir` changes that store, so use the same directory
+for subsequent baseline, preview, and operation references. The launcher loads
+workbook bindings on startup. Changing the binding file therefore requires a
+new launcher process or reconnect before using the updated mapping.
 
 ## Agent refresh protocol
 
@@ -149,6 +191,15 @@ of the same MCP tool is also available:
    receipt. Keep both exports if verification fails; do not blindly replay
    the previous batch.
 
+In this protocol, `_Sync` denotes `_Core Sync` or `_Adv Sync` through the binding.
+The input fingerprint covers literal cells in that course's three mapped tabs;
+it does not cover Student Info, Assignment, formatting, notes, or protections.
+Post-refresh verification checks roster/assignment identities, labels, grades,
+pending edits, and snapshot references. It does not independently inspect native
+Google sheet protections, hidden rows/columns, conditional formatting, or notes.
+Check those through Sheets metadata/readback when installing or changing the
+layout; a successful grade-value receipt alone does not certify the full UI.
+
 A refresh merges untouched cells from Canvas while retaining local edits.
 Every pending cell also retains its **original** baseline in a content-addressed
 working-baseline artifact. Thus, a changed Canvas grade remains a conflict
@@ -159,7 +210,13 @@ snapshot; `_Sync!B2` points to the working baseline, which may retain older
 observations for pending cells. If roster or assignment grading schema changes
 while edits are pending, refresh stops and preserves the existing workbook.
 
-The supported grid is currently up to 995 students and 256 assignments. Grade columns expand as later assignments are published; larger courses stop rather than truncate. The published assignment count is read from each fresh Canvas snapshot rather than hardcoded. Submission workflow, attempt, timestamps and flags are stored in grade-cell notes, in addition to status colors.
+The refresh supports 1–995 students and 1–256 published graded assignments.
+Grade columns expand as later assignments are published; empty or larger
+courses stop rather than truncate. The destination sheets must already have
+enough rows; the refresh resizes columns but does not create sheets or expand
+their row capacity. The published assignment count is read from each fresh
+Canvas snapshot rather than hardcoded. Submission workflow, attempt, timestamps
+and flags are stored in grade-cell notes, in addition to status colors.
 
 Google Sheets does not provide a compare-and-swap transaction covering an
 export plus a subsequent batchUpdate. The fresh-input check reduces that race
@@ -211,6 +268,14 @@ original, current Canvas, and proposed values and creates a private HTML
 review. All Canvas-authored labels are escaped; the HTML runs no scripts.
 Show that artifact to the teacher rather than pasting student rows into chat.
 
+Pass the inbox basename only, using letters, digits, underscores, or hyphens and
+the lowercase `.xlsx` or `.json` extension. Symlinks and files larger than
+5,000,000 bytes are rejected; XLSX contents also have a 50,000,000-byte uncompressed
+limit. A JSON envelope contains `course_id`, `snapshot_id`, and an `edits` array;
+each edit has exactly `user_id`, `assignment_id`, and `value`. Use exact Canvas
+identities from the private baseline. Comparisons reject more than 10,000 edits;
+the confirmed push limit remains 25 changes.
+
 The preview holds changed Canvas values/attempts, removed or invisible targets,
 changed assignment grading, decreases, removed excusals, blank edits,
 over-maximum scores, non-points assignments, and late-policy deductions.
@@ -220,10 +285,15 @@ that no longer matches the current submission. Canvas remains responsible for
 its permissions and grading-period enforcement when an API field is absent.
 
 The confirmed write implementation is present and tested with synthetic data.
-**It is enabled in the local connection configuration as of September 20, with prompt approval required for each confirmation. Reconnect the canvas-gradebook connection to load the new configuration.** Launching with
-`--enable-push` registers `confirm_gradebook_push`; a client tool allowlist must
-also explicitly include it. Enable this only for a reviewed pilot. No live
-student grade has been used as a test write.
+The tracked configuration omits `--enable-push` and does not allow
+`confirm_gradebook_push`, so installing it leaves Canvas writes unavailable.
+A September 20 deployment checkpoint recorded a locally enabled write tool;
+that historical record is not evidence of the current running connection's
+settings. Inspect the installed arguments and tool allowlist before a pilot.
+Launching with `--enable-push` registers `confirm_gradebook_push`; a client tool
+allowlist must also explicitly include it. Each operation still requires
+approval of its exact private preview. No live student grade is needed as a
+test write.
 
 After enabling the write tool, the protocol is:
 
@@ -270,6 +340,10 @@ row to get past a hold.
 artifact-tool runtime. `scripts/protect_gradebook_workbook.py` supplies XLSX
 protection/hidden metadata missing from that renderer's API. Google conversion
 loses Excel protection, so native protections were applied and read back.
+These bootstrap scripts create the original three-tab Canvas/Working/_Sync
+layout; they do not provision the current combined six-visible-tab workbook or
+replace its sheet bindings and reference tabs. Use the refresh protocol for the
+existing workbook.
 Current QA exports were checked against all saved grades and both visible tabs
 were rendered with synthetic labels/scores for privacy-safe visual inspection.
 

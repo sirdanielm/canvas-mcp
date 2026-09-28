@@ -1,7 +1,8 @@
-"""Three-way refresh planning for the two private native Google workbooks.
+"""Three-way refresh planning for course-bound Google gradebook tabs.
 
 This module performs no Google writes. The connected Drive adapter executes a
-prepared batch only after a second read confirms that Working has not changed.
+prepared batch only after a second read confirms the mapped tabs' literal cells
+have not changed.
 """
 
 from __future__ import annotations

@@ -2,6 +2,14 @@
 
 Date: September 15–16, 2026
 
+This is a historical adoption record, including intermediate failed setup checks
+and scope decisions. Its dated checkpoints are not a current connection or
+deployment report. For current operation, use the [authoring workflow](sdm-canvas-authoring-workflow.md),
+[gradebook workflow](sdm-gradebook-workflow.md), and [GET-only course mirror](course-mirror.md).
+Later upstream code includes an `update_rubric` tool; the tracked SDM authoring
+allowlist still omits it. That capability does not change the default policy of
+keeping student-facing rubrics in assignment descriptions.
+
 ## Decision
 
 Use this upstream Canvas MCP implementation as a standalone local service. Keep its Python dependencies, release history and upstream updates separate from the Apps Script grading projects GrAss and sdmGrAss. The existing grading repositories were inspected and left unchanged.

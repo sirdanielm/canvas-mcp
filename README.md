@@ -10,6 +10,24 @@
 
 MCP server for Canvas LMS with **up to 103 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
+## SDM local workflows
+
+This fork also includes three separate local workflows. Choose the interface for
+the task; the standard MCP server installation below does not configure all three.
+
+| Task | Interface | Setup and operating guide |
+|---|---|---|
+| Archive and compare course content | `scripts/course_mirror.py`: GET-only snapshots, offline QC, links, and draft proposals | [Local course mirror](docs/course-mirror.md) |
+| Refresh gradebook workbooks and prepare reviewed score changes | Separate `canvas-gradebook` MCP server; Canvas reads by default, publishing requires explicit enablement and approval | [Gradebook workflow](docs/sdm-gradebook-workflow.md) |
+| Author assignments, embedded rubrics, and modules | `canvas-authoring` MCP connection with a client tool allowlist | [Authoring workflow](docs/sdm-canvas-authoring-workflow.md) |
+
+The course mirror currently uses a CLI and JSON reports; it has no spreadsheet
+control sheet or dashboard. Its snapshots do not include student grades or
+submissions. Private snapshots and gradebook artifacts stay in ignored
+`local_gradebooks/`; do not commit them or credentials. The local launchers use
+macOS Keychain and require the `local-keychain` dependency extra. See each guide
+for its exact setup, capability boundaries, and validation commands.
+
 ## Quick Start
 
 **1. Install the MCP server** (everything else, including the skills, needs it running):
@@ -128,7 +146,10 @@ Canvas MCP provides **up to 103 tools** for interacting with Canvas LMS; the def
 
 **Course identifiers:** Canvas ID (`12345`), course code (`badm_350_120251_246794`), or SIS ID
 
-**Cannot do:** Create/delete courses, modify course settings, access other users' data
+**Limits:** Cannot create/delete courses or bypass Canvas permissions. The syllabus
+body can be updated; other course settings are outside the supported write tools.
+Students can access their own records; educators can access student records only
+within their Canvas permissions.
 
 **Rate limits:** ~700 requests/10 min. Use `max_concurrent=5` for bulk operations.
 
