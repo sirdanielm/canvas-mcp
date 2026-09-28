@@ -468,3 +468,19 @@ Drafting is allowed. Composing into a browser editor is allowed only when asked.
 Before any external action, ask: "Do you want me to [exact action] now?" Only proceed after a clear yes to that exact action. Do not treat "looks good," "ok," or "use this" as permission to publish, send, delete, deploy, submit, schedule, purchase, or post.
 
 For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."
+
+## SDM local classroom exports
+
+For local classroom spreadsheet analysis and archival work, automatically run
+`scripts/pseudonymize_gradebook_export.py ingest` on each authorized export before
+using the archival copy. Use a freshly verified export of the central gradebook's
+Student Info or Student Numbers roster as the exact PIN authority. Replace whole
+student-name and student-email columns with that student's four-digit text PIN;
+preserve leading zeros and never invent, renumber, or guess a match. A missing or
+conflicting mapping stops archival processing.
+
+Keep the original operational export separate and unchanged. The generated
+values-only copy is private pseudonymous student data, not a public artifact or
+a workbook to feed back into gradebook refresh or publication. This ingest step
+does not install a folder watcher, alter live Sheets, or authorize Canvas writes.
+See `docs/local-pin-exports.md` for the supported command and validation limits.

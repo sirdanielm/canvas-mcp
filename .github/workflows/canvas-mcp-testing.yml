@@ -33,7 +33,7 @@ jobs:
       # would have kept type-checking on mypy 1.x forever while contributors
       # running `uv sync` got 2.x — the gate asserting a version nobody uses.
       run: |
-        python -m pip install -e .
+        python -m pip install -e ".[local-exports]"
         CONSTRAINT=$(python - <<'PY'
         import tomllib
         with open("pyproject.toml", "rb") as fh:
@@ -45,7 +45,7 @@ jobs:
         PY
         )
         echo "Installing $CONSTRAINT"
-        python -m pip install "$CONSTRAINT"
+        python -m pip install "$CONSTRAINT" types-openpyxl
 
     - name: Run mypy
       run: mypy src/
@@ -107,7 +107,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
+        pip install -e ".[local-exports]"
         # pyyaml is needed by the workflow-permission policy tests. They use
         # importorskip, so omitting it makes them skip silently in the one job
         # branch protection actually requires — passing green while the check
