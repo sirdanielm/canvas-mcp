@@ -22,6 +22,17 @@ materials and structure without rosters, grades, or student submissions. Running
 gradebook snapshot does not update Google Sheets until the refresh protocol is
 completed.
 
+## Permanent PINs for local copies
+
+`Student Info` is the cross-project PIN authority: resolve the `Email` header to
+`Student Number`, preserving four-digit text and leading zeros. Its private
+name fields are `Canvas Name`, `IC Name`, and `Roster Name`. The historical
+`Student Numbers` tab is not the current lookup contract. Local document copies
+replace identity columns with `student_pin` through the shared exporter and
+operator registry; the mirror and original reference tab stay unchanged. See
+[Student PIN policy](STUDENT-PIN-POLICY.md) for the common source location,
+command, and fail-closed matching rules.
+
 ## Everyday use
 
 Ask Codex to **refresh both Canvas gradebooks** or **preview the changes in my

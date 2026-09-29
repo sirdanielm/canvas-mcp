@@ -28,6 +28,14 @@ submissions. Private snapshots and gradebook artifacts stay in ignored
 macOS Keychain and require the `local-keychain` dependency extra. See each guide
 for its exact setup, capability boundaries, and validation commands.
 
+## Student PIN policy for local copies
+
+Student tables prepared for local project work or Quinn use the permanent
+four-digit PIN from the Canvas MCP gradebook mirror's `Student Info` tab.
+[Policy, shared source registry, and exporter usage](docs/STUDENT-PIN-POLICY.md)
+apply across SDM projects. Run `python3 scripts/export-student-pins.py --help`.
+The exporter creates a new copy; it does not alter Canvas or the source roster.
+
 ## Quick Start
 
 **1. Install the MCP server** (everything else, including the skills, needs it running):

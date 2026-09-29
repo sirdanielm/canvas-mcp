@@ -2,6 +2,19 @@
 
 This guide helps AI agents (Claude, Cursor, Zed, Windsurf, and other MCP clients) effectively use the Canvas MCP server.
 
+## SDM local student PIN policy
+
+For local student-document copies and Quinn libraries, follow
+[docs/STUDENT-PIN-POLICY.md](docs/STUDENT-PIN-POLICY.md). Replace student name/email
+columns with the permanent four-digit PIN from the Canvas MCP gradebook mirror's
+`Student Info` (`Email` → `Student Number`), through the shared private registry
+at `~/QuinnOperator/config/student-pin-source.json`. Use
+`scripts/export-student-pins.py`; preserve originals and leading zeros, hold
+unmatched/conflicting identities, and never generate new PINs. Generic anonymous
+MCP labels do not satisfy this permanent-PIN contract. No raw roster or crosswalk
+belongs in Quinn's library, Git, or logs. This rule concerns local copies and
+confers no Canvas-write or grading authority.
+
 ## Quick Start
 
 Canvas MCP is a Model Context Protocol server that bridges AI assistants with Canvas Learning Management System. It provides tools for students to track their academic work and for educators to manage courses, grade assignments, and communicate with students.

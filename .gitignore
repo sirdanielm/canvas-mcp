@@ -135,3 +135,8 @@ docs/compliance/
 # Local agent skills (not part of the public package)
 .agents/
 internal/hosted-spec-draft/
+
+# Uploaded Canvas QTI packages are retained locally for archival reference,
+# but are not source-controlled after import.
+artifacts/fixed-mc-qti/*.zip
+artifacts/formula-qti/*.zip
