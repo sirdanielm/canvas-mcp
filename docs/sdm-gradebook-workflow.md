@@ -36,21 +36,23 @@ command, and fail-closed matching rules.
 
 ## Everyday use
 
-Ask Codex to **refresh both Canvas gradebooks** or **preview the changes in my
-Core gradebook**. The workflow uses the Canvas gradebook MCP together with the
-connected Google Drive tools. It currently needs the agent to perform that
-exchange; there is no one-click Apps Script refresh, background poller,
-or direct Google credential in the Canvas server.
+The new [local refresh worker](sdm-gradebook-worker.md) connects a menu request
+to the canonical planner and trusted local baseline store. It prepares both
+courses, performs one atomic Google Sheets batch, and verifies the native
+result. Canvas remains GET-only. Pending Edit proposals retain their original
+baselines; reference tabs remain unchanged.
 
-The September 29 menu repair in
-[`scripts/gradebook-menu-overlay.gs`](../scripts/gradebook-menu-overlay.gs)
-provides **Canvas Gradebook → How to refresh both courses**, **Show stored
-refresh status**, **Open Core GET**, and **Open Advanced GET**. Reload the
-workbook after installation to load this menu. Instructions and navigation do
-not contact Canvas or change sheet data. Status reads only stored course
-metadata: its snapshot time and pending-edit count describe the last refresh,
-not a live Canvas check or edits made since then. It does not validate the local
-trusted baseline.
+**Activation checkpoint, September 29:** the worker and queue menu are developed
+and tested locally. Google Sheets API access through a user-owned OAuth project,
+menu installation, and the first live native refresh are still pending. The
+currently deployed menu provides guidance, stored status, and navigation. Do not
+treat that menu or local tests as evidence that the worker is running.
+
+Until activation, ask Codex to **refresh both Canvas gradebooks** using the agent
+protocol below. After activation, choose **Canvas Gradebook → Refresh both
+courses (Canvas GET only)** and keep the workbook idle until **Show refresh
+progress** reports VERIFIED. The Mac and local worker must be awake. Setup,
+recovery, limits, and privacy boundaries are in the worker runbook.
 
 ### Historical legacy GET menu error
 
@@ -72,10 +74,8 @@ command is no longer exposed by the menu; an already-open legacy menu's snapshot
 handler redirects to refresh instructions. Preserve a complete bound-project
 source backup before installation and verify the complete source afterward.
 
-Use the agent refresh protocol below for this workbook. A permanent one-click
-GET feature requires a controller for the current gradebook layout; removing the
-legacy guard is not a repair. Before installing that controller, preserve the
-bound project's source and verify these requirements:
+The local worker implements the current gradebook controller. Before activating
+it, preserve the bound project's source and verify these requirements:
 
 - Exact workbook, course, and sheet-ID bindings; no sheet creation or adoption
   merely because a name matches.
@@ -101,8 +101,9 @@ successfully for 120 Core students and 51 Advanced students, with 17 published
 graded assignments per course and zero pending edits. Student Info and
 Assignment values were unchanged. Both private refresh receipts reported zero
 Canvas writes. At that checkpoint the bound script was inspected, not replaced.
-The September 29 overlay repairs menu guidance and navigation; implementing a
-one-click refresh controller remains separate work.
+The first September 29 overlay repaired menu guidance and navigation. The
+subsequent worker implements the refresh controller; live activation remains a
+separate, verified setup step.
 
 For each course, the two grade tabs behave as follows:
 
@@ -395,7 +396,8 @@ npm run build
 npm test
 ```
 
-Targeted regressions are the four `tests/test_gradebook*.py` modules. They use
+Targeted regressions are the `tests/test_gradebook*.py` modules and
+`tests/gradebook_menu_overlay.test.mjs`. They use
 synthetic records and mocked HTTP, including partial failures and process
 restart/readback. No real grade writes, model calls, or messages are needed.
 
@@ -409,4 +411,6 @@ API references:
 
 Native XLSX readback verified both GET and Edit tabs against immutable snapshots: 120 Core students, 51 Advanced students, and zero pending edits. No Canvas writes were made. Settings outside the canvas-gradebook connection were preserved. Use the launcher CLI after any binding change so the updated tab names are read afresh. A push requires `--enable-push`, a prepared operation, explicit approval of its exact preview, and its single-use confirmation token; never use an actual grade write as a test.
 
-Live connection behavior follows the [official MCP configuration reference](https://learn.chatgpt.com/docs/extend/mcp?surface=cli). Refresh and push are requested through the agent; editing a cell is not an automatic push. The September 29 menu supplies guidance, stored status, and navigation; it does not add an in-Sheets refresh button or background schedule.
+Live connection behavior follows the [official MCP configuration reference](https://learn.chatgpt.com/docs/extend/mcp?surface=cli). Refresh and push are requested through the agent; editing a cell is not an automatic push. The currently deployed menu supplies guidance, stored status, and navigation.
+The new queue menu and local worker require the activation procedure in the
+[worker runbook](sdm-gradebook-worker.md).

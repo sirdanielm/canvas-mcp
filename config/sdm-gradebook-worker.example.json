@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "instance_id": "REPLACE_WITH_CONFIGURE_GENERATED_UUID",
+  "credential_path": "/Users/sdm/.config/canvas-authoring/gradebook-google.json",
+  "profile": "gradebook",
+  "state_dir": "/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring/local_gradebooks",
+  "poll_seconds": 30
+}
