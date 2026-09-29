@@ -11,13 +11,12 @@ from .ledger import Ledger
 from .model import compare_edits, summary
 from .publish import Publisher, write_review_html
 from .refresh import (
-    build_requests,
-    merge_refresh,
     source_digest,
     verify_refresh_output,
 )
+from .service import prepare_refresh
 from .store import Store
-from .workbook import edits_from_cells, read_workbook_cells
+from .workbook import read_workbook_cells
 
 
 def create_server(
@@ -120,62 +119,24 @@ def create_server(
             try:
                 course_id = resolve(course)
                 binding = bindings[course]
-                baseline = store.load("snapshot", snapshot_id)
-                if (baseline["course_id"], baseline["origin"]) != (
-                    course_id,
-                    client.origin,
-                ):
-                    raise GradebookError(
-                        "Baseline does not match this course and origin."
-                    )
                 if binding["course_id"] != course_id:
                     raise GradebookError("Workbook binding does not match the course.")
                 sheets = read_workbook_cells(
                     store.inbox_file(workbook_filename), binding.get("tab_names")
                 )
-                edits = edits_from_cells(sheets, baseline)
-                current = await client.snapshot(course_id)
-                merged, display, review = merge_refresh(baseline, current, edits)
-                current_id, _ = store.save("snapshot", current)
-                merged_id, _ = store.save("snapshot", merged)
-                review_id, _ = store.save("review", review)
-                pending = [
-                    {
-                        "user_id": c["user_id"],
-                        "assignment_id": c["assignment_id"],
-                        "value": c["proposed"],
-                    }
-                    for c in review["changes"]
-                ]
-                # Some pending proposals now equal Canvas, but their original
-                # baseline remains preserved until explicitly reconciled.
-                plan = {
-                    "schema_version": 1,
-                    "course": course,
-                    "course_id": course_id,
-                    "origin": client.origin,
-                    "created_at": datetime.now(UTC).isoformat(),
-                    "input_digest": source_digest(sheets),
-                    "previous_baseline_id": snapshot_id,
-                    "canvas_snapshot_id": current_id,
-                    "baseline_id": merged_id,
-                    "review_id": review_id,
-                    "pending_edits": pending,
-                    "batch_update": {
-                        "spreadsheet_id": binding["spreadsheet_id"],
-                        "requests": build_requests(
-                            current, display, merged_id, binding, baseline, len(pending)
-                        ),
-                    },
-                }
-                plan_id, path = store.save("refresh", plan)
+                if sheets["_Sync"].get("B2") != snapshot_id:
+                    raise GradebookError("Baseline does not match the workbook reference.")
+                plan = await prepare_refresh(client, store, course, binding, sheets)
+                plan_id, path = plan["refresh_id"], plan["local_file"]
+                merged_id, current_id = plan["baseline_id"], plan["canvas_snapshot_id"]
+                pending = plan["pending_edits"]
                 return {
                     "refresh_id": plan_id,
                     "local_file": str(path),
                     "baseline_id": merged_id,
                     "canvas_snapshot_id": current_id,
                     "pending_changes": len(pending),
-                    "review_counts": review["counts"],
+                    "review_counts": plan["review_counts"],
                     "canvas_writes": 0,
                     "sheets_writes": 0,
                 }
