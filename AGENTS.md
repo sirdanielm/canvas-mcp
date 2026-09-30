@@ -48,6 +48,21 @@ CANVAS_ROLE=all        # Default profile; 98 tools by default, 103 with all feat
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
 
+## Operator write policy
+
+`ALLOWED_WRITE_TOOLS` controls which side-effect tools are registered. With the
+setting unset, HTTP is read-only and stdio retains its existing registered tools.
+An empty value or `none` removes side-effect tools; an explicit list admits only
+those named. `all` excludes `execute_typescript`, which requires an explicit name
+and its separate feature flag. A missing tool is an operator boundary, not a
+reason to bypass it. Confirmation tokens bind a request; they do not establish
+that a human approved it.
+
+`get_conversation_details` never marks messages read. Use the separately gated
+`mark_conversations_read` only when authorized. These policies apply to the main
+Canvas MCP server; the separate gradebook server retains its own exact-preview,
+explicit-enable and durable readback controls.
+
 ## Tool Categories
 
 ### Student Tools
