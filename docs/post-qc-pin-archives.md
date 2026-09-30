@@ -10,6 +10,10 @@ The existing Desktop shortcuts already provide the intended user flow:
 
 Step 3 is the integration target, **not currently installed automatic behavior**.
 No Google Sheets exporter or Apps Script deployment is needed for this local step.
+The supported `pseudonymize_gradebook_export.py preflight` action now allows a
+read-only compatibility assessment using the same renderer and shared registry,
+without creating an archive. Bind each invocation to the exact source SHA-256
+recorded by QC; keep its result separate from the QC verdict.
 
 ## One hook and one authority
 
@@ -65,3 +69,20 @@ activating the launcher hook.
 
 The previously verified central-gradebook private PIN archive is a separate
 successful case; it does not establish fleet workbook coverage.
+
+## September 30 compatibility checkpoint
+
+The current `preflight` API examined the 16 workbooks in the exact saved batch
+covered by a complete post-run QC report. All 16 source hashes matched that
+report. All 16 archives remained held: 15 for unresolved email content and one
+for an unresolved identity column. Source files, the shared registry and QC
+reports remained unchanged; no archive was created and no desktop tool or
+installed harness changed. QC's own diagnostic verdict remains separate.
+
+The [aggregate preflight receipt](validation/fleet-archive-preflight-20260930.json)
+binds this observation to the exporter, source-hash set and QC report hashes.
+The older 15-workbook assessment used a different batch, so this is not a claim
+that a new code change caused an additional failure. Keep the automatic archive
+hook inactive. Resolve the exact identity/content holds within the central
+authority contract, then repeat this preflight and the batch integration checks;
+do not broaden substitutions or silently omit held workbooks to obtain a pass.

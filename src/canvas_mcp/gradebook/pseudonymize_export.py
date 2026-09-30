@@ -362,33 +362,44 @@ def replace_columns(
 def sanitize_export(
     source: Path,
     central_roster: Path,
-    output: Path,
+    output: Path | None,
     roster_sheet: str | None = None,
     *,
     verified_mapping: tuple[dict[str, set[str]], set[str]] | None = None,
     expected_roster_hash: str | None = None,
     authority_check: Callable[[], None] | None = None,
+    validate_only: bool = False,
+    expected_source_hash: str | None = None,
 ) -> dict[str, Any]:
-    source, central_roster, output = map(Path, (source, central_roster, output))
+    source, central_roster = map(Path, (source, central_roster))
     require(
-        all(p.is_absolute() for p in (source, central_roster, output)),
+        all(p.is_absolute() for p in (source, central_roster)),
         "ABSOLUTE_PATH_REQUIRED",
     )
+    require(type(validate_only) is bool, "VALIDATION_MODE_INVALID")
     require(
-        source.resolve() != output.resolve()
-        and central_roster.resolve() != output.resolve(),
-        "ORIGINAL_MUST_BE_PRESERVED",
+        output is None if validate_only else output is not None,
+        "PREFLIGHT_OUTPUT_NOT_ALLOWED" if validate_only else "OUTPUT_REQUIRED",
     )
-    require(not output.exists(), "OUTPUT_ALREADY_EXISTS")
-    directory_identity = private_directory_identity(output.parent)
-    require(
-        source.suffix.lower() in (".xlsx", ".csv")
-        and output.suffix.lower() == source.suffix.lower(),
-        "FORMAT_NOT_SUPPORTED",
-    )
+    require(source.suffix.lower() in (".xlsx", ".csv"), "FORMAT_NOT_SUPPORTED")
+    if output is not None:
+        output = Path(output)
+        require(output.is_absolute(), "ABSOLUTE_PATH_REQUIRED")
+        require(
+            source.resolve() != output.resolve()
+            and central_roster.resolve() != output.resolve(),
+            "ORIGINAL_MUST_BE_PRESERVED",
+        )
+        require(not output.exists(), "OUTPUT_ALREADY_EXISTS")
+        directory_identity = private_directory_identity(output.parent)
+        require(output.suffix.lower() == source.suffix.lower(), "FORMAT_NOT_SUPPORTED")
     source_raw, roster_raw = source.read_bytes(), central_roster.read_bytes()
     before = hashlib.sha256(source_raw).hexdigest()
     roster_before = hashlib.sha256(roster_raw).hexdigest()
+    require(
+        expected_source_hash is None or expected_source_hash == before,
+        "SOURCE_HASH_MISMATCH",
+    )
     require(
         expected_roster_hash is None or expected_roster_hash == roster_before,
         "SHARED_PIN_ROSTER_CHANGED",
@@ -484,6 +495,18 @@ def sanitize_export(
     )
     if authority_check is not None:
         authority_check()
+    if validate_only:
+        return {
+            "status": "PRIVATE_ARCHIVE_PREFLIGHT_READY",
+            "identity_rows_replaced": count,
+            "source_sha256": before,
+            "roster_sha256": roster_before,
+            "originals_preserved": True,
+            "archive_created": False,
+            "destination_validated": False,
+            "live_calls": 0,
+        }
+    assert output is not None
     directory_fd = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     publication_attempted = False
     try:
@@ -634,7 +657,13 @@ def load_shared_pin_module(tool: Path) -> ModuleType:
 
 
 def registry_bound_export(
-    source: Path, output: Path, registry_path: Path, shared_tool: Path
+    source: Path,
+    output: Path | None,
+    registry_path: Path,
+    shared_tool: Path,
+    *,
+    validate_only: bool = False,
+    expected_source_hash: str | None = None,
 ) -> dict[str, Any]:
     """Use the shared authority/index; this module only renders a private archive."""
     shared = load_shared_pin_module(shared_tool)
@@ -703,6 +732,8 @@ def registry_bound_export(
         verified_mapping=(dict(aliases), set(index.values())),
         expected_roster_hash=registry["roster_sha256"],
         authority_check=authority_check,
+        validate_only=validate_only,
+        expected_source_hash=expected_source_hash,
     )
     result.update(registry_sha256=registry_hash, shared_pin_authority=True)
     return result
