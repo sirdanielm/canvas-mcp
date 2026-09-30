@@ -58,3 +58,31 @@ teacher-approved pairs.
 Assignment point totals and participation/Advanced policies require explicit
 academic authority. Missing policy is a hold; it cannot be inferred from an old
 grader, an export layout, or a successful software test.
+
+## Git synchronization checkpoint — September 30, 13:32 EDT
+
+This is a dated repository snapshot, not a live operational status report.
+
+| Repository | Integrated work | Verified boundary |
+| --- | --- | --- |
+| Canvas MCP SDM profile | [PR3](https://github.com/sirdanielm/canvas-mcp/pull/3), merge `0c0dd5d`; upstream `1192099` integrated with the local worker | SDM checkout pulled forward; exact-head hosted Python matrix, TypeScript, lint and confirmation proofs passed |
+| sdmGrAss | [PR334](https://github.com/sirdanielm/sdmGrAss/pull/334), merge `afd0954` | Reset/initializer holds preserve resumable CONTINUE work; local 99 JavaScript programs and 227 Python tests passed, required hosted checks passed, review threads resolved |
+| LocalGrAss | [PR2](https://github.com/sirdanielm/LocalGrAss/pull/2), merge `2083853`; concurrent documentation reconciliation subsequently at `215154f` | Primary main matched origin/main; documentation fixes retain post-merge code findings |
+| GrAss | Main `805141b` already synchronized and hosted CI passed | Concurrent documentation work remains with its owning task; no parallel edits made |
+
+The integrated Canvas runtime passed 2,100 Python tests with 21 existing skips,
+22 menu tests, 96 TypeScript tests, Ruff, mypy and the TypeScript build. A further
+57 metadata/security checks passed after the final documentation corrections.
+LocalGrAss documentation validation observed 267 tests: 262 passed and 5 optional
+skips. These are software checks, not grading-accuracy or source-freshness claims.
+
+Remaining review work includes sdmGrAss draft PR335/PR336, Canvas draft PR2,
+LocalGrAss post-merge integrity findings, and GrAss's unplanned-intake duplicate
+counting defect. The latter can inflate aggregate coverage and must remain a
+documented hold until fixed; it does not authorize a grading or publication run.
+
+Local artifacts and concurrently edited checkouts were preserved. The installed
+desktop toolbox remains pinned to its reviewed harness. No runtime restart,
+deployment, model call, workbook edit or Canvas operation was performed by this
+sync pass. Production deployment in the integrated Canvas profile is gated by a
+release tag or explicit manual workflow; ordinary SDM branch pushes do not deploy.
