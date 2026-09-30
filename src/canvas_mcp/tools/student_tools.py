@@ -270,27 +270,30 @@ def register_student_tools(mcp: FastMCP) -> None:
         if not assignments:
             return "No assignments found."
 
-        # Separate submitted and missing
+        # Canvas only knows whether work was submitted *to Canvas*. LTI/external
+        # assignments (such as Gradescope) can be completed and graded there
+        # while Canvas continues to return an unsubmitted local record.
+        # Keep those out of the missing/overdue bucket rather than reporting a
+        # false deadline breach.
         submitted = []
         missing = []
+        external_tools = []
 
         for assignment in assignments:
             submission = assignment.get("submission")
             is_submitted = submission and submission.get("submitted_at") is not None
+            is_external_tool = "external_tool" in assignment.get("submission_types", [])
 
             if is_submitted:
                 submitted.append(assignment)
+            elif is_external_tool:
+                external_tools.append(assignment)
+            elif submission and submission.get("missing"):
+                # Canvas's own flag: false for on_paper/none types, graded or
+                # excused work; true when a teacher marks the work missing.
+                missing.append((assignment, "OVERDUE"))
             else:
-                # Check if past due (use timezone-aware datetime)
-                due_at = assignment.get("due_at")
-                if due_at:
-                    due_date = parse_date(due_at)
-                    if due_date and due_date < datetime.now(UTC):
-                        missing.append((assignment, "OVERDUE"))
-                    else:
-                        missing.append((assignment, "NOT SUBMITTED"))
-                else:
-                    missing.append((assignment, "NOT SUBMITTED"))
+                missing.append((assignment, "NOT SUBMITTED"))
 
         # Format output
         if missing:
@@ -305,6 +308,20 @@ def register_student_tools(mcp: FastMCP) -> None:
                     f"  {f'Course: {course_name}' if course_name else ''}\n"
                     f"  Due: {due_at}\n"
                     f"  Status: {status}\n"
+                )
+
+        if external_tools:
+            output_lines.append(f"\nℹ️  External-tool assignments ({len(external_tools)}):\n")
+            for assignment in external_tools:
+                name = assignment.get("name", "Unnamed")
+                due_at = format_date(assignment.get("due_at")) if assignment.get("due_at") else "No due date"
+                course_name = assignment.get("_course_name", "")
+
+                output_lines.append(
+                    f"• {fence_untrusted_inline(name, 'assignment name')}\n"
+                    f"  {f'Course: {course_name}' if course_name else ''}\n"
+                    f"  Due: {due_at}\n"
+                    "  Status: Canvas does not report external-tool submission state\n"
                 )
 
         if submitted:

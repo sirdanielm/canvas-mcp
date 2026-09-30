@@ -42,17 +42,18 @@ courses, performs one atomic Google Sheets batch, and verifies the native
 result. Canvas remains GET-only. Pending Edit proposals retain their original
 baselines; reference tabs remain unchanged.
 
-**Activation checkpoint, September 29:** the worker and queue menu are developed
-and tested locally. Google Sheets API access through a user-owned OAuth project,
-menu installation, and the first live native refresh are still pending. The
-currently deployed menu provides guidance, stored status, and navigation. Do not
-treat that menu or local tests as evidence that the worker is running.
+**Dated activation evidence, September 30:** the user-owned OAuth transport,
+installed menu, first native refresh, verified reconciliation and advancing worker
+heartbeats were recorded in the [worker runbook](sdm-gradebook-worker.md). This
+supersedes the September 29 pending-activation checkpoint; it is not a fresh
+liveness check.
 
-Until activation, ask Codex to **refresh both Canvas gradebooks** using the agent
-protocol below. After activation, choose **Canvas Gradebook → Refresh both
-courses (Canvas GET only)** and keep the workbook idle until **Show refresh
-progress** reports VERIFIED. The Mac and local worker must be awake. Setup,
-recovery, limits, and privacy boundaries are in the worker runbook.
+Choose **Canvas Gradebook → Refresh both courses (Canvas GET only)** and keep the
+workbook idle until **Show refresh progress** reports VERIFIED. Check the current
+worker status; the Mac and local worker must be awake. Setup, recovery, limits
+and privacy boundaries are in the runbook. A Git pull does not restart or verify
+the worker. The general server's `ALLOWED_WRITE_TOOLS` policy does not replace the
+separate gradebook service's explicit `--enable-push`, preview and readback gates.
 
 ### Historical legacy GET menu error
 
