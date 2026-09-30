@@ -15,7 +15,12 @@ from typing import Any, NoReturn, cast
 
 from .client import GradebookError
 from .model import digest
-from .refresh import build_requests, source_digest, verify_refresh_output
+from .refresh import (
+    build_requests,
+    grade_validation_formula,
+    source_digest,
+    verify_refresh_output,
+)
 from .workbook import column_name
 
 ROLES = {"Canvas", "Working", "_Sync"}
@@ -393,8 +398,44 @@ def _apply_requests(
             if any(f.split(".")[0] not in CELL_FIELDS for f in fields.split(",")):
                 _fail("Refresh attempts an unsupported cell-field change.")
             source = data.get("cell", {"dataValidation": data.get("rule", {})})
+            rule = data.get("rule", {}) if kind == "setDataValidation" else {}
+            if not isinstance(rule, dict) or (
+                rule
+                and rule.get("condition")
+                != {
+                    "type": "CUSTOM_FORMULA",
+                    "values": [
+                        {
+                            "userEnteredValue": grade_validation_formula(
+                                rows.start, cols.start
+                            )
+                        }
+                    ],
+                }
+            ):
+                _fail("Refresh contains an unsupported data-validation formula.")
             for r in rows:
                 for c in cols:
+                    if rule:
+                        # Sheets expands this relative validation formula from
+                        # the range's top-left cell into every destination cell.
+                        # Project only the owned formula; do not reinterpret an
+                        # arbitrary expression or weaken native comparison.
+                        source = {
+                            "dataValidation": {
+                                **rule,
+                                "condition": {
+                                    "type": "CUSTOM_FORMULA",
+                                    "values": [
+                                        {
+                                            "userEnteredValue": grade_validation_formula(
+                                                r, c
+                                            )
+                                        }
+                                    ],
+                                },
+                            }
+                        }
                     _masked(sheet["cells"].setdefault(f"{r}:{c}", {}), source, fields)
         elif kind == "updateCells":
             start = data["start"]

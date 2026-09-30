@@ -18,6 +18,44 @@ from canvas_mcp.gradebook.refresh import build_requests, source_digest
 from canvas_mcp.gradebook.store import Store
 
 
+def observed_google_validation_formula(address):
+    """Independent oracle for Google's per-cell relative validation response."""
+    return (
+        f"=OR(ISBLANK({address}),AND(ISNUMBER({address}),{address}>=0),"
+        f'AND(ISTEXT({address}),REGEXMATCH(LOWER(TRIM({address})),"^(ex|excused)$")))'
+    )
+
+
+def apply_observed_google_validation(state, requests):
+    """Model native validation responses without the production projector."""
+    for request in requests:
+        if "setDataValidation" not in request:
+            continue
+        data = request["setDataValidation"]
+        target = data["range"]
+        rule = data["rule"]
+        assert rule["condition"]["values"] == [
+            {"userEnteredValue": observed_google_validation_formula("C6")}
+        ]
+        for row in range(target["startRowIndex"], target["endRowIndex"]):
+            for column in range(target["startColumnIndex"], target["endColumnIndex"]):
+                n, label = column + 1, ""
+                while n:
+                    n, remainder = divmod(n - 1, 26)
+                    label = chr(65 + remainder) + label
+                expected = copy.deepcopy(rule)
+                expected["condition"]["values"] = [
+                    {
+                        "userEnteredValue": observed_google_validation_formula(
+                            f"{label}{row + 1}"
+                        )
+                    }
+                ]
+                state["sheets"][target["sheetId"]]["cells"].setdefault(
+                    f"{row}:{column}", {}
+                )["dataValidation"] = expected
+
+
 @pytest.fixture
 def binding():
     return {
@@ -381,3 +419,105 @@ def test_native_both_courses_require_both_plans_and_preserve_reference(
     core_plan["input_digest"] = "wrong-input"
     with pytest.raises(GradebookError, match="preserved native input"):
         verify_native_output(before, after, plans, store, bindings)
+
+
+@pytest.fixture
+def expanded_snapshot(snapshot):
+    result = copy.deepcopy(snapshot)
+    result["students"].append(
+        {**result["students"][0], "id": "102", "name": "Z Fictional second"}
+    )
+    result["cells"]["102:21"] = copy.deepcopy(result["cells"]["101:21"])
+    return result
+
+
+def test_native_projects_every_relative_validation_coordinate(snapshot, binding):
+    state = _state(initial_raw(snapshot, binding))
+    state["sheets"][2]["properties"]["gridProperties"]["columnCount"] = 30
+    request = next(
+        copy.deepcopy(r)
+        for r in build_requests(snapshot, snapshot, "baseline", binding, snapshot, 0)
+        if "setDataValidation" in r
+    )
+    request["setDataValidation"]["range"].update(endRowIndex=10, endColumnIndex=30)
+    expected = copy.deepcopy(state)
+    apply_observed_google_validation(expected, [request])
+    _apply_requests(state, [request], binding)
+    for row in range(5, 10):
+        for column in range(2, 30):
+            assert state["sheets"][2]["cells"][f"{row}:{column}"]["dataValidation"] == (
+                expected["sheets"][2]["cells"][f"{row}:{column}"]["dataValidation"]
+            )
+    assert state["sheets"][2]["cells"]["9:26"]["dataValidation"]["condition"][
+        "values"
+    ] == [{"userEnteredValue": observed_google_validation_formula("AA10")}]
+
+
+def test_native_accepts_independent_google_relative_validation_readback(
+    expanded_snapshot, binding, tmp_path
+):
+    snapshot = expanded_snapshot
+    before = initial_raw(snapshot, binding)
+    store = Store(tmp_path)
+    plan = plan_for(snapshot, binding, store, before)
+    state = _state(before)
+    _apply_requests(state, plan["batch_update"]["requests"], binding)
+    apply_observed_google_validation(state, plan["batch_update"]["requests"])
+    after = raw_from_state(state)
+    assert state["sheets"][2]["cells"]["6:2"]["dataValidation"]["condition"][
+        "values"
+    ] == [{"userEnteredValue": observed_google_validation_formula("C7")}]
+    verify_native_output(before, after, [plan], store, {"core": binding})
+
+
+@pytest.mark.parametrize("change", ["wrong_reference", "formula", "strict", "message"])
+def test_native_still_holds_changed_per_cell_validation(
+    expanded_snapshot, binding, tmp_path, change
+):
+    snapshot = expanded_snapshot
+    before = initial_raw(snapshot, binding)
+    store = Store(tmp_path)
+    plan = plan_for(snapshot, binding, store, before)
+    state = _state(before)
+    _apply_requests(state, plan["batch_update"]["requests"], binding)
+    apply_observed_google_validation(state, plan["batch_update"]["requests"])
+    rule = state["sheets"][2]["cells"]["6:2"]["dataValidation"]
+    if change == "wrong_reference":
+        rule["condition"]["values"][0]["userEnteredValue"] = (
+            observed_google_validation_formula("C6")
+        )
+    elif change == "formula":
+        rule["condition"]["values"][0]["userEnteredValue"] = "=TRUE"
+    elif change == "strict":
+        rule["strict"] = False
+    else:
+        rule["inputMessage"] = "Changed validation instruction"
+    with pytest.raises(GradebookError, match="Native refresh readback differs"):
+        verify_native_output(
+            before, raw_from_state(state), [plan], store, {"core": binding}
+        )
+
+
+@pytest.mark.parametrize(
+    "change", ["formula", "type", "missing_values", "extra_values"]
+)
+def test_native_rejects_unsupported_validation_formula_requests(
+    snapshot, binding, change
+):
+    state = _state(initial_raw(snapshot, binding))
+    request = next(
+        copy.deepcopy(r)
+        for r in build_requests(snapshot, snapshot, "baseline", binding, snapshot, 0)
+        if "setDataValidation" in r
+    )
+    condition = request["setDataValidation"]["rule"]["condition"]
+    if change == "formula":
+        condition["values"][0]["userEnteredValue"] = "=TRUE"
+    elif change == "type":
+        condition["type"] = "NUMBER_GREATER"
+    elif change == "missing_values":
+        condition.pop("values")
+    else:
+        condition["values"].append({"userEnteredValue": "0"})
+    with pytest.raises(GradebookError):
+        _apply_requests(state, [request], binding)

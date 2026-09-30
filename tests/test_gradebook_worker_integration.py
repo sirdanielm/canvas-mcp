@@ -11,7 +11,12 @@ import uuid
 
 import httpx
 import pytest
-from test_gradebook_native import initial_raw, raw_from_state
+from test_gradebook_native import (
+    apply_observed_google_validation,
+    initial_raw,
+    observed_google_validation_formula,
+    raw_from_state,
+)
 
 from canvas_mcp.gradebook.client import GradebookClient, GradebookError
 from canvas_mcp.gradebook.model import normalize_snapshot
@@ -137,9 +142,11 @@ class FictionalCanvas:
             value = {"manage_grades": True}
         elif suffix in {"sections", "enrollments", "assignments"}:
             value = records[suffix]
-        elif suffix == f"assignments/{records['assignments'][0]['id']}/submissions":
+        elif suffix.startswith("assignments/") and suffix.endswith("/submissions"):
             assert request.url.params.get("include[]") == "visibility"
-            value = records["submissions"]
+            aid = int(suffix.split("/")[1])
+            assert aid in {a["id"] for a in records["assignments"]}
+            value = [s for s in records["submissions"] if s["assignment_id"] == aid]
         else:
             raise AssertionError("Unexpected fictional Canvas endpoint")
         return httpx.Response(200, json=copy.deepcopy(value))
@@ -244,6 +251,7 @@ class FictionalGoogle:
             state = _state(staged)
             for course, updates in per_course.items():
                 _apply_requests(state, updates, BINDINGS[course])
+                apply_observed_google_validation(state, updates)
             rendered = raw_from_state(state)
             rendered["developerMetadata"] = staged["developerMetadata"]
             staged = rendered
@@ -419,3 +427,83 @@ async def test_real_worker_preparation_failure_writes_neither_course(scenario, f
     assert literal(google.raw, 5, 6, 3) == 12
     assert literal(google.raw, 2, 6, 3) == (19 if failure == "intervening_edit" else 20)
     assert worker.journal.get(request["id"])["status"] == "HELD"
+
+
+async def test_two_course_worker_verifies_independent_relative_validation_readback(
+    tmp_path,
+):
+    def expanded_records(cid, uid, aid, score):
+        records = fixture_records(cid, uid, aid, score)
+        second_student = copy.deepcopy(records["enrollments"][0])
+        second_student.update(
+            user_id=uid + 1, user={"id": uid + 1, "name": "Z Fictional second"}
+        )
+        records["enrollments"].append(second_student)
+        second_assignment = copy.deepcopy(records["assignments"][0])
+        second_assignment.update(
+            id=aid + 1, name="Fictional second activity", position=2
+        )
+        records["assignments"].append(second_assignment)
+        template = records["submissions"][0]
+        records["submissions"] = [
+            {**template, "user_id": user_id, "assignment_id": assignment_id}
+            for user_id in (uid, uid + 1)
+            for assignment_id in (aid, aid + 1)
+        ]
+        return records
+
+    old = {
+        "core": fixture_snapshot(expanded_records(12, 101, 21, 10)),
+        "advanced": fixture_snapshot(expanded_records(13, 201, 31, 12)),
+    }
+    raw = initial_raw(old["core"], BINDINGS["core"])
+    raw["sheets"].extend(
+        initial_raw(old["advanced"], BINDINGS["advanced"])["sheets"][:3]
+    )
+    set_literal(raw, 2, 6, 3, 20)
+    google = FictionalGoogle(raw)
+    google.enqueue()
+    store = Store(tmp_path)
+    for baseline in old.values():
+        store.save("snapshot", baseline)
+    source = FictionalCanvas()
+    source.records = {
+        "12": expanded_records(12, 101, 21, 18),
+        "13": expanded_records(13, 201, 31, 16),
+    }
+    client = GradebookClient(
+        "https://school.example", "fictional-token", httpx.MockTransport(source.handle)
+    )
+    worker = RefreshWorker(google, client, store, BINDINGS, INSTANCE)
+    try:
+        result = await worker.step()
+        assert result["state"] == "VERIFIED"
+        state = _state(google.raw)
+        for sid in (2, 6):
+            for row, column, address in (
+                (5, 2, "C6"),
+                (5, 3, "D6"),
+                (6, 2, "C7"),
+                (6, 3, "D7"),
+            ):
+                rule = state["sheets"][sid]["cells"][f"{row}:{column}"][
+                    "dataValidation"
+                ]
+                assert rule["condition"]["values"] == [
+                    {"userEnteredValue": observed_google_validation_formula(address)}
+                ]
+                assert rule["strict"] is True
+                assert rule["inputMessage"] == (
+                    "Enter literal points, EX, or blank. Preview before pushing; blank never clears Canvas."
+                )
+        assert literal(google.raw, 1, 6, 3) == 18
+        assert literal(google.raw, 2, 6, 3) == 20
+        assert literal(google.raw, 5, 7, 4) == 16
+        baseline = store.load("snapshot", literal(google.raw, 3, 2, 2))
+        assert baseline["cells"]["101:21"]["value"] == 10
+        assert len(google.grade_batches) == 1
+        assert (await worker.step())["state"] == "IDLE"
+        assert len(google.grade_batches) == 1
+        assert all(request.method == "GET" for request in source.requests)
+    finally:
+        await client.close()
