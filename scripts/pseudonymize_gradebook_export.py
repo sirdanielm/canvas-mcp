@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One explicit export-ingest action: sanitize before creating a private archive."""
+"""Validate a private archive without publishing, or explicitly ingest a copy."""
 
 import argparse
 import importlib.util
@@ -33,7 +33,7 @@ ExportHeld = module.ExportHeld
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["ingest"])
+    parser.add_argument("action", choices=["ingest", "preflight"])
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument(
         "--source-registry",
@@ -41,14 +41,26 @@ def main():
         default=Path.home() / "QuinnOperator/config/student-pin-source.json",
     )
     parser.add_argument("--shared-pin-tool", type=Path)
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--expected-source-sha256", help="bind the exact QC input bytes"
+    )
     args = parser.parse_args()
     try:
+        if args.action == "preflight" and args.output is not None:
+            raise ExportHeld("PREFLIGHT_OUTPUT_NOT_ALLOWED")
+        if args.action == "ingest" and args.output is None:
+            raise ExportHeld("OUTPUT_REQUIRED")
         shared_tool = args.shared_pin_tool or module.default_shared_pin_tool(
             Path(__file__).resolve().parents[1]
         )
+        options = {}
+        if args.action == "preflight":
+            options["validate_only"] = True
+        if args.expected_source_sha256 is not None:
+            options["expected_source_hash"] = args.expected_source_sha256
         result = module.registry_bound_export(
-            args.source, args.output, args.source_registry, shared_tool
+            args.source, args.output, args.source_registry, shared_tool, **options
         )
     except module.ExportPublicationUncertain:
         print(

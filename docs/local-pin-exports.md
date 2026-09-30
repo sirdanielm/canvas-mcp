@@ -12,6 +12,26 @@ python scripts/pseudonymize_gradebook_export.py ingest \
 
 CSV uses the same command with `.csv` source/output. CSV stores PIN digits as text bytes but cannot declare spreadsheet cell types; when opening one in a spreadsheet application, import the PIN columns as text to retain leading zeros. XLSX outputs explicitly store PIN cells as text. The CLI always uses the shared source registry at `~/QuinnOperator/config/student-pin-source.json`, or an explicit operator-reviewed `--source-registry`. Its roster path and exact SHA-256 must validate through the shared LocalGrAss `binding()` and `roster_index()` implementation. Arbitrary `--central-roster` substitution is not accepted; the current contract requires `Student Info`.
 
+Use `preflight` to assess compatibility through the same complete renderer and
+shared identity authority without creating an archive or specifying an output:
+
+```sh
+python scripts/pseudonymize_gradebook_export.py preflight \
+  --source /absolute/private/export.xlsx \
+  --expected-source-sha256 EXACT_SHA256_FROM_THE_QC_REPORT
+```
+
+The optional expected hash binds the exact source checked by QC; a mismatch
+holds before rendering. It is also supported by `ingest`. Preflight returns
+`PRIVATE_ARCHIVE_PREFLIGHT_READY` only after rendering in memory and rechecking
+the source, roster and registry. It returns the same bounded identity/content
+holds as ingest. It creates no archive or publication temporary file, accepts no
+`--output`, and does not validate any destination. Spreadsheet serialization may
+use the library's private temporary scratch files, which it removes normally.
+A passing preflight is a point-in-time compatibility result: an eventual ingest
+must repeat every check and validate its private destination. It does not clear
+QC findings, approve publication, or automatically activate the desktop hook.
+
 The shared implementation is discovered in the canonical sibling `LocalGrAss-github`, including when this renderer runs in a Git worktree. `--shared-pin-tool /absolute/LocalGrAss-github/scripts/export-student-pins.py` can select an explicit installation. Missing implementation, invalid registry, changed roster hash or rejected mapping stops before an archive is created. This renderer does not initialize a Canvas server or contact services.
 
 Every PIN comes from that shared validated index. Original roster spellings are retained only for exact substitution in the private whole-workbook renderer. Existing four-digit text PINs retain leading zeros; none are created, padded or renumbered. Conflicting or unknown identity cells stop the export. Name ambiguity remains governed by the shared canonical index even when two source spellings differ by case. Canonical GET/Edit name-plus-section labels use the exact name component and replace the entire label. Whole-workbook archives remain operator-private and are not Quinn library admissions; the shared table exporter remains the path for explicitly selected, allowlisted `student_pin` JSON tables.

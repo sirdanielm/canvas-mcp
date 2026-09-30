@@ -722,3 +722,135 @@ def test_directory_moves_during_link_are_reported_as_publication_uncertain(
     assert not target.exists()
     assert "0123,75" in (moved / "copy.csv").read_text()
     assert not list(moved.glob(".pin-export-*"))
+
+
+@pytest.mark.parametrize("suffix", [".csv", ".xlsx"])
+def test_registry_preflight_uses_complete_renderer_without_publisher(
+    shared_authority, monkeypatch, suffix
+):
+    root, roster, registry, calls = shared_authority
+    source = root / ("source" + suffix)
+    if suffix == ".csv":
+        source.write_text(
+            "Student Name,Email,Grade\nFictional Alpha,alpha@example.test,75\n"
+        )
+    else:
+        source.write_bytes(roster.read_bytes())
+    before = {p.name: module.fingerprint(p) for p in root.iterdir() if p.is_file()}
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("preflight reached the output publisher")
+
+    monkeypatch.setattr(module, "private_directory_identity", forbidden)
+    monkeypatch.setattr(module.os, "link", forbidden)
+    result = module.registry_bound_export(
+        source,
+        None,
+        registry,
+        root / "shared.py",
+        validate_only=True,
+        expected_source_hash=module.fingerprint(source),
+    )
+    assert result["status"] == "PRIVATE_ARCHIVE_PREFLIGHT_READY"
+    assert result["archive_created"] is result["destination_validated"] is False
+    assert result["shared_pin_authority"] is True
+    assert result["source_sha256"] == module.fingerprint(source)
+    assert "output_sha256" not in result
+    assert calls == ["binding", "read_table", "roster_index"]
+    assert {
+        p.name: module.fingerprint(p) for p in root.iterdir() if p.is_file()
+    } == before
+
+
+@pytest.mark.parametrize("validate_only", [False, True])
+def test_expected_source_hash_holds_before_rendering(files, monkeypatch, validate_only):
+    root, roster = files
+    source = root / "source.csv"
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("changed QC bytes must not be rendered")
+
+    monkeypatch.setattr(module, "roster_mapping", forbidden)
+    with pytest.raises(module.ExportHeld, match="SOURCE_HASH_MISMATCH"):
+        module.sanitize_export(
+            source,
+            roster,
+            None if validate_only else root / "archive.csv",
+            validate_only=validate_only,
+            expected_source_hash="0" * 64,
+        )
+    assert not (root / "archive.csv").exists()
+
+
+def test_preflight_preserves_unknown_identity_hold(shared_authority):
+    root, roster, registry, _ = shared_authority
+    source = root / "source.csv"
+    source.write_text("Student Name,Email\nFictional Alpha,unknown@example.test\n")
+    before = set(root.iterdir())
+    with pytest.raises(module.ExportHeld, match="UNMAPPED_IDENTITY"):
+        module.registry_bound_export(
+            source,
+            None,
+            registry,
+            root / "shared.py",
+            validate_only=True,
+        )
+    assert set(root.iterdir()) == before
+
+
+def test_preflight_rechecks_authority_after_rendering(shared_authority, monkeypatch):
+    root, roster, registry, _ = shared_authority
+    original = Workbook.save
+
+    def change_authority(book, destination):
+        original(book, destination)
+        registry.write_text(registry.read_text() + " ")
+
+    monkeypatch.setattr(Workbook, "save", change_authority)
+    with pytest.raises(module.ExportHeld, match="SHARED_PIN_REGISTRY_CHANGED"):
+        module.registry_bound_export(
+            roster,
+            None,
+            registry,
+            root / "shared.py",
+            validate_only=True,
+        )
+    assert not list(root.glob(".pin-export-*"))
+
+
+def test_cli_preflight_dispatches_without_output_path(monkeypatch, capsys):
+    import sys
+
+    script = Path(__file__).parents[1] / "scripts/pseudonymize_gradebook_export.py"
+    spec = importlib.util.spec_from_file_location("pin_preflight_cli_test", script)
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+    calls = []
+
+    def preflight(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"status": "PRIVATE_ARCHIVE_PREFLIGHT_READY", "archive_created": False}
+
+    monkeypatch.setattr(cli.module, "registry_bound_export", preflight)
+    argv = [
+        str(script),
+        "preflight",
+        "--source",
+        "/synthetic/source.csv",
+        "--shared-pin-tool",
+        "/synthetic/tool.py",
+        "--expected-source-sha256",
+        "a" * 64,
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert cli.main() == 0
+    assert calls[0][0][1] is None
+    assert calls[0][1] == {"validate_only": True, "expected_source_hash": "a" * 64}
+    assert json.loads(capsys.readouterr().out)["archive_created"] is False
+    monkeypatch.setattr(sys, "argv", argv + ["--output", "/synthetic/archive.csv"])
+    assert cli.main() == 1
+    assert (
+        json.loads(capsys.readouterr().err)["reason"] == "PREFLIGHT_OUTPUT_NOT_ALLOWED"
+    )
+    assert len(calls) == 1
