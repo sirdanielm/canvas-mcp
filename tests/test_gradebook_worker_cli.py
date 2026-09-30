@@ -108,10 +108,11 @@ def test_local_status_distinguishes_progress_without_inferring_liveness(
     assert result["source"] == "local_journal"
 
 
-def test_status_exposes_owned_safe_failure_reason_only(configured, monkeypatch):
+@pytest.mark.parametrize("phase", ["HELD", "UNCERTAIN"])
+def test_status_exposes_owned_safe_failure_reason_only(configured, monkeypatch, phase):
     rid = "00000000-0000-4000-8000-000000000001"
     operation = {
-        "status": "HELD",
+        "status": phase,
         "payload": {
             "failure_reason": "Trusted baseline course or origin differs.",
             "other_private_payload": "not-output",
@@ -123,6 +124,31 @@ def test_status_exposes_owned_safe_failure_reason_only(configured, monkeypatch):
     result = cli.local_status(cli.load_config(configured), cli.bindings(), rid)
     assert result["failure_reason"] == operation["payload"]["failure_reason"]
     assert "not-output" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("phase", ["VERIFYING", "VERIFIED"])
+def test_status_hides_historical_failure_without_changing_journal(configured, phase):
+    rid = "00000000-0000-4000-8000-000000000001"
+    config, bound = cli.load_config(configured), cli.bindings()
+    journal = cli.RefreshJournal(
+        cli.Store(Path(config["state_dir"])).root, bound["core"]["spreadsheet_id"]
+    )
+    journal.create({"id": rid}, 1)
+    for state in ("CLAIMED", "PREPARED", "SENDING"):
+        journal.update(rid, state)
+    journal.update(
+        rid, "UNCERTAIN", failure_reason="Earlier native verification failed."
+    )
+    journal.update(rid, "VERIFYING")
+    if phase == "VERIFIED":
+        journal.update(rid, "VERIFIED", receipt_id="fictional-receipt")
+    before = journal.get(rid)
+
+    result = cli.local_status(config, bound, rid)
+
+    assert result == {"state": phase, "request_id": rid, "source": "local_journal"}
+    assert journal.get(rid) == before
+    assert before["payload"]["failure_reason"] == "Earlier native verification failed."
 
 
 async def test_release_requires_confirmation_before_connections(

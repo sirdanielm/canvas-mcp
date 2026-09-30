@@ -191,8 +191,12 @@ def local_status(
             "request_id": request_id,
             "source": "local_journal",
         }
-        if operation and isinstance(
-            operation.get("payload", {}).get("failure_reason"), str
+        # Reconciliation retains the earlier diagnostic in the journal payload.
+        # Present it as current only while the operation remains failed/held.
+        if (
+            operation
+            and operation["status"] in {"HELD", "UNCERTAIN"}
+            and isinstance(operation.get("payload", {}).get("failure_reason"), str)
         ):
             result["failure_reason"] = operation["payload"]["failure_reason"]
         return result
