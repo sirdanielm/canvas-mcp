@@ -5,12 +5,29 @@ and the immutable local baseline store. It refreshes both courses together while
 preserving pending Edit proposals. It imports no Canvas publisher and exposes no
 Canvas write option.
 
-**September 30, 2026 activation checkpoint:** dedicated Desktop OAuth
-consent succeeded and the live read-only doctor passed both course bindings,
-native protections, and trusted local baselines. The observed baseline contains
-120 Core students and 51 Advanced students, with 18 assignments per course and
-zero pending edits. These counts describe that check, not a completed Canvas
-refresh. Menu installation and the first live refresh are still pending.
+**September 30, 2026 activation completed:** the installed menu's complete source
+was verified by readback, and the actual menu queued the pilot with request prefix
+`29a70703`.
+The worker refreshed both courses in one Sheets grade-data batch using Canvas
+GET requests only: 120 Core students, 51 Advanced students, 18 assignments per
+course, and zero pending edits. Native readback verified the selected fields on
+the reference tabs as well as the owned gradebook tabs.
+
+The first readback became UNCERTAIN because Google expands the C6 validation
+formula to each destination cell, while the local verifier expected C6 everywhere.
+The projector was corrected to represent that relative-reference behavior;
+formula, reference, strictness, and instruction comparisons remain enforced.
+The original operation was reconciled without resending grade data and reached
+VERIFIED at `2026-09-30T09:14:19.813474+00:00` (05:14:19 EDT). Its durable receipt is
+`acf9176779cc14eddbf9a35c0eac5d1ef3f97d7046e0cfcc260bcf1b7f65d271`.
+
+The per-user launch agent is installed at
+`~/Library/LaunchAgents/org.sdm.canvas-gradebook-refresh.plist` and was bootstrapped
+in `gui/501`; PID 61352 was observed at activation. Two READY heartbeats advanced
+from `09:15:45.700009` to `09:16:18.441440` UTC, with a clear queue and zero local
+unresolved operations. The actual **Show refresh progress** menu displayed
+VERIFIED, both course counts, and **Local worker READY**. This completes the
+background activation check; later liveness must still be checked when needed.
 
 The earlier shared clasp OAuth project returned `403 SERVICE_DISABLED` for the
 Sheets API. The local worker now uses a user-owned OAuth client instead. The
@@ -73,7 +90,64 @@ on neighboring cells; reference-tab borders remain checked. The selected-field
 comparison does not claim to audit charts, named ranges, or every Sheets feature;
 the batch does not target those objects.
 
+## Everyday use and local operation
+
+Keep the Mac awake, online, and able to access its Keychain. Save and pause editing
+in the workbook, choose **Canvas Gradebook → Refresh both courses (Canvas GET
+only)** once, then use **Show refresh progress** until the request reports
+VERIFIED. Resume editing after verification. A queued request, READY heartbeat,
+or updated-looking sheet is not a substitute for VERIFIED. If the request is
+HELD or UNCERTAIN, preserve its evidence and follow the recovery section; do not
+click again to bypass it.
+
+The installed agent starts at user login. It polls coordination metadata while
+idle and fetches Canvas grades only for an explicit refresh request. It performs
+no automatic grading and has no Canvas write path. Closing a terminal does not
+stop this launchd-managed worker.
+
+From the stable repository checkout, inspect the local journal and the launchd
+service without changing either:
+
+```sh
+cd '/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring'
+.venv/bin/python scripts/sdm_gradebook_worker.py status
+launchctl print "gui/$(id -u)/org.sdm.canvas-gradebook-refresh"
+```
+
+Local status reports `IN_PROGRESS` for recorded active phases, `UNCERTAIN` for an
+unverified possible write, and `HELD` for a recorded hold. Its `worker_running`
+field remains `unverified`; journal progress alone does not prove liveness.
+Check the menu's current heartbeat and queue state as well.
+
+Before a routine stop, coordinate with other workbook editors: no new refresh
+clicks, no queued request, and local status must report `NO_LOCAL_HOLDS` with zero
+unresolved operations. Let active work finish; resolve any hold or uncertainty
+before routine maintenance. Once idle, stop the service with:
+
+```sh
+launchctl bootout "gui/$(id -u)/org.sdm.canvas-gradebook-refresh"
+```
+
+To start the installed service again after that stop:
+
+```sh
+launchctl bootstrap "gui/$(id -u)" \
+  "$HOME/Library/LaunchAgents/org.sdm.canvas-gradebook-refresh.plist"
+launchctl print "gui/$(id -u)/org.sdm.canvas-gradebook-refresh"
+```
+
+Wait for a fresh READY heartbeat before requesting another refresh. If launchd
+already has the service loaded, do not start a second foreground worker. The
+plist depends on this checkout's script, `.venv`, private configuration, and
+`local_gradebooks` store. Stop it while idle before switching branches, updating
+worker code or dependencies, or changing those runtime paths. Run `doctor` before
+restarting after maintenance; moving or deleting the checkout breaks the service.
+Preserve the private baseline store and operation evidence through maintenance.
+
 ## Setup and activation
+
+These steps document a fresh installation. The September 30 instance has already
+completed them; use the everyday-operation commands above for that installation.
 
 Run commands from the repository root. Locked dependencies and the existing
 Canvas Keychain connection are prerequisites:
@@ -234,6 +308,12 @@ atomic dispatch, incomplete Canvas reads, changed workbook preflight, native
 structure, metadata ownership, copied worker identities, lost responses,
 interrupted cleanup, OAuth boundaries, and startup activation guards. No live
 student grades are required for a test write.
+
+At the September 30 activation checkpoint, the full Python suite passed with
+2,053 tests passed and 21 skipped. The menu suite passed 22 tests, and the existing
+TypeScript suite passed 96 tests. The live pilot separately verified the menu,
+Canvas GET access, one Sheets grade-data batch, and strict native reconciliation;
+synthetic tests alone were not treated as activation evidence.
 
 ```sh
 .venv/bin/pytest tests/ -q
