@@ -70,6 +70,42 @@ async def test_status_is_local_and_does_not_open_google(configured, monkeypatch)
     )
     result = await cli.execute(args(configured, "status"))
     assert result["unresolved"] == 0 and result["worker_running"] == "unverified"
+    assert result["state"] == "NO_LOCAL_HOLDS"
+
+
+@pytest.mark.parametrize(
+    "phases,expected",
+    [
+        ([phase], "IN_PROGRESS")
+        for phase in ("CLAIMING", "CLAIMED", "PREPARED", "SENDING", "VERIFYING")
+    ]
+    + [
+        (["HELD"], "HELD"),
+        (["UNCERTAIN"], "UNCERTAIN"),
+        (["CLAIMED", "PREPARED"], "IN_PROGRESS"),
+        (["CLAIMED", "HELD"], "HELD"),
+        (["VERIFYING", "UNCERTAIN"], "UNCERTAIN"),
+        (["HELD", "UNCERTAIN"], "UNCERTAIN"),
+        (["UNKNOWN_PHASE"], "HELD"),
+    ],
+)
+def test_local_status_distinguishes_progress_without_inferring_liveness(
+    configured, monkeypatch, phases, expected
+):
+    operations = {str(i): {"status": phase} for i, phase in enumerate(phases)}
+    monkeypatch.setattr(
+        cli,
+        "RefreshJournal",
+        lambda *_: SimpleNamespace(
+            unresolved=lambda: list(operations), get=operations.get
+        ),
+    )
+    result = cli.local_status(cli.load_config(configured), cli.bindings())
+    assert result["state"] == expected
+    assert result["unresolved"] == len(phases)
+    assert result["states"] == dict(cli.Counter(phases))
+    assert result["worker_running"] == "unverified"
+    assert result["source"] == "local_journal"
 
 
 def test_status_exposes_owned_safe_failure_reason_only(configured, monkeypatch):

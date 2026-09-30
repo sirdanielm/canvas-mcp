@@ -201,8 +201,17 @@ def local_status(
         operation = journal.get(rid)
         if operation:
             states[operation["status"]] += 1
+    in_progress = {"CLAIMING", "CLAIMED", "PREPARED", "SENDING", "VERIFYING"}
+    # These are durable operation phases, not evidence that a process is alive.
+    # Uncertainty or a hold takes precedence over another operation's progress.
+    if "UNCERTAIN" in states:
+        state = "UNCERTAIN"
+    elif set(states) - in_progress:
+        state = "HELD"
+    else:
+        state = "IN_PROGRESS" if states else "NO_LOCAL_HOLDS"
     return {
-        "state": "HELD" if states else "NO_LOCAL_HOLDS",
+        "state": state,
         "unresolved": sum(states.values()),
         "states": dict(states),
         "source": "local_journal",
