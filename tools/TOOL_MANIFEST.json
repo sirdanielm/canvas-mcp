@@ -524,7 +524,7 @@
     {
       "name": "send_conversation",
       "category": "educator",
-      "description": "Send messages to students via Canvas inbox. Exactly one plain numeric user ID sends immediately; multiple recipients or expandable aliases (course_*/group_*) are two-step (preview + confirmation_token, then confirm with identical arguments).",
+      "description": "Send messages to students via Canvas inbox. Every send, including a single recipient, requires two steps: show the preview, obtain educator approval, then confirm with the confirmation_token and identical arguments.",
       "parameters": [
         {
           "name": "course_identifier",
