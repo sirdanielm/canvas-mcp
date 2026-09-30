@@ -1,6 +1,6 @@
 # SDM Canvas gradebooks
 
-The main workbook is [FDHS Chemistry Gradebook — 2026–2027](https://docs.google.com/spreadsheets/d/13ps0FZLBj2qpclMNKo7Eb95kE4Sb_fgf9s7Ki2_KoNc/edit). Its existing sharing permissions are unchanged. The September 29, 2026 layout has seven visible tabs and nine total:
+The main workbook is FDHS Chemistry Gradebook — 2026–2027 (open through the locally configured workbook). Its existing sharing permissions are unchanged. The September 29, 2026 layout has seven visible tabs and nine total:
 
 1. Core GET
 2. Adv GET
@@ -12,7 +12,7 @@ The main workbook is [FDHS Chemistry Gradebook — 2026–2027](https://docs.goo
 
 The mirror tabs are protected GET-only snapshots. The edit tabs have the same layout, with only score cells editable. At the September 20, 2026 migration checkpoint, Student Info retained 173 permanent numbers, including two students outside the active roster, and Assignment contained 52 Canvas assignments plus prior IC mappings. Those are historical counts, not configured limits or a live inventory. Never renumber or recycle permanent numbers. Refreshing grade tabs must preserve both reference tabs and Grader Proposals; reconcile reference metadata separately by exact IDs, retaining IC fields and permanent numbers.
 
-`_Core Sync` and `_Adv Sync` are hidden system tabs. Course-specific `tab_names` in the binding file normalize these names to the internal Canvas/Working/_Sync roles. The previous standalone workbooks and the user's [backup](https://docs.google.com/spreadsheets/d/1CKIzzHVaSilKa8Aeo8D9sVsTldblQmRRNGuLBD6pUNQ/edit) remain available. The 36 old tabs were removed from the main workbook only after full replacement readback and backup/student-number checks.
+`_Core Sync` and `_Adv Sync` are hidden system tabs. Course-specific `tab_names` in the binding file normalize these names to the internal Canvas/Working/_Sync roles. The previous standalone workbooks and the user's backup (open through the locally configured workbook) remain available. The 36 old tabs were removed from the main workbook only after full replacement readback and backup/student-number checks.
 The course/workbook/sheet bindings are in `config/sdm-gradebook-workbooks.json`.
 No student data is stored in that configuration or in Git.
 

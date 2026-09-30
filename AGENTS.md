@@ -494,3 +494,23 @@ Drafting is allowed. Composing into a browser editor is allowed only when asked.
 Before any external action, ask: "Do you want me to [exact action] now?" Only proceed after a clear yes to that exact action. Do not treat "looks good," "ok," or "use this" as permission to publish, send, delete, deploy, submit, schedule, purchase, or post.
 
 For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."
+
+
+## GrAss Local Checks handoff
+
+When a task concerns a recent GrAss desktop import or QC run, consult the
+installed harness recorded in `~/Desktop/GrAss Local Checks/.fleet-importer/harness-path.txt`.
+Its reviewed `scripts/local_check_status.py --json` command reads a bounded,
+aggregate receipt from `~/Documents/GrAss QC Reports`; it does not run QC or
+contact a service. Read that status before interpreting older saved reports.
+Execution completion is separate from the diagnostic verdict. An unavailable,
+failed or interrupted newest attempt is a hold, never permission to substitute an
+older clean result. Input/report hashes establish the captured snapshot, not live
+Canvas freshness. Never include student rows, identities, scores or feedback in
+this handoff. Do not automatically start imports, replay, models or publication.
+
+This is an on-demand agent instruction, not an installed notification or hook.
+The toolbox remains usable through its clickable Latest Check Status tool
+without Codex. Automatic context hooks require their own reviewed definition and
+Codex trust action; do not edit trust settings or claim a chat already reviewed
+an unseen report.
