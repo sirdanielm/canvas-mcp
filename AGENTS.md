@@ -510,6 +510,26 @@ Before any external action, ask: "Do you want me to [exact action] now?" Only pr
 
 For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."
 
+## SDM local classroom exports
+
+When explicitly preparing private archival copies, run
+`scripts/pseudonymize_gradebook_export.py ingest` on each authorized export before
+using the archival copy. Reading a QC receipt alone does not authorize this
+ingest. Use the shared registry-bound central gradebook Student Info mapping through LocalGrAss's existing binding and index; do not
+select an independent roster or use the historical Student Numbers layout. Replace whole
+student-name and student-email columns with that student's four-digit text PIN;
+preserve leading zeros and never invent, renumber, or guess a match. A missing or
+conflicting mapping stops archival processing.
+
+Keep the original operational export separate and unchanged. The generated
+values-only copy is private pseudonymous student data, not a public artifact or
+a workbook to feed back into gradebook refresh or publication. This ingest step
+does not install a folder watcher, alter live Sheets, or authorize Canvas writes.
+See `docs/local-pin-exports.md` for the supported command and validation limits.
+The existing Desktop import/QC shortcuts are the intended integration point;
+automatic fleet PIN copies remain held until the complete workbook batch passes
+the archive checks in `docs/post-qc-pin-archives.md`.
+
 
 ## GrAss Local Checks handoff
 
