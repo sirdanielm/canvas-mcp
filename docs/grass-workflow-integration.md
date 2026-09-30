@@ -28,7 +28,7 @@ crosswalks, credentials and detailed student records remain outside Git.
 
 ## Current implementation boundary — September 30, 2026
 
-LocalGrAss PR1, sdmGrAss PR333 and PR337, and GrAss PR118 are merged. The new local
+LocalGrAss PR1 and PR3, sdmGrAss PR333–PR337, and GrAss PR118 and PR122 are merged. The new local
 core has synthetic validation and retained explanation history. Authenticated
 teacher review, verified original-byte adapters and a live publisher remain
 separate implementation work. Post-merge review findings must still be evaluated;
@@ -59,27 +59,39 @@ Assignment point totals and participation/Advanced policies require explicit
 academic authority. Missing policy is a hold; it cannot be inferred from an old
 grader, an export layout, or a successful software test.
 
-## Git synchronization checkpoint — September 30, 13:32 EDT
+## Git synchronization checkpoint — September 30, 17:07 EDT
 
 This is a dated repository snapshot, not a live operational status report.
 
 | Repository | Integrated work | Verified boundary |
 | --- | --- | --- |
-| Canvas MCP SDM profile | [PR3](https://github.com/sirdanielm/canvas-mcp/pull/3), merge `0c0dd5d`; upstream `1192099` integrated with the local worker | SDM checkout pulled forward; exact-head hosted Python matrix, TypeScript, lint and confirmation proofs passed |
-| sdmGrAss | [PR334](https://github.com/sirdanielm/sdmGrAss/pull/334), merge `afd0954` | Reset/initializer holds preserve resumable CONTINUE work; local 99 JavaScript programs and 227 Python tests passed, required hosted checks passed, review threads resolved |
-| LocalGrAss | [PR2](https://github.com/sirdanielm/LocalGrAss/pull/2), merge `2083853`; concurrent documentation reconciliation subsequently at `215154f` | Primary main matched origin/main; documentation fixes retain post-merge code findings |
-| GrAss | Main `805141b` already synchronized and hosted CI passed | Concurrent documentation work remains with its owning task; no parallel edits made |
+| Canvas MCP SDM profile | [PR3](https://github.com/sirdanielm/canvas-mcp/pull/3) integrated the current upstream; [PR2](https://github.com/sirdanielm/canvas-mcp/pull/2) merged at `c6fc7be` | Private PIN exporter reviewed and pulled into the SDM checkout; exact-head Python matrix, TypeScript, lint and confirmation proofs passed |
+| sdmGrAss | [PR335](https://github.com/sirdanielm/sdmGrAss/pull/335) and [PR336](https://github.com/sirdanielm/sdmGrAss/pull/336) merged after PR334; main `bf1a6f2` | Owning task verified 102 JavaScript programs, 227 Python tests and hosted checks; independent fault injection confirms a stop/gate change during admission prevents transport |
+| LocalGrAss | [PR3](https://github.com/sirdanielm/LocalGrAss/pull/3), merge `f931c29` | Five post-merge integrity findings fixed; owning task verified 287 tests; primary main synchronized. No hosted check was attached to this PR |
+| GrAss | [PR122](https://github.com/sirdanielm/GrAss/pull/122), merge `695f479` | Duplicate unplanned/sealed source evidence now holds report generation; owning task verified 1,030 Node and 90 Python tests; hosted CI passed and primary main synchronized |
 
-The integrated Canvas runtime passed 2,100 Python tests with 21 existing skips,
-22 menu tests, 96 TypeScript tests, Ruff, mypy and the TypeScript build. A further
-57 metadata/security checks passed after the final documentation corrections.
-LocalGrAss documentation validation observed 267 tests: 262 passed and 5 optional
-skips. These are software checks, not grading-accuracy or source-freshness claims.
+The final Canvas exporter integration passed 2,158 Python tests with 21 existing
+skips, including all 58 exporter tests, plus 22 menu tests, 96 TypeScript tests,
+Ruff, mypy and the TypeScript build. An isolated locked development installation
+and an actual CLI smoke using the shared authority implementation passed with
+entirely synthetic inputs. See the [aggregate validation receipt](validation/private-pin-export-20260930.json).
+The merge tree matches the reviewed and tested head. These are software checks,
+not grading-accuracy or source-freshness claims.
 
-Remaining review work includes sdmGrAss draft PR335/PR336, Canvas draft PR2,
-LocalGrAss post-merge integrity findings, and GrAss's unplanned-intake duplicate
-counting defect. The latter can inflate aggregate coverage and must remain a
-documented hold until fixed; it does not authorize a grading or publication run.
+The listed code-review backlog is resolved. Remaining work is integration:
+verified original-byte source adapters, authenticated teacher decisions,
+backup/restore and bounded workers, then the authoritative release-to-publisher
+bridge. The [private PIN exporter](local-pin-exports.md) is opt-in; the automatic
+[post-QC archive hook](post-qc-pin-archives.md) remains uninstalled until fleet
+compatibility and batch recovery pass. Publication uncertainty requires
+reconciliation, never an automatic retry.
+
+The installed status reader was checked again at this checkpoint. Its newest
+captured attempt is still the September 30 11:42 EDT run: execution completed,
+16/16 workbooks parsed, diagnostic STOP with 2 errors, 50 warnings and 70
+informational findings. Reading that receipt did not rerun QC. The previously
+recorded academic setup holds remain for teacher resolution; the GENERAL TESTING
+canary evidence is historical and was not rerun for these merges.
 
 Local artifacts and concurrently edited checkouts were preserved. The installed
 desktop toolbox remains pinned to its reviewed harness. No runtime restart,
