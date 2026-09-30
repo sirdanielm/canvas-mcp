@@ -8,13 +8,15 @@ reconcile uncertain outcomes instead of repeating that call.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import math
 import os
 import re
 import stat
 import time
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeGuard
 
@@ -31,13 +33,23 @@ WRITE_SCOPES = {
     "https://www.googleapis.com/auth/drive.file",
 }
 GRADE_SHEETS = frozenset({"Core GET", "Adv GET", "Core Edit", "Adv Edit"})
-METADATA_FIELDS = "spreadsheetId,developerMetadata,sheets(properties,protectedRanges)"
+METADATA_FIELDS = (
+    "spreadsheetId,developerMetadata,"
+    "sheets(properties,protectedRanges,conditionalFormats,basicFilter)"
+)
 WORKBOOK_FIELDS = (
     "spreadsheetId,developerMetadata,"
     "sheets(properties,protectedRanges,conditionalFormats,basicFilter,"
     "data(startRow,startColumn,rowMetadata,columnMetadata,"
     "rowData(values(userEnteredValue,userEnteredFormat,note,dataValidation))))"
 )
+MAX_RETURNED_CELLS = 500_000  # Matches native.MAX_NATIVE_CELLS.
+
+
+@dataclass
+class _ReadBudget:
+    returned_bytes: int = 0
+    returned_cells: int = 0
 
 
 def _positive_int(value: Any) -> TypeGuard[int]:
@@ -104,6 +116,13 @@ class GoogleSheets:
         max_total_cells: int = 1_000_000,
         max_response_bytes: int = 20_000_000,
         sheet_cell_limits: Mapping[str, int] | None = None,
+        max_chunk_cells: int = 10_000,
+        max_total_response_bytes: int = 80_000_000,
+        max_chunk_requests: int = 200,
+        read_timeout_seconds: float = 180,
+        read_interval_seconds: float = 1.1,
+        read_clock: Callable[[], float] | None = None,
+        read_sleep: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", workbook_id):
             raise GradebookError("Invalid Google workbook identity.")
@@ -115,9 +134,26 @@ class GoogleSheets:
             max_reference_cells,
             max_total_cells,
             max_response_bytes,
+            max_chunk_cells,
+            max_total_response_bytes,
+            max_chunk_requests,
         )
         if not all(_positive_int(limit) for limit in limits):
             raise GradebookError("Google read limits must be positive integers.")
+        if (
+            isinstance(read_timeout_seconds, bool)
+            or not isinstance(read_timeout_seconds, (int, float))
+            or not math.isfinite(read_timeout_seconds)
+            or read_timeout_seconds <= 0
+        ):
+            raise GradebookError("Google read timeout must be positive and finite.")
+        if (
+            isinstance(read_interval_seconds, bool)
+            or not isinstance(read_interval_seconds, (int, float))
+            or not math.isfinite(read_interval_seconds)
+            or read_interval_seconds < 0
+        ):
+            raise GradebookError("Google read interval must be nonnegative and finite.")
         if any(
             not isinstance(name, str) or not name or not _positive_int(limit)
             for name, limit in (sheet_cell_limits or {}).items()
@@ -132,6 +168,15 @@ class GoogleSheets:
         self.max_total_cells = max_total_cells
         self.max_response_bytes = max_response_bytes
         self.sheet_cell_limits = dict(sheet_cell_limits or {})
+        self.max_chunk_cells = max_chunk_cells
+        self.max_total_response_bytes = max_total_response_bytes
+        self.max_chunk_requests = max_chunk_requests
+        self.read_timeout_seconds = read_timeout_seconds
+        self.read_interval_seconds = read_interval_seconds
+        self._read_clock = read_clock or time.monotonic
+        self._read_sleep = read_sleep or asyncio.sleep
+        self._last_read_started: float | None = None
+        self._read_lock = asyncio.Lock()
         self._access_token: str | None = None
         self._expires_at = 0.0
         self._authorized = False
@@ -144,6 +189,20 @@ class GoogleSheets:
     async def close(self) -> None:
         await self.http.aclose()
 
+    async def _pace_read(self) -> None:
+        # All Sheets GETs, including retries and control polling, share one
+        # start-time limiter. 1.1 seconds stays below 60 reads/minute per user.
+        async with self._read_lock:
+            if self._last_read_started is not None:
+                delay = (
+                    self._last_read_started
+                    + self.read_interval_seconds
+                    - self._read_clock()
+                )
+                if delay > 0:
+                    await self._read_sleep(delay)
+            self._last_read_started = self._read_clock()
+
     async def _json_request(
         self,
         method: str,
@@ -155,6 +214,7 @@ class GoogleSheets:
         data: dict[str, str] | None = None,
         payload: dict[str, Any] | None = None,
         byte_limit: int | None = None,
+        read_budget: _ReadBudget | None = None,
     ) -> tuple[int, dict[str, Any]]:
         allowed = {
             ("POST", TOKEN_URL),
@@ -167,6 +227,8 @@ class GoogleSheets:
         limit = byte_limit if byte_limit is not None else self.max_response_bytes
         for attempt in range(3 if retry else 1):
             try:
+                if method == "GET" and url == self.url:
+                    await self._pace_read()
                 async with self.http.stream(
                     method, url, headers=headers, params=params, data=data, json=payload
                 ) as response:
@@ -175,6 +237,15 @@ class GoogleSheets:
                         raise GradebookError("Google response exceeded its size limit.")
                     body = bytearray()
                     async for chunk in response.aiter_bytes(chunk_size=65_536):
+                        if read_budget is not None:
+                            read_budget.returned_bytes += len(chunk)
+                            if (
+                                read_budget.returned_bytes
+                                > self.max_total_response_bytes
+                            ):
+                                raise GradebookError(
+                                    "Google workbook read exceeded its cumulative byte limit."
+                                )
                         body.extend(chunk)
                         if len(body) > limit:
                             raise GradebookError(
@@ -294,8 +365,14 @@ class GoogleSheets:
             self._expires_at = time.monotonic() + expires - 60
             self._authorized = True
 
-    async def _get(self, params: Any) -> dict[str, Any]:
+    async def _get(
+        self, params: Any, *, read_budget: _ReadBudget | None = None
+    ) -> dict[str, Any]:
         await self._authorize()
+        if isinstance(params, dict):
+            params = {**params, "prettyPrint": "false"}
+        else:
+            params = [*(params or []), ("prettyPrint", "false")]
         for attempt in range(2):
             status, body = await self._json_request(
                 "GET",
@@ -303,6 +380,7 @@ class GoogleSheets:
                 retry=True,
                 params=params,
                 headers={"Authorization": "Bearer " + str(self._access_token)},
+                read_budget=read_budget,
             )
             if status == 401 and attempt == 0:
                 await self._authorize(force=True)
@@ -362,61 +440,242 @@ class GoogleSheets:
             result[sid] = properties
         return result
 
-    async def metadata(self) -> dict[str, Any]:
-        result = await self._get({"fields": METADATA_FIELDS})
+    async def metadata(
+        self, *, _read_budget: _ReadBudget | None = None
+    ) -> dict[str, Any]:
+        result = await self._get({"fields": METADATA_FIELDS}, read_budget=_read_budget)
         self._sheets(result)
         self._validated_token = self._access_token
         return result
 
     async def read_workbook(self) -> dict[str, Any]:
-        before = self._sheets(await self.metadata())
-        params = [("includeGridData", "true"), ("fields", WORKBOOK_FIELDS)]
-        for properties in before.values():
+        """Capture all allocated cells in bounded, sequential rectangles.
+
+        A range response may omit empty trailing cells, but no allocated range
+        is skipped. Metadata brackets the complete capture. This is an interval
+        observation, not a server-side transaction; the worker still requires
+        an idle workbook and its separate fresh-input check before any write.
+        """
+        self._validated_token = None
+        try:
+            async with asyncio.timeout(self.read_timeout_seconds):
+                return await self._read_workbook()
+        except TimeoutError:
+            self._validated_token = None
+            raise GradebookError(
+                "Google workbook read exceeded its time limit; no partial read accepted."
+            ) from None
+        except BaseException:
+            self._validated_token = None
+            raise
+
+    @staticmethod
+    def _header(sheet: dict[str, Any]) -> dict[str, Any]:
+        result = {"properties": sheet["properties"]}
+        for key in ("protectedRanges", "conditionalFormats", "basicFilter"):
+            value = sheet.get(key, {} if key == "basicFilter" else [])
+            if (key == "basicFilter" and not isinstance(value, dict)) or (
+                key != "basicFilter"
+                and (
+                    not isinstance(value, list)
+                    or any(not isinstance(item, dict) for item in value)
+                )
+            ):
+                raise GradebookError("Google returned invalid sheet-level metadata.")
+            result[key] = value
+        return result
+
+    @classmethod
+    def _chunk_header_matches(
+        cls, sheet: dict[str, Any], expected: dict[str, Any]
+    ) -> bool:
+        actual = cls._header(sheet)
+        if actual["properties"] != expected["properties"]:
+            return False
+        # Sheets filters range-related metadata in a range-limited response.
+        # Retain complete headers from the bracketing, unrestricted reads;
+        # any metadata returned here must still be an exact, ordered subset.
+        for key in ("protectedRanges", "conditionalFormats"):
+            remaining = iter(expected[key])
+            for item in actual[key]:
+                if not any(item == known for known in remaining):
+                    return False
+        return (
+            not actual["basicFilter"]
+            or actual["basicFilter"] == expected["basicFilter"]
+        )
+
+    def _rectangles(
+        self, inventory: dict[int, dict[str, Any]]
+    ) -> list[tuple[int, int, int, int, int]]:
+        result = []
+        for sid, properties in inventory.items():
             grid = properties["gridProperties"]
-            name = properties["title"].replace("'", "''")
-            end = column_name(grid["columnCount"]) + str(grid["rowCount"])
-            params.append(("ranges", f"'{name}'!A1:{end}"))
-        result = await self._get(params)
-        after = self._sheets(result)
-        if before != after:
+            # Ordinarily only rows are chunked. Very wide reference sheets are
+            # tiled by column too, so even one requested row obeys the bound.
+            width = min(grid["columnCount"], self.max_chunk_cells)
+            for c0 in range(0, grid["columnCount"], width):
+                c1 = min(c0 + width, grid["columnCount"])
+                height = max(1, self.max_chunk_cells // (c1 - c0))
+                for r0 in range(0, grid["rowCount"], height):
+                    r1 = min(r0 + height, grid["rowCount"])
+                    result.append((sid, r0, r1, c0, c1))
+                    if len(result) > self.max_chunk_requests:
+                        raise GradebookError(
+                            "Google workbook exceeds the bounded chunk request count."
+                        )
+        return result
+
+    @staticmethod
+    def _dimensions(
+        raw: list[dict[str, Any]],
+        start: int,
+        stop: int,
+        seen: dict[int, dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        output: list[dict[str, Any]] = []
+        for offset, position in enumerate(range(start, stop)):
+            value = raw[offset] if offset < len(raw) else {}
+            if not isinstance(value, dict):
+                raise GradebookError("Google returned invalid dimension metadata.")
+            if position in seen:
+                if seen[position] != value:
+                    raise GradebookError(
+                        "Google dimension metadata changed between chunks."
+                    )
+                output.append({})
+            else:
+                seen[position] = copy.deepcopy(value)
+                output.append(copy.deepcopy(value))
+        # Remove only empty suffixes, never interior placeholders or offsets.
+        while output and not output[-1]:
+            output.pop()
+        return output
+
+    def _chunk(
+        self,
+        sheet: dict[str, Any],
+        bounds: tuple[int, int, int, int],
+        seen_rows: dict[int, dict[str, Any]],
+        seen_columns: dict[int, dict[str, Any]],
+        budget: _ReadBudget,
+    ) -> dict[str, Any]:
+        r0, r1, c0, c1 = bounds
+        blocks = sheet.get("data", [])
+        if not isinstance(blocks, list) or len(blocks) > 1:
+            raise GradebookError("Google returned unexpected grid blocks.")
+        block = blocks[0] if blocks else {}
+        if not isinstance(block, dict) or (
+            blocks
+            and (
+                type(block.get("startRow", 0)) is not int
+                or type(block.get("startColumn", 0)) is not int
+                or block.get("startRow", 0) != r0
+                or block.get("startColumn", 0) != c0
+            )
+        ):
+            raise GradebookError(
+                "Google grid coordinates did not match the requested range."
+            )
+        for key, limit in (
+            ("rowData", r1 - r0),
+            ("rowMetadata", r1 - r0),
+            ("columnMetadata", c1 - c0),
+        ):
+            items = block.get(key, [])
+            if not isinstance(items, list) or len(items) > limit:
+                raise GradebookError(
+                    "Google returned grid data outside the requested rectangle."
+                )
+        rows = block.get("rowData", [])
+        for row in rows:
+            if (
+                not isinstance(row, dict)
+                or not isinstance(row.get("values", []), list)
+                or len(row.get("values", [])) > c1 - c0
+            ):
+                raise GradebookError("Google returned invalid grid row data.")
+            values = row.get("values", [])
+            if any(not isinstance(cell, dict) for cell in values):
+                raise GradebookError("Google returned invalid grid cell data.")
+            budget.returned_cells += len(values)
+            if budget.returned_cells > MAX_RETURNED_CELLS:
+                raise GradebookError(
+                    "Google workbook exceeds the native returned-cell limit."
+                )
+        return {
+            "startRow": r0,
+            "startColumn": c0,
+            "rowData": rows,
+            "rowMetadata": self._dimensions(
+                block.get("rowMetadata", []), r0, r1, seen_rows
+            ),
+            "columnMetadata": self._dimensions(
+                block.get("columnMetadata", []), c0, c1, seen_columns
+            ),
+        }
+
+    async def _read_workbook(self) -> dict[str, Any]:
+        budget = _ReadBudget()
+        initial = await self.metadata(_read_budget=budget)
+        before = self._sheets(initial)
+        headers = {
+            s["properties"]["sheetId"]: self._header(s) for s in initial["sheets"]
+        }
+        rectangles = self._rectangles(before)
+        captured: dict[int, list[dict[str, Any]]] = {sid: [] for sid in before}
+        rows: dict[int, dict[int, dict[str, Any]]] = {sid: {} for sid in before}
+        columns: dict[int, dict[int, dict[str, Any]]] = {sid: {} for sid in before}
+        for sid, r0, r1, c0, c1 in rectangles:
+            name = before[sid]["title"].replace("'", "''")
+            requested = f"'{name}'!{column_name(c0 + 1)}{r0 + 1}:{column_name(c1)}{r1}"
+            part = await self._get(
+                [
+                    ("includeGridData", "true"),
+                    ("fields", WORKBOOK_FIELDS),
+                    ("ranges", requested),
+                ],
+                read_budget=budget,
+            )
+            inventory = self._sheets(part)
+            if sid not in inventory or any(
+                key not in before or value != before[key]
+                for key, value in inventory.items()
+            ):
+                raise GradebookError(
+                    "Google chunk sheet inventory changed during read."
+                )
+            for sheet in part["sheets"]:
+                returned_id = sheet["properties"]["sheetId"]
+                if not self._chunk_header_matches(sheet, headers[returned_id]):
+                    raise GradebookError(
+                        "Google sheet metadata changed between chunks."
+                    )
+                if returned_id != sid:
+                    if sheet.get("data", []):
+                        raise GradebookError(
+                            "Google returned data for an unrequested sheet."
+                        )
+                    continue
+                captured[sid].append(
+                    self._chunk(
+                        sheet, (r0, r1, c0, c1), rows[sid], columns[sid], budget
+                    )
+                )
+        final = await self.metadata(_read_budget=budget)
+        if (
+            self._sheets(final) != before
+            or {s["properties"]["sheetId"]: self._header(s) for s in final["sheets"]}
+            != headers
+        ):
             raise GradebookError(
                 "Google sheet metadata changed during read; workbook retained."
             )
+        # Use final coordination metadata while preserving every captured native
+        # cell field. Native validation understands these nonoverlapping blocks.
+        result = copy.deepcopy(final)
         for sheet in result["sheets"]:
-            grid = sheet["properties"]["gridProperties"]
-            blocks = sheet.get("data", [])
-            if not isinstance(blocks, list) or len(blocks) > 1:
-                raise GradebookError("Google returned unexpected grid blocks.")
-            for block in blocks:
-                if (
-                    not isinstance(block, dict)
-                    or block.get("startRow", 0) != 0
-                    or block.get("startColumn", 0) != 0
-                ):
-                    raise GradebookError(
-                        "Google grid coordinates did not match the requested range."
-                    )
-                for key, limit in (
-                    ("rowData", grid["rowCount"]),
-                    ("rowMetadata", grid["rowCount"]),
-                    ("columnMetadata", grid["columnCount"]),
-                ):
-                    rows = block.get(key, [])
-                    if not isinstance(rows, list) or len(rows) > limit:
-                        raise GradebookError(
-                            "Google returned grid data outside its metadata bounds."
-                        )
-                for row in block.get("rowData", []):
-                    if (
-                        not isinstance(row, dict)
-                        or not isinstance(row.get("values", []), list)
-                        or len(row.get("values", [])) > grid["columnCount"]
-                    ):
-                        raise GradebookError("Google returned invalid grid row data.")
-                    if any(
-                        not isinstance(cell, dict) for cell in row.get("values", [])
-                    ):
-                        raise GradebookError("Google returned invalid grid cell data.")
+            sheet["data"] = captured[sheet["properties"]["sheetId"]]
         self._validated_token = self._access_token
         return result
 

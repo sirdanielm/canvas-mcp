@@ -5,14 +5,18 @@ and the immutable local baseline store. It refreshes both courses together while
 preserving pending Edit proposals. It imports no Canvas publisher and exposes no
 Canvas write option.
 
-**September 29, 2026 activation checkpoint:** implementation and synthetic tests
-are complete; live worker activation and the first native refresh remain pending.
-The existing Google clasp login returned `403 SERVICE_DISABLED` for the Sheets
-API in Google's shared clasp OAuth project. This is not evidence of a missing
-Canvas permission or a bad gradebook. Use a user-owned Google Cloud project and
-Desktop OAuth client. Do not attempt to enable an API in Google's clasp project.
-The deployed menu still provides the earlier guidance/status/navigation version;
-the new request-queue menu is prepared in the repository.
+**September 30, 2026 activation checkpoint:** dedicated Desktop OAuth
+consent succeeded and the live read-only doctor passed both course bindings,
+native protections, and trusted local baselines. The observed baseline contains
+120 Core students and 51 Advanced students, with 18 assignments per course and
+zero pending edits. These counts describe that check, not a completed Canvas
+refresh. Menu installation and the first live refresh are still pending.
+
+The earlier shared clasp OAuth project returned `403 SERVICE_DISABLED` for the
+Sheets API. The local worker now uses a user-owned OAuth client instead. The
+authorization helper opens the system browser and receives Google's short-lived
+code on a temporary `127.0.0.1` loopback listener; Safari is not a requirement.
+No password is received by the worker. Credentials remain owner-only local files.
 
 ## Architecture and authority
 
@@ -42,6 +46,17 @@ and basic filters. It requires exact course/sheet/name bindings, literal grade
 cells, full GET/Sync protection, the expected editable score rectangle, hidden
 system identities, and frozen headers. It rejects an incompatible layout; it
 does not adopt a same-name sheet or recreate missing tabs.
+
+Native reads cover every allocated cell in sequential rectangles of at most
+10,000 cells, with exact offsets and no skipped ranges. Google may omit rules
+outside a requested rectangle; every returned rule must match the complete
+metadata, which is checked again after capture and retained for verification.
+Repeated dimension metadata must agree. Reads are spaced at least 1.1 seconds
+apart per client, including retries, to stay below the 60-read-per-minute user
+quota. This remains an interval capture rather than an atomic snapshot; keep the
+workbook idle and retain the independent fresh-input comparison before dispatch.
+The first successful live check used 23 reads in about 25 seconds for nine tabs
+and saved approximately 11 MB of compact native data privately.
 
 Every request prepares both courses before any grade-data write. `_Sync!B2`
 resolves to the trusted local working baseline; `_Sync!B9` records the current
@@ -200,7 +215,8 @@ and readback so a lost cleanup response can be recovered safely.
 | Request lifetime |10minutes|Covers two bounded course reads; stale requests are held before grade-data dispatch.|
 | Plan lifetime |5minutes|Keeps the Canvas/workbook comparison recent; slow preparations hold rather than apply stale data.|
 | Canvas reads |100published graded assignments;120seconds per course|Caps cost and failure duration; incomplete reads never replace a mirror.|
-| Google reads |20MBresponse;1million allocated cells;50,000cells per reference tab|Prevents uncontrolled worksheet expansion; allocation is a read bound, never a student count.|
+| Google read chunks |10,000 allocated cells;20MB per response;1.1seconds between reads|Bounds each response while preserving selected formatting and cell fields; avoids a burst beyond the per-user read quota.|
+| Complete Google capture |80MB cumulative response data;200 chunks;180seconds;1million allocated cells;50,000cells per reference tab|Bounds memory, retries, and duration across the whole capture. A partial capture is rejected; allocation is never a student count.|
 | Native verification |500,000returned cells|Bounds parsed formatting data; oversized inputs hold for explicit review.|
 | Google writes |One grade batch, no transport retries|A timeout sacrifices automatic progress to prevent duplicate or stale replacement.|
 
@@ -231,4 +247,6 @@ npm test
 Primary references: [Google desktop OAuth and PKCE](https://developers.google.com/identity/protocols/oauth2/native-app),
 [create OAuth credentials](https://developers.google.com/workspace/guides/create-credentials),
 [Sheets batch atomicity](https://developers.google.com/workspace/sheets/api/guides/batch),
-[developer metadata](https://developers.google.com/workspace/sheets/api/guides/metadata).
+[developer metadata](https://developers.google.com/workspace/sheets/api/guides/metadata),
+[ranged native reads](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/get),
+[Sheets usage limits](https://developers.google.com/workspace/sheets/api/limits).
