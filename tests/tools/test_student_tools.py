@@ -194,7 +194,7 @@ class TestStudentToolsDatetimeComparison:
                 "id": 1,
                 "name": "Overdue Assignment",
                 "due_at": past_date,
-                "submission": {"workflow_state": "unsubmitted"}
+                "submission": {"workflow_state": "unsubmitted", "missing": True}
             }
         ]
 
@@ -213,6 +213,71 @@ class TestStudentToolsDatetimeComparison:
             # Should complete without datetime comparison errors and mark as overdue
             assert "OVERDUE" in result
             assert "error" not in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_get_my_submission_status_trusts_canvas_missing_flag(self):
+        """A graded paper midterm past its due date is not overdue."""
+        past_date = (datetime.now(UTC) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        mock_assignments = [
+            {
+                "id": 1,
+                "name": "Paper Midterm",
+                "due_at": past_date,
+                "submission_types": ["on_paper"],
+                "submission": {"workflow_state": "graded", "score": 23.0, "missing": False},
+            },
+            {
+                "id": 2,
+                "name": "Work Term Report",
+                "due_at": past_date,
+                "submission_types": ["online_upload"],
+                "submission": {"workflow_state": "unsubmitted", "missing": True},
+            },
+        ]
+
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_id', new_callable=AsyncMock) as mock_course_id, \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course_code:
+            mock_fetch.return_value = mock_assignments
+            mock_course_id.return_value = "12345"
+            mock_course_code.return_value = "TEST-101"
+
+            get_my_submission_status = get_student_tool_function('get_my_submission_status')
+            result = await get_my_submission_status(course_identifier="TEST-101")
+
+            midterm, report = result.split("Paper Midterm")[1].split("Work Term Report")
+            assert "Status: NOT SUBMITTED" in midterm
+            assert "OVERDUE" not in midterm
+            assert "Status: OVERDUE" in report
+
+    @pytest.mark.asyncio
+    async def test_get_my_submission_status_separates_external_tools_from_missing(self):
+        """Canvas cannot infer a Gradescope submission from its local record."""
+        past_date = (datetime.now(UTC) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        mock_assignments = [
+            {
+                "id": 1,
+                "name": "Gradescope homework",
+                "due_at": past_date,
+                "submission_types": ["external_tool"],
+                "submission": {"workflow_state": "unsubmitted"},
+            }
+        ]
+
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_id', new_callable=AsyncMock) as mock_course_id, \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course_code:
+            mock_fetch.return_value = mock_assignments
+            mock_course_id.return_value = "12345"
+            mock_course_code.return_value = "TEST-101"
+
+            get_my_submission_status = get_student_tool_function('get_my_submission_status')
+            result = await get_my_submission_status(course_identifier="TEST-101")
+
+            assert "External-tool assignments (1)" in result
+            assert "Canvas does not report external-tool submission state" in result
+            assert "Missing Submissions" not in result
+            assert "OVERDUE" not in result
 
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_no_due_date(self):

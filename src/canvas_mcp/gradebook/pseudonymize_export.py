@@ -13,8 +13,9 @@ import io
 import json
 import os
 import re
+import secrets
 import sys
-import tempfile
+import unicodedata
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Callable
@@ -49,6 +50,10 @@ class ExportHeld(ValueError):
     """Privacy-safe error code only; never include source values or paths."""
 
 
+class ExportPublicationUncertain(RuntimeError):
+    """Publication began; an archive may exist and must not be blindly retried."""
+
+
 def require(ok: object, code: str) -> None:
     if not ok:
         raise ExportHeld(code)
@@ -58,9 +63,30 @@ def fingerprint(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def open_xlsx(path: Path) -> Workbook:
-    with ZipFile(path) as archive:
+def private_directory_identity(directory: Path) -> tuple[int, int]:
+    require(directory.is_dir(), "OUTPUT_DIRECTORY_REQUIRED")
+    require(
+        all(not p.is_symlink() for p in (directory, *directory.parents)),
+        "OUTPUT_SYMLINK_NOT_ALLOWED",
+    )
+    require(
+        not any((p / ".git").exists() for p in (directory, *directory.parents)),
+        "ARCHIVE_INSIDE_GIT_NOT_ALLOWED",
+    )
+    info = directory.stat()
+    require(info.st_mode & 0o077 == 0, "PRIVATE_OUTPUT_DIRECTORY_REQUIRED")
+    return info.st_dev, info.st_ino
+
+
+def open_xlsx(path: Path, *, raw: bytes | None = None) -> Workbook:
+    # Every parser pass must use the same bytes as the source hash receipt.
+    raw = path.read_bytes() if raw is None else raw
+    with ZipFile(io.BytesIO(raw)) as archive:
         entries = archive.infolist()
+        require(
+            len({entry.filename for entry in entries}) == len(entries),
+            "DUPLICATE_WORKBOOK_MEMBER",
+        )
         require(
             len(entries) <= 1000 and sum(x.file_size for x in entries) <= 64_000_000,
             "WORKBOOK_TOO_LARGE",
@@ -105,15 +131,15 @@ def open_xlsx(path: Path) -> Workbook:
                 require(
                     len(ET.fromstring(archive.read(info))) == 0, "UNSUPPORTED_DRAWING"
                 )
-    book = load_workbook(path, data_only=False, keep_links=False)
+    book = load_workbook(io.BytesIO(raw), data_only=False, keep_links=False)
     require(sum(len(s._cells) for s in book) <= 200_000, "WORKBOOK_TOO_LARGE")
     return book
 
 
 def roster_mapping(
-    path: Path, sheet_name: str | None = None
+    path: Path, sheet_name: str | None = None, *, raw: bytes | None = None
 ) -> tuple[dict[str, set[str]], set[str]]:
-    book = open_xlsx(path)
+    book = open_xlsx(path, raw=raw)
     names = (
         [sheet_name]
         if sheet_name
@@ -216,8 +242,17 @@ def text_sanitizer(aliases: dict[str, set[str]]) -> Callable[[Any], Any]:
             require(len(choices) == 1, "AMBIGUOUS_IDENTITY_REFERENCE")
             return next(iter(choices))
 
+        def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, item in pairs:
+                require(key not in result, "DUPLICATE_JSON_KEY")
+                result[key] = item
+            return result
+
         try:
-            nested = json.loads(value)
+            nested = json.loads(value, object_pairs_hook=unique_object)
+        except ExportHeld:
+            raise
         except (ValueError, TypeError):
             nested = None
         if isinstance(nested, (dict, list)):
@@ -234,7 +269,35 @@ def text_sanitizer(aliases: dict[str, set[str]]) -> Callable[[Any], Any]:
                 return sanitize(item)
 
             value = json.dumps(walk(nested), ensure_ascii=False, separators=(",", ":"))
-        result = expression.sub(replace, value)
+        elif isinstance(nested, str):
+            # A JSON string is also an encoded identity carrier, even when it
+            # is not wrapped in an object or array. Preserve its string type.
+            value = json.dumps(sanitize(nested), ensure_ascii=False)
+
+        # Check complete email tokens before name substitution. Word boundaries
+        # alone can replace a known address inside a longer, unknown address.
+        def replace_email(match: re.Match[str]) -> str:
+            adjacent = (
+                value[max(0, match.start() - 1) : match.start()]
+                + value[match.end() : match.end() + 1]
+            )
+            require(
+                not any(
+                    c.isalnum() or c == "_" or unicodedata.category(c).startswith("M")
+                    for c in adjacent
+                ),
+                "UNMAPPED_EMAIL_REMAINS",
+            )
+            choices = aliases.get(match.group(), set())
+            require(bool(choices), "UNMAPPED_EMAIL_REMAINS")
+            require(len(choices) == 1, "AMBIGUOUS_IDENTITY_REFERENCE")
+            return next(iter(choices))
+
+        without_emails = EMAIL.sub(replace_email, value)
+        # Unsupported quoted, internationalized or local-only mailboxes must
+        # not evade the ASCII mailbox matcher and remain in a successful copy.
+        require("@" not in without_emails, "UNMAPPED_EMAIL_REMAINS")
+        result = expression.sub(replace, without_emails)
         require(not EMAIL.search(result), "UNMAPPED_EMAIL_REMAINS")
         require(not residual_expression.search(result), "IDENTITY_REMAINS")
         return result
@@ -317,24 +380,15 @@ def sanitize_export(
         "ORIGINAL_MUST_BE_PRESERVED",
     )
     require(not output.exists(), "OUTPUT_ALREADY_EXISTS")
-    require(output.parent.is_dir(), "OUTPUT_DIRECTORY_REQUIRED")
-    require(
-        all(not p.is_symlink() for p in (output.parent, *output.parent.parents)),
-        "OUTPUT_SYMLINK_NOT_ALLOWED",
-    )
-    require(
-        not any((p / ".git").exists() for p in (output.parent, *output.parent.parents)),
-        "ARCHIVE_INSIDE_GIT_NOT_ALLOWED",
-    )
-    require(
-        output.parent.stat().st_mode & 0o077 == 0, "PRIVATE_OUTPUT_DIRECTORY_REQUIRED"
-    )
+    directory_identity = private_directory_identity(output.parent)
     require(
         source.suffix.lower() in (".xlsx", ".csv")
         and output.suffix.lower() == source.suffix.lower(),
         "FORMAT_NOT_SUPPORTED",
     )
-    before, roster_before = fingerprint(source), fingerprint(central_roster)
+    source_raw, roster_raw = source.read_bytes(), central_roster.read_bytes()
+    before = hashlib.sha256(source_raw).hexdigest()
+    roster_before = hashlib.sha256(roster_raw).hexdigest()
     require(
         expected_roster_hash is None or expected_roster_hash == roster_before,
         "SHARED_PIN_ROSTER_CHANGED",
@@ -342,14 +396,17 @@ def sanitize_export(
     aliases, pins = (
         verified_mapping
         if verified_mapping is not None
-        else roster_mapping(central_roster, roster_sheet)
+        else roster_mapping(central_roster, roster_sheet, raw=roster_raw)
     )
     sanitize = text_sanitizer(aliases)
     count = 0
     if source.suffix.lower() == ".csv":
-        csv_rows: list[list[Any]] = list(
-            csv.reader(io.StringIO(source.read_text(encoding="utf-8-sig")))
-        )
+        try:
+            csv_rows: list[list[Any]] = list(
+                csv.reader(io.StringIO(source_raw.decode("utf-8-sig")), strict=True)
+            )
+        except csv.Error as error:
+            raise ExportHeld("CSV_INVALID") from error
         require(len(csv_rows) <= 200_000, "EXPORT_TOO_LARGE")
         count += replace_columns(csv_rows, aliases, pins)
         csv_values = [[sanitize(v) for v in row] for row in csv_rows]
@@ -366,8 +423,8 @@ def sanitize_export(
         csv.writer(csv_stream).writerows(csv_values)
         payload = csv_stream.getvalue().encode("utf-8")
     else:
-        book = open_xlsx(source)
-        cached = load_workbook(source, data_only=True, keep_links=False)
+        book = open_xlsx(source, raw=source_raw)
+        cached = load_workbook(io.BytesIO(source_raw), data_only=True, keep_links=False)
         clean = Workbook()
         active = clean.active
         assert active is not None
@@ -427,18 +484,89 @@ def sanitize_export(
     )
     if authority_check is not None:
         authority_check()
-    require(output.parent.is_dir(), "OUTPUT_DIRECTORY_REQUIRED")
-    fd, temporary = tempfile.mkstemp(prefix=".pin-export-", dir=output.parent)
+    directory_fd = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    publication_attempted = False
     try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if authority_check is not None:
-            authority_check()
-        os.link(temporary, output)  # Exclusive creation; never overwrite an archive.
+
+        def check_directory() -> None:
+            info = os.fstat(directory_fd)
+            require(
+                (info.st_dev, info.st_ino) == directory_identity
+                and private_directory_identity(output.parent) == directory_identity,
+                "OUTPUT_DIRECTORY_CHANGED",
+            )
+            require(info.st_mode & 0o077 == 0, "PRIVATE_OUTPUT_DIRECTORY_REQUIRED")
+
+        check_directory()
+        temporary = ".pin-export-" + secrets.token_hex(16)
+        fd = os.open(
+            temporary,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            0o600,
+            dir_fd=directory_fd,
+        )
+        temporary_info = os.fstat(fd)
+
+        def owns_temporary() -> bool:
+            try:
+                info = os.stat(temporary, dir_fd=directory_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                return False
+            return (info.st_dev, info.st_ino) == (
+                temporary_info.st_dev,
+                temporary_info.st_ino,
+            )
+
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if authority_check is not None:
+                authority_check()
+            require(
+                fingerprint(source) == before
+                and fingerprint(central_roster) == roster_before,
+                "INPUT_CHANGED",
+            )
+            check_directory()
+            require(owns_temporary(), "TEMPORARY_OUTPUT_CHANGED")
+            # Descriptor-relative creation cannot be redirected by a directory
+            # replacement. Hard linking remains exclusive: no archive overwrite.
+            publication_attempted = True
+            try:
+                os.link(
+                    temporary,
+                    output.name,
+                    src_dir_fd=directory_fd,
+                    dst_dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+            except FileExistsError as error:
+                publication_attempted = False
+                raise ExportHeld("OUTPUT_ALREADY_EXISTS") from error
+            os.fsync(directory_fd)
+            check_directory()
+        finally:
+            if owns_temporary():
+                os.unlink(temporary, dir_fd=directory_fd)
+            elif publication_attempted:
+                raise ExportPublicationUncertain("ARCHIVE_PUBLICATION_UNCERTAIN")
+            else:
+                raise ExportHeld("TEMPORARY_OUTPUT_CHANGED")
+    except Exception as error:
+        if publication_attempted:
+            raise ExportPublicationUncertain("ARCHIVE_PUBLICATION_UNCERTAIN") from error
+        raise
     finally:
-        Path(temporary).unlink(missing_ok=True)
+        try:
+            os.close(directory_fd)
+        except OSError as error:
+            if publication_attempted:
+                raise ExportPublicationUncertain(
+                    "ARCHIVE_PUBLICATION_UNCERTAIN"
+                ) from error
+            raise
     return {
         "status": "PRIVATE_PSEUDONYMOUS_ARCHIVE",
         "identity_rows_replaced": count,
@@ -554,7 +682,9 @@ def registry_bound_export(
                 and pin in names.get(name.strip().casefold(), set()),
                 "SHARED_PIN_MAPPING_INVALID",
             )
-            aliases[name].add(pin)
+            # Exact spellings must retain the shared index's normalized
+            # ambiguity; casing alone is not unique identity evidence.
+            aliases[name].update(names[name.strip().casefold()])
 
     def authority_check() -> None:
         require(

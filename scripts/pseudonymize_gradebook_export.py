@@ -20,7 +20,14 @@ module_path = (
 )
 spec = importlib.util.spec_from_file_location("local_pin_export", module_path)
 module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+try:
+    spec.loader.exec_module(module)
+except ModuleNotFoundError:
+    print(
+        json.dumps({"status": "HELD", "reason": "LOCAL_EXPORT_DEPENDENCY_MISSING"}),
+        file=sys.stderr,
+    )
+    raise SystemExit(1) from None
 ExportHeld = module.ExportHeld
 
 
@@ -43,6 +50,17 @@ def main():
         result = module.registry_bound_export(
             args.source, args.output, args.source_registry, shared_tool
         )
+    except module.ExportPublicationUncertain:
+        print(
+            json.dumps(
+                {
+                    "status": "ARCHIVE_PUBLICATION_UNCERTAIN",
+                    "reason": "CHECK_PRIVATE_OUTPUT_BEFORE_RETRY",
+                }
+            ),
+            file=sys.stderr,
+        )
+        return 2
     except ExportHeld as error:
         print(json.dumps({"status": "HELD", "reason": str(error)}), file=sys.stderr)
         return 1

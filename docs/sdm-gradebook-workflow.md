@@ -1,6 +1,6 @@
 # SDM Canvas gradebooks
 
-The main workbook is [FDHS Chemistry Gradebook — 2026–2027](https://docs.google.com/spreadsheets/d/13ps0FZLBj2qpclMNKo7Eb95kE4Sb_fgf9s7Ki2_KoNc/edit). Its existing sharing permissions are unchanged. It has six visible tabs:
+The main workbook is FDHS Chemistry Gradebook — 2026–2027 (open through the locally configured workbook). Its existing sharing permissions are unchanged. The September 29, 2026 layout has seven visible tabs and nine total:
 
 1. Core GET
 2. Adv GET
@@ -8,10 +8,11 @@ The main workbook is [FDHS Chemistry Gradebook — 2026–2027](https://docs.goo
 4. Adv Edit
 5. Student Info
 6. Assignment
+7. Grader Proposals
 
-The mirror tabs are protected GET-only snapshots. The edit tabs have the same layout, with only score cells editable. At the September 20, 2026 migration checkpoint, Student Info retained 173 permanent numbers, including two students outside the active roster, and Assignment contained 52 Canvas assignments plus prior IC mappings. Those are historical counts, not configured limits or a live inventory. Never renumber or recycle permanent numbers. Refreshing grade tabs must preserve both reference tabs; reconcile their metadata separately by exact IDs, retaining IC fields and permanent numbers.
+The mirror tabs are protected GET-only snapshots. The edit tabs have the same layout, with only score cells editable. At the September 20, 2026 migration checkpoint, Student Info retained 173 permanent numbers, including two students outside the active roster, and Assignment contained 52 Canvas assignments plus prior IC mappings. Those are historical counts, not configured limits or a live inventory. Never renumber or recycle permanent numbers. Refreshing grade tabs must preserve both reference tabs and Grader Proposals; reconcile reference metadata separately by exact IDs, retaining IC fields and permanent numbers.
 
-`_Core Sync` and `_Adv Sync` are hidden system tabs. Course-specific `tab_names` in the binding file normalize these names to the internal Canvas/Working/_Sync roles. The previous standalone workbooks and the user's [backup](https://docs.google.com/spreadsheets/d/1CKIzzHVaSilKa8Aeo8D9sVsTldblQmRRNGuLBD6pUNQ/edit) remain available. The 36 old tabs were removed from the main workbook only after full replacement readback and backup/student-number checks.
+`_Core Sync` and `_Adv Sync` are hidden system tabs. Course-specific `tab_names` in the binding file normalize these names to the internal Canvas/Working/_Sync roles. The previous standalone workbooks and the user's backup (open through the locally configured workbook) remain available. The 36 old tabs were removed from the main workbook only after full replacement readback and backup/student-number checks.
 The course/workbook/sheet bindings are in `config/sdm-gradebook-workbooks.json`.
 No student data is stored in that configuration or in Git.
 
@@ -22,32 +23,60 @@ materials and structure without rosters, grades, or student submissions. Running
 gradebook snapshot does not update Google Sheets until the refresh protocol is
 completed.
 
+## Permanent PINs for local copies
+
+`Student Info` is the cross-project PIN authority: resolve the `Email` header to
+`Student Number`, preserving four-digit text and leading zeros. Its private
+name fields are `Canvas Name`, `IC Name`, and `Roster Name`. The historical
+`Student Numbers` tab is not the current lookup contract. Local document copies
+replace identity columns with `student_pin` through the shared exporter and
+operator registry; the mirror and original reference tab stay unchanged. See
+[Student PIN policy](STUDENT-PIN-POLICY.md) for the common source location,
+command, and fail-closed matching rules.
+
 ## Everyday use
 
-Ask Codex to **refresh both Canvas gradebooks** or **preview the changes in my
-Core gradebook**. The workflow uses the Canvas gradebook MCP together with the
-connected Google Drive tools. It currently needs the agent to perform that
-exchange; there is no supported Apps Script refresh menu, background poller,
-or direct Google credential in the Canvas server. A legacy **GrAss Submissions**
-menu can still appear in the main workbook; it does not refresh these grade tabs.
+The new [local refresh worker](sdm-gradebook-worker.md) connects a menu request
+to the canonical planner and trusted local baseline store. It prepares both
+courses, performs one atomic Google Sheets batch, and verifies the native
+result. Canvas remains GET-only. Pending Edit proposals retain their original
+baselines; reference tabs remain unchanged.
 
-### Legacy GET menu error
+**Dated activation evidence, September 30:** the user-owned OAuth transport,
+installed menu, first native refresh, verified reconciliation and advancing worker
+heartbeats were recorded in the [worker runbook](sdm-gradebook-worker.md). This
+supersedes the September 29 pending-activation checkpoint; it is not a fresh
+liveness check.
 
-If **GrAss Submissions → Snapshot submissions (GET only)** reports
-`Submission snapshot stopped: submission_output_unowned_preserved`, do not
+Choose **Canvas Gradebook → Refresh both courses (Canvas GET only)** and keep the
+workbook idle until **Show refresh progress** reports VERIFIED. Check the current
+worker status; the Mac and local worker must be awake. Setup, recovery, limits
+and privacy boundaries are in the runbook. A Git pull does not restart or verify
+the worker. The general server's `ALLOWED_WRITE_TOOLS` policy does not replace the
+separate gradebook service's explicit `--enable-push`, preview and readback gates.
+
+### Historical legacy GET menu error
+
+Before the September 29 overlay, **GrAss Submissions → Snapshot submissions
+(GET only)** could report
+`Submission snapshot stopped: submission_output_unowned_preserved`. Do not
 clear ownership properties or run **Set up central workbench** to force it past
-the guard. The main workbook's bound project is still **GrAss Submission
-Workbench**. Its `snapshotGrAssSubmissions()` handler runs the standalone
+the guard. The main workbook's bound project is **GrAss Submission
+Workbench**. Its former `snapshotGrAssSubmissions()` handler ran the standalone
 submission-workbench runtime, which requires its own output sheets and ownership
-records. Those sheets are absent from the current six-visible-tab gradebook.
-The runtime stops while capturing output ownership, before fetching Canvas or
-replacing outputs. This is a stale menu/layout mismatch, not evidence of an
+records. Those sheets are absent from the central gradebook. That runtime
+stopped while capturing output ownership, before fetching Canvas or
+replacing outputs. This was a stale menu/layout mismatch, not evidence of an
 expired Canvas credential.
 
-Use the agent refresh protocol below for this workbook. A permanent one-click
-GET feature requires a controller for the current gradebook layout; removing the
-legacy guard is not a repair. Before installing that controller, preserve the
-bound project's source and verify these requirements:
+The September 29 overlay replaces the menu entry points while preserving the
+old runtime and its ownership guards. After installation and reload, the legacy
+command is no longer exposed by the menu; an already-open legacy menu's snapshot
+handler redirects to refresh instructions. Preserve a complete bound-project
+source backup before installation and verify the complete source afterward.
+
+The local worker implements the current gradebook controller. Before activating
+it, preserve the bound project's source and verify these requirements:
 
 - Exact workbook, course, and sheet-ID bindings; no sheet creation or adoption
   merely because a name matches.
@@ -57,21 +86,25 @@ bound project's source and verify these requirements:
   colors, and protected mirror sheets.
 - Preservation of pending Edit proposals and their original trusted baselines,
   including continued compatibility with the local push-preview parser.
-- No changes to Student Info or Assignment, an execution lock, a fresh-input
-  check before writing, and complete readback after one atomic Sheets update.
+- No changes to Student Info, Assignment, or Grader Proposals, an execution lock,
+  a fresh-input check before writing, and complete readback after one atomic
+  Sheets update.
 
 The local workflow stores immutable baselines outside Apps Script. A menu
 controller must explicitly integrate with that store or introduce and validate
 a compatible baseline handoff; it must not silently replace `_Sync!B2` with an
 unavailable or untrusted snapshot.
 
-On September 23, 2026, the legacy menu and its handler were verified in the
-live bound script. An agent-assisted refresh at 10:17 PM EDT then read back
+Historical checkpoint: on September 23, 2026, the legacy menu and its handler
+were verified in the live bound script. An agent-assisted refresh at 10:17 PM EDT
+then read back
 successfully for 120 Core students and 51 Advanced students, with 17 published
 graded assignments per course and zero pending edits. Student Info and
 Assignment values were unchanged. Both private refresh receipts reported zero
-Canvas writes. The bound script was inspected, not replaced; the menu repair
-remains outstanding.
+Canvas writes. At that checkpoint the bound script was inspected, not replaced.
+The first September 29 overlay repaired menu guidance and navigation. The
+subsequent worker implements the refresh controller; live activation remains a
+separate, verified setup step.
 
 For each course, the two grade tabs behave as follows:
 
@@ -210,10 +243,17 @@ snapshot; `_Sync!B2` points to the working baseline, which may retain older
 observations for pending cells. If roster or assignment grading schema changes
 while edits are pending, refresh stops and preserves the existing workbook.
 
-The refresh supports 1–995 students and 1–256 published graded assignments.
-Grade columns expand as later assignments are published; empty or larger
-courses stop rather than truncate. The destination sheets must already have
-enough rows; the refresh resizes columns but does not create sheets or expand
+The workbook refresh layout supports 1–995 students and 1–256 published graded
+assignments. The live snapshot transport has a stricter cap of **100 published
+graded assignments** and a **120-second deadline** covering all discovery,
+pagination, and rate-limit backoff. These are separate limits: workbook capacity
+does not permit a live refresh above the transport cap. Reaching either
+transport limit retains the previous snapshot and stops without a partial
+refresh; see [Gradebook visibility reads](gradebook-visibility-read.md).
+Grade columns expand as later assignments are published; empty courses or
+courses beyond supported limits stop rather than truncate. The destination
+sheets must already have enough rows; the refresh resizes columns but does not
+create sheets or expand
 their row capacity. The published assignment count is read from each fresh
 Canvas snapshot rather than hardcoded. Submission workflow, attempt, timestamps
 and flags are stored in grade-cell notes, in addition to status colors.
@@ -341,7 +381,7 @@ artifact-tool runtime. `scripts/protect_gradebook_workbook.py` supplies XLSX
 protection/hidden metadata missing from that renderer's API. Google conversion
 loses Excel protection, so native protections were applied and read back.
 These bootstrap scripts create the original three-tab Canvas/Working/_Sync
-layout; they do not provision the current combined six-visible-tab workbook or
+layout; they do not provision the current combined seven-visible-tab workbook or
 replace its sheet bindings and reference tabs. Use the refresh protocol for the
 existing workbook.
 Current QA exports were checked against all saved grades and both visible tabs
@@ -357,7 +397,8 @@ npm run build
 npm test
 ```
 
-Targeted regressions are the four `tests/test_gradebook*.py` modules. They use
+Targeted regressions are the `tests/test_gradebook*.py` modules and
+`tests/gradebook_menu_overlay.test.mjs`. They use
 synthetic records and mocked HTTP, including partial failures and process
 restart/readback. No real grade writes, model calls, or messages are needed.
 
@@ -371,4 +412,6 @@ API references:
 
 Native XLSX readback verified both GET and Edit tabs against immutable snapshots: 120 Core students, 51 Advanced students, and zero pending edits. No Canvas writes were made. Settings outside the canvas-gradebook connection were preserved. Use the launcher CLI after any binding change so the updated tab names are read afresh. A push requires `--enable-push`, a prepared operation, explicit approval of its exact preview, and its single-use confirmation token; never use an actual grade write as a test.
 
-Live connection behavior follows the [official MCP configuration reference](https://learn.chatgpt.com/docs/extend/mcp?surface=cli). Refresh and push are requested through the agent; editing a cell is not an automatic push, and no in-Sheets button or background schedule was installed.
+Live connection behavior follows the [official MCP configuration reference](https://learn.chatgpt.com/docs/extend/mcp?surface=cli). Refresh and push are requested through the agent; editing a cell is not an automatic push. The currently deployed menu supplies guidance, stored status, and navigation.
+The new queue menu and local worker require the activation procedure in the
+[worker runbook](sdm-gradebook-worker.md).

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "record_type": "private_pin_export_validation",
+  "recorded_at": "2026-09-30T21:04:00Z",
+  "scope": "Synthetic local validation; no student data or service calls. Does not admit automatic fleet archival.",
+  "python": {
+    "passed": 2158,
+    "skipped": 21,
+    "exporter_tests_passed": 58
+  },
+  "typescript": {
+    "tests_passed": 96,
+    "build": "PASS"
+  },
+  "menu_tests_passed": 22,
+  "ruff": "PASS",
+  "mypy": "PASS: 68 source files",
+  "lockfile_sync": "PASS: isolated locked dev environment",
+  "independent_review": "All identified integrity blockers resolved; seven focused regressions independently passed.",
+  "source_hashes": {
+    "src/canvas_mcp/gradebook/pseudonymize_export.py": "e9ee0104f6dd76c2d0e04c1321f90c5a1fc7b207cc4b21b411df0eecb33518e3",
+    "scripts/pseudonymize_gradebook_export.py": "b3fe86b7d025964f8abdf468925be4c2549fb27bc9d3a6bf504b4e16ec74426e",
+    "tests/test_pseudonymize_export.py": "def0cdace736fb9e1a62e5040c5e4234f7714f715499c3b8644e3403b2dc6f20"
+  },
+  "cli_smoke": {
+    "schema_version": 1,
+    "record_type": "synthetic_cli_smoke",
+    "status": "PASS",
+    "recorded_at": "2026-09-30T21:02:34.171861+00:00",
+    "synthetic_only": true,
+    "identity_rows": 2,
+    "actual_default_shared_binding_and_roster_index": true,
+    "leading_zero_pins_preserved": true,
+    "originals_unchanged": true,
+    "existing_output_refused_and_unchanged": true,
+    "private_values_absent_from_cli_streams": true,
+    "private_output_mode": "0600",
+    "private_directory_mode": "0700",
+    "live_calls": 0,
+    "registry_sha256": "e5a13975b1f3e1e02a5e5792e7609aafdfaf64ccaa23737135a22a1e4a4b71c2",
+    "roster_sha256": "d4b1e9425d5067aec2ac9993c08ff956daadb78ae0f5ca9ecbe0bb897a9c75e4",
+    "source_sha256": "820454c450fe6b5f4392a7335fdede0d108cd19b6d1d0fb14873a3c76e8ec407",
+    "output_sha256": "45a0769615f7aa32f675eb76532d6861e275d81c1079cedf79f7cab505604944",
+    "cli_sha256": "b3fe86b7d025964f8abdf468925be4c2549fb27bc9d3a6bf504b4e16ec74426e",
+    "renderer_sha256": "e9ee0104f6dd76c2d0e04c1321f90c5a1fc7b207cc4b21b411df0eecb33518e3",
+    "shared_student_pin_sha256": "9ca56a3cd66b54cab8498a5dbeda1cd2458a0796cac5f70dbea3629bf74105d7",
+    "success_stdout_sha256": "23db56abefd292565e86b106cd68b3094e24e348f364b39bb7c1f8691ba08319",
+    "refusal_stderr_sha256": "68d47da6a63259a80787f39eff72b33305454980d4553635bea4c4b7ab8fefd5"
+  }
+}

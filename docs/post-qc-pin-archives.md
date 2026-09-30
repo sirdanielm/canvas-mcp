@@ -42,7 +42,10 @@ dependencies, rather than an arbitrary system `python3`.
   Verify inputs remain unchanged while rendering. Write new private outputs
   outside the source batch, repository and QC baseline directories.
 - Publish a completed batch only after every included workbook passes. Keep
-  a bounded aggregate hold receipt when any workbook cannot be sanitized.
+  a bounded aggregate hold receipt when any workbook cannot be sanitized. Treat
+  `ARCHIVE_PUBLICATION_UNCERTAIN` separately: retain the exact attempted path and
+  reconcile possible output before retrying; a transport/process error does not
+  prove that the archive was never created.
 - Keep original QC findings and exit status visible independently of archive
   failure. PIN conversion is not grading, privacy clearance for public sharing,
   or publication permission.

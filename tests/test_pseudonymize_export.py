@@ -364,3 +364,361 @@ def test_registry_change_during_rendering_prevents_archive(
         )
     assert not (root / "archive.xlsx").exists()
     assert not list(root.glob(".pin-export-*"))
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "prefix+alpha@example.test",
+        "alpha@example.test.evil",
+        "other.alpha@example.test",
+        "éalpha@example.test",
+        "alpha@example.testé",
+        '"alpha"@example.test',
+        "alpha@localhost",
+        "alpha@example.test\u0301",
+    ],
+)
+def test_complete_unknown_email_cannot_be_hidden_by_partial_replacement(address):
+    clean = module.text_sanitizer({"alpha@example.test": {"0123"}, "alpha": {"0123"}})
+    with pytest.raises(module.ExportHeld, match="UNMAPPED_EMAIL_REMAINS"):
+        clean(address)
+    with pytest.raises(module.ExportHeld, match="UNMAPPED_EMAIL_REMAINS"):
+        clean(json.dumps({"note": address}))
+    assert clean("Contact alpha@example.test") == "Contact 0123"
+
+
+def test_shared_normalized_name_ambiguity_is_preserved(shared_authority):
+    root, roster, registry, _ = shared_authority
+    book = load_workbook(roster)
+    book.active["A3"] = "FICTIONAL ALPHA"
+    book.save(roster)
+    bound = json.loads(registry.read_text())
+    bound["roster_sha256"] = module.fingerprint(roster)
+    registry.write_text(json.dumps(bound))
+    source, target = root / "source.csv", root / "archive.csv"
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    with pytest.raises(module.ExportHeld, match="IDENTITY_CONFLICT_OR_AMBIGUITY"):
+        module.registry_bound_export(source, target, registry, root / "shared.py")
+    assert not target.exists()
+    source.write_text(
+        "Student Name,Email,Note\nFictional Alpha,alpha@example.test,Fictional Alpha\n"
+    )
+    with pytest.raises(module.ExportHeld, match="AMBIGUOUS_IDENTITY_REFERENCE"):
+        module.registry_bound_export(source, target, registry, root / "shared.py")
+    assert not target.exists()
+    source.write_text("Student Name,Email\nFictional Alpha,alpha@example.test\n")
+    module.registry_bound_export(source, target, registry, root / "shared.py")
+    assert "0123,0123" in target.read_text()
+
+
+def test_formula_and_value_readers_use_captured_source_bytes(files, monkeypatch):
+    import io
+
+    root, roster = files
+    source, target = root / "source.xlsx", root / "archive.xlsx"
+    source.write_bytes(roster.read_bytes())
+    original = source.read_bytes()
+    seen = []
+    original_load = module.load_workbook
+
+    def snapshot_load(value, **kwargs):
+        assert isinstance(value, io.BytesIO)
+        seen.append((kwargs.get("data_only"), value.getvalue()))
+        # A temporary path change must never switch the bytes parsed by a later
+        # cache/formula pass; restore before the final on-disk change check.
+        if kwargs.get("data_only") is True:
+            source.write_bytes(original)
+        else:
+            source.write_bytes(b"different bytes while rendering")
+        return original_load(value, **kwargs)
+
+    monkeypatch.setattr(module, "load_workbook", snapshot_load)
+    result = module.sanitize_export(source, roster, target)
+    assert len(seen) == 3
+    assert all(raw == original for _, raw in seen)
+    assert result["source_sha256"] == module.fingerprint(source)
+    assert load_workbook(target).active["A2"].value == "0123"
+
+
+@pytest.mark.parametrize("changed_input", ["source", "roster"])
+def test_input_changed_while_staging_is_held(files, monkeypatch, changed_input):
+    root, roster = files
+    source, target = root / "source.csv", root / "archive.csv"
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    original_fsync = module.os.fsync
+
+    def change_after_flush(fd):
+        original_fsync(fd)
+        changed = source if changed_input == "source" else roster
+        changed.write_bytes(changed.read_bytes() + b"changed")
+
+    monkeypatch.setattr(module.os, "fsync", change_after_flush)
+    with pytest.raises(module.ExportHeld, match="INPUT_CHANGED"):
+        module.sanitize_export(source, roster, target)
+    assert not target.exists()
+    assert not list(root.glob(".pin-export-*"))
+
+
+@pytest.mark.parametrize("change", ["mode", "git", "directory", "symlink"])
+def test_private_output_binding_is_rechecked_before_publish(files, monkeypatch, change):
+    root, roster = files
+    source = root / "source.csv"
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    directory = root / "archive"
+    directory.mkdir(mode=0o700)
+    target = directory / "copy.csv"
+    moved = root / "moved"
+    other = root / "other"
+    other.mkdir(mode=0o700)
+    original_fsync = module.os.fsync
+
+    def change_after_flush(fd):
+        original_fsync(fd)
+        if change == "mode":
+            directory.chmod(0o755)
+        elif change == "git":
+            (directory / ".git").mkdir()
+        else:
+            directory.rename(moved)
+            if change == "directory":
+                directory.mkdir(mode=0o700)
+            else:
+                directory.symlink_to(other, target_is_directory=True)
+
+    monkeypatch.setattr(module.os, "fsync", change_after_flush)
+    with pytest.raises(module.ExportHeld):
+        module.sanitize_export(source, roster, target)
+    assert not target.exists()
+    assert not (moved / "copy.csv").exists()
+    assert not (other / "copy.csv").exists()
+    assert not list(root.rglob(".pin-export-*"))
+
+
+@pytest.mark.parametrize(
+    "failure", ["unlink", "directory_fsync", "link_after_creation"]
+)
+def test_after_publication_failure_is_explicitly_uncertain(files, monkeypatch, failure):
+    root, roster = files
+    source, target = root / "source.csv", root / "archive.csv"
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    original_unlink, original_fsync, original_link = (
+        module.os.unlink,
+        module.os.fsync,
+        module.os.link,
+    )
+
+    def unlink(path, **kwargs):
+        if failure == "unlink" and str(path).startswith(".pin-export-"):
+            raise OSError("synthetic cleanup failure with private text")
+        return original_unlink(path, **kwargs)
+
+    def fsync(fd):
+        if failure == "directory_fsync" and target.exists():
+            raise OSError("synthetic directory sync failure")
+        return original_fsync(fd)
+
+    def link(*args, **kwargs):
+        original_link(*args, **kwargs)
+        if failure == "link_after_creation":
+            raise OSError("synthetic ambiguous link completion")
+
+    monkeypatch.setattr(module.os, "unlink", unlink)
+    monkeypatch.setattr(module.os, "fsync", fsync)
+    monkeypatch.setattr(module.os, "link", link)
+    with pytest.raises(
+        module.ExportPublicationUncertain, match="ARCHIVE_PUBLICATION_UNCERTAIN"
+    ):
+        module.sanitize_export(source, roster, target)
+    assert "0123,75" in target.read_text()
+    assert target.stat().st_mode & 0o077 == 0
+
+
+def test_duplicate_zip_member_holds_without_output(files):
+    from zipfile import ZipFile
+
+    root, roster = files
+    source, target = root / "source.xlsx", root / "archive.xlsx"
+    source.write_bytes(roster.read_bytes())
+    with ZipFile(source, "a") as archive:
+        name = "xl/worksheets/sheet1.xml"
+        raw = archive.read(name)
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            archive.writestr(name, raw)
+    with pytest.raises(module.ExportHeld, match="DUPLICATE_WORKBOOK_MEMBER"):
+        module.sanitize_export(source, roster, target)
+    assert not target.exists()
+
+
+def test_cli_missing_optional_dependency_returns_bounded_hold(tmp_path):
+    import subprocess
+    import sys
+
+    script = Path(__file__).parents[1] / "scripts/pseudonymize_gradebook_export.py"
+    result = subprocess.run(
+        [sys.executable, "-S", str(script), "ingest"], capture_output=True, text=True
+    )
+    assert result.returncode == 1
+    assert json.loads(result.stderr) == {
+        "status": "HELD",
+        "reason": "LOCAL_EXPORT_DEPENDENCY_MISSING",
+    }
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+
+
+def test_cli_distinguishes_uncertain_publication_from_validation_hold(
+    monkeypatch, capsys
+):
+    import sys
+
+    script = Path(__file__).parents[1] / "scripts/pseudonymize_gradebook_export.py"
+    spec = importlib.util.spec_from_file_location("pin_cli_test", script)
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+
+    def uncertain(*args):
+        raise cli.module.ExportPublicationUncertain("private details must never appear")
+
+    monkeypatch.setattr(cli.module, "registry_bound_export", uncertain)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(script),
+            "ingest",
+            "--source",
+            "/synthetic/source.csv",
+            "--output",
+            "/synthetic/output.csv",
+            "--shared-pin-tool",
+            "/synthetic/tool.py",
+        ],
+    )
+    assert cli.main() == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(captured.err) == {
+        "status": "ARCHIVE_PUBLICATION_UNCERTAIN",
+        "reason": "CHECK_PRIVATE_OUTPUT_BEFORE_RETRY",
+    }
+
+
+def test_temporary_replacement_is_not_published_or_deleted(files, monkeypatch):
+    root, roster = files
+    source, target = root / "source.csv", root / "archive.csv"
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    original_fsync = module.os.fsync
+    replaced = []
+
+    def replace_after_flush(fd):
+        original_fsync(fd)
+        temporary = next(root.glob(".pin-export-*"))
+        temporary.rename(root / "retained-owned-temporary")
+        temporary.write_bytes(b"foreign content must be preserved")
+        replaced.append(temporary)
+
+    monkeypatch.setattr(module.os, "fsync", replace_after_flush)
+    with pytest.raises(module.ExportHeld, match="TEMPORARY_OUTPUT_CHANGED"):
+        module.sanitize_export(source, roster, target)
+    assert not target.exists()
+    assert replaced[0].read_bytes() == b"foreign content must be preserved"
+
+
+def test_concurrent_output_creation_is_preserved(files, monkeypatch):
+    root, roster = files
+    source, target = root / "source.csv", root / "archive.csv"
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    original_fsync = module.os.fsync
+
+    def create_after_flush(fd):
+        original_fsync(fd)
+        target.write_bytes(b"existing archive from another invocation")
+
+    monkeypatch.setattr(module.os, "fsync", create_after_flush)
+    with pytest.raises(module.ExportHeld, match="OUTPUT_ALREADY_EXISTS"):
+        module.sanitize_export(source, roster, target)
+    assert target.read_bytes() == b"existing archive from another invocation"
+    assert not list(root.glob(".pin-export-*"))
+
+
+def test_malformed_csv_is_held_without_collapsing_rows(files):
+    root, roster = files
+    source, target = root / "source.csv", root / "archive.csv"
+    source.write_text(
+        'Student Name,Grade,Note\nFictional Alpha,75,"unterminated\nFictional Beta,80,second row\n'
+    )
+    with pytest.raises(module.ExportHeld, match="CSV_INVALID"):
+        module.sanitize_export(source, roster, target)
+    assert not target.exists()
+    assert not list(root.glob(".pin-export-*"))
+
+
+def test_valid_multiline_csv_preserves_rows_and_values(files):
+    import csv
+
+    root, roster = files
+    source, target = root / "source.csv", root / "archive.csv"
+    source.write_text(
+        'Student Name,Grade,Note\nFictional Alpha,75,"first\nsecond"\nFictional Beta,80,third\n'
+    )
+    result = module.sanitize_export(source, roster, target)
+    with target.open(newline="") as handle:
+        rows = list(csv.reader(handle, strict=True))
+    assert rows[1:] == [["0123", "75", "first\nsecond"], ["0456", "80", "third"]]
+    assert result["identity_rows_replaced"] == 2
+
+
+@pytest.mark.parametrize(
+    "encoded", ['"Fictional\\u0020Alpha"', '"alpha\\u0040example.test"']
+)
+def test_json_scalar_string_is_sanitized_without_losing_string_type(encoded):
+    clean = module.text_sanitizer(
+        {"Fictional Alpha": {"0123"}, "alpha@example.test": {"0123"}}
+    )
+    assert clean(encoded) == '"0123"'
+    assert clean(json.dumps(encoded)) == json.dumps('"0123"')
+
+
+@pytest.mark.parametrize(
+    "encoded",
+    [
+        '"unknown\\u0040example.test"',
+        '{"grade":75,"grade":80}',
+        '{"outer":{"grade":75,"grade":80}}',
+    ],
+)
+def test_json_scalar_unknown_email_and_duplicate_keys_hold(encoded):
+    clean = module.text_sanitizer(
+        {"Fictional Alpha": {"0123"}, "alpha@example.test": {"0123"}}
+    )
+    with pytest.raises(
+        module.ExportHeld, match="UNMAPPED_EMAIL_REMAINS|DUPLICATE_JSON_KEY"
+    ):
+        clean(encoded)
+
+
+def test_directory_moves_during_link_are_reported_as_publication_uncertain(
+    files, monkeypatch
+):
+    root, roster = files
+    source = root / "source.csv"
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    directory = root / "archive"
+    directory.mkdir(mode=0o700)
+    target = directory / "copy.csv"
+    moved = root / "moved"
+    original_link = module.os.link
+
+    def move_during_link(*args, **kwargs):
+        directory.rename(moved)
+        original_link(*args, **kwargs)
+
+    monkeypatch.setattr(module.os, "link", move_during_link)
+    with pytest.raises(
+        module.ExportPublicationUncertain, match="ARCHIVE_PUBLICATION_UNCERTAIN"
+    ):
+        module.sanitize_export(source, roster, target)
+    assert not target.exists()
+    assert "0123,75" in (moved / "copy.csv").read_text()
+    assert not list(moved.glob(".pin-export-*"))

@@ -52,6 +52,18 @@ def cell(value: Any, fmt: dict[str, Any] | None = None) -> dict[str, Any]:
     return result
 
 
+def grade_validation_formula(row_index: int, column_index: int) -> str:
+    """The owned literal-grade rule, using a relative A1 cell reference."""
+    if any(type(value) is not int or value < 0 for value in (row_index, column_index)):
+        raise GradebookError("Grade validation requires nonnegative cell coordinates.")
+    address = f"{column_name(column_index + 1)}{row_index + 1}"
+    return (
+        f"=OR(ISBLANK({address}),AND(ISNUMBER({address}),{address}>=0),"
+        f"AND(ISTEXT({address}),REGEXMATCH(LOWER(TRIM({address})),"
+        '"^(ex|excused)$")))'
+    )
+
+
 def merge_refresh(
     baseline: dict[str, Any], current: dict[str, Any], edits: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -345,7 +357,7 @@ def build_requests(
                       "startColumnIndex": 2, "endColumnIndex": columns},
             "rule": {
                 "condition": {"type": "CUSTOM_FORMULA", "values": [{
-                    "userEnteredValue": '=OR(ISBLANK(C6),AND(ISNUMBER(C6),C6>=0),AND(ISTEXT(C6),REGEXMATCH(LOWER(TRIM(C6)),"^(ex|excused)$")))'
+                    "userEnteredValue": grade_validation_formula(5, 2)
                 }]},
                 "strict": True,
                 "inputMessage": "Enter literal points, EX, or blank. Preview before pushing; blank never clears Canvas.",

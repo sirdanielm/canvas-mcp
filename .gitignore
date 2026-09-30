@@ -118,6 +118,8 @@ internal/*
 !internal/release-checklist.md
 !internal/issue-170-followup-draft.md
 !internal/research-appservice-mcp-entra.md
+!internal/dev-reference.md
+!internal/project-history.md
 # Daily triage briefs stay tracked: the routine reads the newest prior brief to
 # compute its cutoff, so untracking them breaks continuity. They must not name
 # external collaborators' institutional affiliations or evaluation status.
@@ -135,3 +137,8 @@ docs/compliance/
 # Local agent skills (not part of the public package)
 .agents/
 internal/hosted-spec-draft/
+
+# Uploaded Canvas QTI packages are retained locally for archival reference,
+# but are not source-controlled after import.
+artifacts/fixed-mc-qti/*.zip
+artifacts/formula-qti/*.zip
