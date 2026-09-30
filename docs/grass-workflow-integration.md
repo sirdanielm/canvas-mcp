@@ -28,7 +28,7 @@ crosswalks, credentials and detailed student records remain outside Git.
 
 ## Current implementation boundary — September 30, 2026
 
-LocalGrAss PR1 and PR3, sdmGrAss PR333–PR337, and GrAss PR118 and PR122 are merged. The new local
+LocalGrAss PR1, PR3 and PR4, sdmGrAss PR333–PR337, and GrAss PR118 and PR122 are merged. The new local
 core has synthetic validation and retained explanation history. Authenticated
 teacher review, verified original-byte adapters and a live publisher remain
 separate implementation work. Post-merge review findings must still be evaluated;
@@ -47,17 +47,62 @@ teacher-approved pairs.
 
 ## Next engineering work
 
-1. Complete remaining runtime recovery reviews without guessing controller
-   ownership or discarding resumable work.
-2. Address post-merge integrity findings and keep validation claims tied to the
-   exact revision checked.
-3. Add the narrow read-only source adapter and tested backup/restore path.
-4. Implement authenticated decisions and publisher/readback contracts before
-   introducing real grading or delivery into the new core.
+1. Bind the new original-byte catalog to the exact evidence revision, then add
+   the narrow receipt-bound Canvas mirror importer and canonical identity checks.
+2. Extend quarantined database recovery to original evidence and external
+   receipt stores; establish exclusive ownership before any future activation.
+3. Implement authenticated review and the transactional decision-to-release
+   bridge before connecting a real score/feedback publisher.
+4. Admit the corrected academic packet only through fresh source/binding checks
+   and the guarded setup workflow; resolve archive identity holds separately.
 
 Assignment point totals and participation/Advanced policies require explicit
 academic authority. Missing policy is a hold; it cannot be inferred from an old
 grader, an export layout, or a successful software test.
+
+## Source and recovery checkpoint — September 30, 18:10 EDT
+
+[Canvas PR4](https://github.com/sirdanielm/canvas-mcp/pull/4) merged at `dbbe93c`.
+The new archive preflight shares the full renderer and registry checks, supports
+exact QC source hashes, and returns before archive publication. All 2,165 Python
+tests passed with 21 existing skips; all 65 exporter tests, lint/types and the
+hosted Python matrix, TypeScript and confirmation checks passed.
+
+The actual current batch remains **16/16 held**, with no archives created. First
+blocker triage found the same unmapped source-owner provenance address in 15
+workbooks and an unresolved explicit student email in one cache. The source-owner
+address does not match the authenticated Drive profile; it must not be silently
+classified as the teacher or mapped to a student PIN. These are two different
+authority problems. Later blockers may remain after those first failures clear.
+The installed toolbox was preserved; no automatic archive hook was installed.
+See the [exact-batch receipt](validation/fleet-archive-preflight-20260930.json).
+
+[LocalGrAss PR4](https://github.com/sirdanielm/LocalGrAss/pull/4) merged at `becae68`.
+It adds bounded original-byte verification and WAL-aware SQLite backup with
+quarantined restore. All 320 tests passed in the installed full runtime; Python
+3.9 passed 318 with two optional PDF skips. Independent reviews covered both
+modules. The source verifier does not authenticate identities or yet persist a
+byte-catalog/evidence-revision association. Both incomplete and completed restores
+are blocked from opening as active Registries. Evidence blobs, external-state
+reconciliation and activation remain separate work. See the
+[production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md).
+
+Fresh authenticated Canvas reads establish the two academic settings for the
+affected assignment: **Core 30; Advanced DEFINED, 40 including Core**. The current
+grouped weights can be preserved with the existing legacy rubric policy; no
+invented per-question allocation is needed. Investigation also found an incomplete
+Advanced rubric and an obsolete A6 key. A complete private draft repairs eight
+fields together. Canonical runtime validation passes both tracks; academic QC on
+the candidate has zero findings, versus two errors and one informational finding
+on the captured original. This is an offline candidate result, not a cleared live
+grader. Current worksheet evidence supports the corrected A6 task; the live
+companion key still needs its corresponding correction.
+
+The packet and guarded application plan are retained privately with source hashes.
+Actual registry acceptance, current source/routing bindings and setup approval
+remain required. The installed QC receipt is still the earlier COMPLETED/STOP
+attempt. This pass made read-only source checks and code/documentation changes;
+it performed no paid calls, classroom grading, deployment or Canvas/Sheets writes.
 
 ## Git synchronization checkpoint — September 30, 17:07 EDT
 
