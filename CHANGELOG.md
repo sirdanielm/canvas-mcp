@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### SDM fork maintenance
 
+- Added immutable private GET capture receipts and a canonical permanent-PIN case port for LocalGrAss. Academic IDs remain separate from Canvas targets; original-byte admission and teacher/release authority remain separate local-core responsibilities. No grading/write permission or background service is enabled.
+
 - Promoted the reviewed SDM authoring/gradebook implementation, GET refresh
   worker, integrity-checked private PIN exporter and archive-compatibility
   preflight into fork `main` through [PR #5](https://github.com/sirdanielm/canvas-mcp/pull/5).

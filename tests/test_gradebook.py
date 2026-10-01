@@ -314,6 +314,12 @@ async def test_mcp_registry_and_aggregate_only_result(tmp_path, snapshot):
             "reconcile_gradebook_push",
         }
         result = await client.call_tool("get_canvas_gradebook", {"course": "core"})
+        capture_result = json.loads(result.content[0].text)
+        receipt = Store(tmp_path).load("receipt", capture_result["capture_receipt_id"])
+        assert receipt["kind"] == "CANVAS_GET_CAPTURE"
+        assert receipt["snapshot_id"] == capture_result["snapshot_id"]
+        assert receipt["captured_at"] == capture_result["fetched_at"]
+        assert receipt["canvas_writes"] == 0
         assert "Synthetic Student" not in str(result)
         assert "user_id" not in result.data and "cells" not in result.data
         assert result.data["students"] == 1

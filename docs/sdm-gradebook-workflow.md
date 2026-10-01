@@ -418,3 +418,15 @@ remain separate gated operations. Editing a cell is not an automatic push.
 Fresh installations follow the activation procedure in the
 [worker runbook](sdm-gradebook-worker.md); an existing installation requires a
 current heartbeat and operation readback, not another installation or a Git pull.
+
+## Receipt-bound LocalGrAss handoff
+
+The complete GET tool now also retains an immutable capture receipt and returns
+`capture_receipt_id` after the server loads the updated source. The private
+[case capture port](grass-capture-contract.md) joins exact Canvas scope through
+the existing shared permanent-PIN authority to independently selected original
+source metadata. It never uses the older working-edit baseline as a fresh
+observation. The LocalGrAss intake verifies original bytes and persists their
+exact association; no mirror read approves a packet, score, feedback or release.
+Unknown target attempts, source ownership and live freshness remain explicit
+holds. No watcher, paid grading, fleet activation or Canvas write is added.

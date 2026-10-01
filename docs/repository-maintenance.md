@@ -58,9 +58,4 @@ reports belong outside that upload tree and outside GitHub.
 
 ## Continuing development
 
-Next shared-tool slices are a receipt-bound Canvas capture adapter,
-authenticated teacher review with durable drafts and expected-revision checks,
-and an authoritative release bridge for independently verified score and
-feedback delivery. Start each from current LocalGrAss `main`, with bounded
-offline validation and owner-specific integration review. Existing byte
-verification and fake delivery tests do not establish these production links.
+The [Canvas capture port](grass-capture-contract.md) and LocalGrAss durable receipt intake, authenticated local teacher drafts, and authoritative fake-only release bridge now have controlled integration tests. Real academic-policy/source adapters, evidence review and Canvas score/comment publication remain held. Start subsequent work from current maintained main with bounded validation and owner review. Git synchronization does not restart MCP services or clear classroom gates.
