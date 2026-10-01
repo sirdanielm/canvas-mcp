@@ -12,6 +12,35 @@ This guide records the operating contract for the local `canvas-authoring` MCP c
 
 The local Codex configuration is the practical capability boundary. `config/sdm-authoring.toml.example` exposes only course, assignment, rubric and module tools. It excludes grading, messaging, enrollment and generic code execution. Canvas account permissions remain the ultimate server-side boundary.
 
+## Local setup and connection checks
+
+From the repository root on macOS:
+
+```sh
+uv sync --frozen --group dev --extra local-keychain
+.venv/bin/python scripts/sdm_canvas_launcher.py --setup
+.venv/bin/python scripts/sdm_canvas_launcher.py --check
+.venv/bin/python scripts/sdm_canvas_launcher.py --verify
+```
+
+Setup uses hidden terminal input, verifies the proposed credential with one GET,
+and only then stores it in macOS Keychain. A rejected replacement preserves the
+previous credential. `--check` only checks local configuration and credential
+availability; `--verify` makes one GET to confirm authentication. Neither proves
+permission to perform a particular course operation.
+
+Use `config/sdm-readonly.toml.example` for the nine course-content readers, or
+`config/sdm-authoring.toml.example` for the 20 authoring tools when authorized.
+Adapt the examples' absolute paths to the checkout and reload the MCP client
+after changing its configuration. An example file is not evidence of the active
+client configuration. The launcher forces educator mode, disables general
+TypeScript execution and student-write tools, and disables dotenv loading; the
+client allowlist narrows the educator server's remaining tools.
+
+For immutable local course-content snapshots and comparisons, use the separate
+[course mirror CLI](course-mirror.md). For gradebook refreshes, use the separate
+[gradebook workflow](sdm-gradebook-workflow.md).
+
 ## Assignment workflow
 
 ### New drafts
@@ -107,7 +136,7 @@ Do not store API tokens, student data or full Canvas responses in Git.
 - `create_assignment` already defaults to `published=false`.
 - This branch changes `create_module` to default to `published=false`.
 - This branch adds a `published` option to `add_module_item` so callers can declare visibility during creation.
-- Rubric editing and deletion are not exposed as dedicated MCP tools. The normal workflow uses description-embedded tables; native rubric creation and association are exceptional operations.
+- The server includes `update_rubric`, but the tracked SDM authoring allowlist does not expose it. If an explicitly authorized native-rubric edit requires it, preserve every criterion/rating ID and the exact association ID, submit the complete replacement set, show the preview, then confirm with its single-use token. Structural additions/removals belong in the Canvas UI. There is no dedicated native-rubric deletion tool. The normal SDM workflow uses description-embedded tables.
 - Deleting assignments, modules or module items uses the upstream preview-and-confirm flow. Treat confirmation tokens as single-use and target-specific.
 
 ## Final checklist
@@ -121,4 +150,3 @@ Do not store API tokens, student data or full Canvas responses in Git.
 - No native rubric association unless requested
 - No unintended submission-type, date or point changes
 - Readback completed from Canvas
-

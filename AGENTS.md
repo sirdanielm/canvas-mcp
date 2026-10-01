@@ -2,6 +2,19 @@
 
 This guide helps AI agents (Claude, Cursor, Zed, Windsurf, and other MCP clients) effectively use the Canvas MCP server.
 
+## SDM local student PIN policy
+
+For local student-document copies and Quinn libraries, follow
+[docs/STUDENT-PIN-POLICY.md](docs/STUDENT-PIN-POLICY.md). Replace student name/email
+columns with the permanent four-digit PIN from the Canvas MCP gradebook mirror's
+`Student Info` (`Email` → `Student Number`), through the shared private registry
+at `~/QuinnOperator/config/student-pin-source.json`. Use
+`scripts/export-student-pins.py`; preserve originals and leading zeros, hold
+unmatched/conflicting identities, and never generate new PINs. Generic anonymous
+MCP labels do not satisfy this permanent-PIN contract. No raw roster or crosswalk
+belongs in Quinn's library, Git, or logs. This rule concerns local copies and
+confers no Canvas-write or grading authority.
+
 ## Quick Start
 
 Canvas MCP is a Model Context Protocol server that bridges AI assistants with Canvas Learning Management System. It provides tools for students to track their academic work and for educators to manage courses, grade assignments, and communicate with students.
@@ -34,6 +47,21 @@ CANVAS_ROLE=all        # Default profile; 98 tools by default, 103 with all feat
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
+
+## Operator write policy
+
+`ALLOWED_WRITE_TOOLS` controls which side-effect tools are registered. With the
+setting unset, HTTP is read-only and stdio retains its existing registered tools.
+An empty value or `none` removes side-effect tools; an explicit list admits only
+those named. `all` excludes `execute_typescript`, which requires an explicit name
+and its separate feature flag. A missing tool is an operator boundary, not a
+reason to bypass it. Confirmation tokens bind a request; they do not establish
+that a human approved it.
+
+`get_conversation_details` never marks messages read. Use the separately gated
+`mark_conversations_read` only when authorized. These policies apply to the main
+Canvas MCP server; the separate gradebook server retains its own exact-preview,
+explicit-enable and durable readback controls.
 
 ## Tool Categories
 
@@ -103,7 +131,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `associate_rubric` | Associate existing rubric with an assignment |
 | `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
-| `send_conversation` | Message students. Exactly one plain numeric user ID sends immediately; **multiple recipients or any `course_*`/`group_*` alias are two calls** — preview + confirmation token first, then confirm with identical arguments |
+| `send_conversation` | Message students. **Always two calls, even for one recipient:** preview + confirmation token first, then confirm with identical arguments |
 | `send_bulk_messages_from_list` | Templated bulk messaging. **Two calls:** the first returns a preview + confirmation token and sends nothing; show the preview to the educator, then call again with the token and identical arguments. The token is single-use and dies if any argument changed |
 | `send_peer_review_inbox_messages` | Send direct Canvas Inbox messages about incomplete peer reviews; this is not Canvas's native reminder action. Requires `manage_grades` permission and uses **two calls** (preview + confirm) |
 | `create_announcement` | Post course announcements. Pre-checks Canvas's announcement permission; if Canvas silently creates a discussion instead, the tool deletes that unintended topic and reports failure (or warns if cleanup cannot be confirmed) |
@@ -367,7 +395,8 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 - Use `bulk_grade_submissions` with `max_concurrent: 5` for grading
 - `rate_limit_delay` is seconds between batches (default `1.0`)
 - `execute_typescript` (only if the operator enabled it) suits 30+ items needing custom per-item logic; it has no preview/confirm step, so get explicit approval first
-- `bulk_grade_submissions` and `fix_accessibility_issues` take `dry_run`; bulk deletes and multi-recipient sends preview on the first call and act only on a second call with the returned `confirmation_token`
+- `bulk_grade_submissions` and `fix_accessibility_issues` take `dry_run`; bulk deletes and every `send_conversation` preview on the first call and act only on a second call with the returned `confirmation_token`
+- Write tools may be absent: the operator's `ALLOWED_WRITE_TOOLS` decides which tools that change anything exist, and a hosted (HTTP) server allows none unless configured. Treat a missing write tool as the deployment's policy, tell the user, and do not look for a workaround
 
 ## Error Handling
 
@@ -446,6 +475,18 @@ No anonymization needed - students only access their own data via Canvas "self" 
 - **Educator Guide:** https://canvas-mcp.illinihunt.org/educator-guide.html
 - **Development Guide:** `/CLAUDE.md`
 
+## Developing this server
+
+Everything above is for agents *using* the server. If you are changing this repository, note that
+Codex and most other coding agents load this file and not `CLAUDE.md`, so read these before editing:
+
+- [`CLAUDE.md`](CLAUDE.md): the development rules (git workflow, coding standards, testing, documentation maintenance, hosted-deployment posture, adoption numbers) and the open work.
+- [`internal/dev-reference.md`](internal/dev-reference.md): the reasoning and examples behind those rules.
+- [`internal/architecture.md`](internal/architecture.md): design reference.
+- [`internal/release-checklist.md`](internal/release-checklist.md): version bump and publish steps.
+
+The rules live in those files only; they are not repeated here. The two sections below also apply to development work.
+
 ## Claude Memory Lookup
 
 When prior context may matter, search Claude memories at runtime instead of copying memory content into this repo. Use this as a nudge, not a mandatory step for every tiny edit.
@@ -468,3 +509,43 @@ Drafting is allowed. Composing into a browser editor is allowed only when asked.
 Before any external action, ask: "Do you want me to [exact action] now?" Only proceed after a clear yes to that exact action. Do not treat "looks good," "ok," or "use this" as permission to publish, send, delete, deploy, submit, schedule, purchase, or post.
 
 For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."
+
+## SDM local classroom exports
+
+When explicitly preparing private archival copies, run
+`scripts/pseudonymize_gradebook_export.py ingest` on each authorized export before
+using the archival copy. Reading a QC receipt alone does not authorize this
+ingest. Use the shared registry-bound central gradebook Student Info mapping through LocalGrAss's existing binding and index; do not
+select an independent roster or use the historical Student Numbers layout. Replace whole
+student-name and student-email columns with that student's four-digit text PIN;
+preserve leading zeros and never invent, renumber, or guess a match. A missing or
+conflicting mapping stops archival processing.
+
+Keep the original operational export separate and unchanged. The generated
+values-only copy is private pseudonymous student data, not a public artifact or
+a workbook to feed back into gradebook refresh or publication. This ingest step
+does not install a folder watcher, alter live Sheets, or authorize Canvas writes.
+See `docs/local-pin-exports.md` for the supported command and validation limits.
+The existing Desktop import/QC shortcuts are the intended integration point;
+automatic fleet PIN copies remain held until the complete workbook batch passes
+the archive checks in `docs/post-qc-pin-archives.md`.
+
+
+## GrAss Local Checks handoff
+
+When a task concerns a recent GrAss desktop import or QC run, consult the
+installed harness recorded in `~/Desktop/GrAss Local Checks/.fleet-importer/harness-path.txt`.
+Its reviewed `scripts/local_check_status.py --json` command reads a bounded,
+aggregate receipt from `~/Documents/GrAss QC Reports`; it does not run QC or
+contact a service. Read that status before interpreting older saved reports.
+Execution completion is separate from the diagnostic verdict. An unavailable,
+failed or interrupted newest attempt is a hold, never permission to substitute an
+older clean result. Input/report hashes establish the captured snapshot, not live
+Canvas freshness. Never include student rows, identities, scores or feedback in
+this handoff. Do not automatically start imports, replay, models or publication.
+
+This is an on-demand agent instruction, not an installed notification or hook.
+The toolbox remains usable through its clickable Latest Check Status tool
+without Codex. Automatic context hooks require their own reviewed definition and
+Codex trust action; do not edit trust settings or claim a chat already reviewed
+an unseen report.

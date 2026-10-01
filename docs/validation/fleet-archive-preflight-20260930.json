@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-09-30T21:54:45.102058+00:00",
+  "assessment": "REAL_FLEET_ARCHIVE_COMPATIBILITY_PREFLIGHT",
+  "status": "VALIDATED",
+  "workbooks": 16,
+  "qc_complete_exact_scope": true,
+  "qc_source_hashes_match": true,
+  "qc_diagnostic_verdict": "STOP",
+  "preflight_status_counts": {
+    "HELD": 16
+  },
+  "hold_reason_counts": {
+    "UNMAPPED_EMAIL_REMAINS": 15,
+    "UNMAPPED_IDENTITY": 1
+  },
+  "source_files_unchanged": true,
+  "registry_unchanged": true,
+  "code_unchanged": true,
+  "qc_reports_unchanged": true,
+  "exporter_sha256": "31448b44225878e600fe9e1619689d9953cc262a4af3b3059f68f0351398bb00",
+  "registry_sha256": "dffee88249fc2e439298e3b86904294a86f3f93ba12618dc482d9f67b36f9014",
+  "source_hash_set_sha256": "e3409ccbe27721fe7788bb2ad400194736daadba3a44ecc178c69606be306769",
+  "post_run_qc_sha256": "7a83f08ec7a53f0306190bcd1f3b38c9b19a7f59863f0c3caa3c4944f3b0e378",
+  "workbook_audit_sha256": "3e1375428ad83e959a939baba3e170069ae4a3b694813d34a325b38943c778c8",
+  "archives_created": 0,
+  "desktop_or_installed_harness_changed": false,
+  "live_calls": 0,
+  "automatic_archive_activation": "BLOCKED"
+}

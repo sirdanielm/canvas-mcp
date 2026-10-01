@@ -230,9 +230,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Create a module in a course.
 
-        Modules are published by default, so the module (and any published
-        items later added to it) is visible to students on creation, subject to
-        unlock_at and prerequisites; pass published=False to build it as a draft.
+        Modules are unpublished by default. Pass published=True only when
+        publication is authorized; student visibility also depends on unlock_at,
+        prerequisites, and the publication state of linked content. Read back
+        the module and linked items after any publication change.
 
         Args:
             course_identifier: Course code or Canvas ID
