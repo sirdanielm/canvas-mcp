@@ -122,7 +122,7 @@
                     <section id="traditional-approach">
                         <h2>Traditional Approach (Inefficient)</h2>
 
-                        <p>This traditional example loads all submissions into the model's context:</p>
+                        <p>This illustrative MCP-call pseudocode loads all submissions into the model's context. Use discovery for actual snake_case parameters; obtain instructor approval before any grade write.</p>
 
                         <pre><code><span class="code-comment">// Load ALL submissions into context</span>
 <span class="code-keyword">const</span> submissions = <span class="code-keyword">await</span> <span class="code-function">list_submissions</span>({
@@ -154,11 +154,13 @@
                     <section id="code-execution">
                         <h2>Code Execution Approach (Efficient)</h2>
 
-                        <p>The code execution API processes data locally:</p>
+                        <p>The code execution API processes data locally. It is off by default and disabled in the supplied hosted deployment configuration. Enabling it requires separately reviewed operator configuration; each run must remain within explicit user authorization for its scope and effects; existing authorization remains valid. It has full Canvas credentials and can bypass MCP confirmations. A missing tool is an operator boundary. Captured helper output can contain per-student identifiers even during a dry run; keep it private and share aggregate results only.</p>
+                        <p><code>dryRun: true</code> skips the bulk helper's own writes but still executes your callback; it does not validate grades against Canvas. Keep callbacks free of side effects and obtain instructor approval before applying. Use <code>grade</code> or <code>rubricAssessment</code>; top-level <code>points</code> is ignored.</p>
 
-                        <pre><code><span class="code-keyword">import</span> { bulkGrade } <span class="code-keyword">from</span> <span class="code-string">'./canvas/grading/bulkGrade'</span>;
+                        <pre><code><span class="code-keyword">import</span> { bulkGrade } <span class="code-keyword">from</span> <span class="code-string">'./canvas/grading/bulkGrade.js'</span>;
 
 <span class="code-keyword">await</span> <span class="code-function">bulkGrade</span>({
+  dryRun: <span class="code-keyword">true</span>, <span class="code-comment">// Preview only; explicit approval is required to apply</span>
   courseIdentifier: <span class="code-string">"60366"</span>,
   assignmentId: <span class="code-string">"123"</span>,
   gradingFunction: (submission) => {
@@ -170,7 +172,7 @@
     );
 
     <span class="code-keyword">if</span> (!notebook) {
-      console.log(<span class="code-string">`No notebook for user ${submission.userId}`</span>);
+      console.log(<span class="code-string">"Notebook attachment missing; skipped."</span>);
       <span class="code-keyword">return null</span>; <span class="code-comment">// Skip this submission</span>
     }
 
@@ -232,6 +234,7 @@ Bulk grading complete:
 
                         <h3>Advanced Custom Analysis</h3>
                         <pre><code><span class="code-keyword">await</span> <span class="code-function">bulkGrade</span>({
+  dryRun: <span class="code-keyword">true</span>, <span class="code-comment">// Preview only; explicit approval is required to apply</span>
   courseIdentifier: <span class="code-string">"60366"</span>,
   assignmentId: <span class="code-string">"123"</span>,
   gradingFunction: (submission) => {
@@ -280,7 +283,7 @@ Bulk grading complete:
 
                         <p>Grade discussion posts with initial post + peer review requirements:</p>
 
-                        <pre><code><span class="code-keyword">import</span> { bulkGradeDiscussion } <span class="code-keyword">from</span> <span class="code-string">'./canvas/discussions/bulkGradeDiscussion'</span>;
+                        <pre><code><span class="code-keyword">import</span> { bulkGradeDiscussion } <span class="code-keyword">from</span> <span class="code-string">'./canvas/discussions/bulkGradeDiscussion.js'</span>;
 
 <span class="code-comment">// Preview grades first (dry run)</span>
 <span class="code-keyword">await</span> <span class="code-function">bulkGradeDiscussion</span>({
@@ -295,7 +298,7 @@ Bulk grading complete:
   dryRun: <span class="code-keyword">true</span>  <span class="code-comment">// Preview first!</span>
 });
 
-<span class="code-comment">// Then apply grades</span>
+<span class="code-comment">// Apply only after explicit instructor approval of the exact grades</span>
 <span class="code-keyword">await</span> <span class="code-function">bulkGradeDiscussion</span>({
   courseIdentifier: <span class="code-string">"60365"</span>,
   topicId: <span class="code-string">"990001"</span>,
@@ -361,8 +364,8 @@ Bulk grading complete:
   assignmentId: <span class="code-string">"123"</span>,
   dryRun: <span class="code-keyword">true</span>,  <span class="code-comment">// ⭐ Test mode - doesn't actually grade</span>
   gradingFunction: (submission) => {
-    console.log(<span class="code-string">`Would grade: ${submission.userId}`</span>);
-    <span class="code-keyword">return</span> { points: <span class="code-number">100</span>, ... };
+    console.log(<span class="code-string">"One submission preview computed."</span>);
+    <span class="code-keyword">return</span> { grade: <span class="code-number">100</span> };
   }
 });</code></pre>
                     </section>

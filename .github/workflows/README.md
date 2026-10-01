@@ -1,183 +1,80 @@
-# GitHub Actions Workflows
+# GitHub Actions workflows
 
-This directory contains automated workflows for the Canvas MCP project.
+Checked against the workflow files and the SDM fork's GitHub workflow inventory
+on 2026-10-01. Workflow definitions describe triggers and effects; they do not
+prove that a fork has the secrets, publication rights or deployment targets
+needed to complete a run.
 
-## Release and Publishing Workflows
+The fork's `main` is unprotected in GitHub. Reviewed PRs and green applicable CI
+remain the project workflow policy. Upstream `main` is protected; do not assume
+its rulesets are installed here. See [development guidance](../../CLAUDE.md).
 
-### create-release.yml
-**Purpose**: Automatically creates GitHub releases and updates the README with release information.
+## Validation
 
-**Triggers**:
-- Tag push matching `v*` pattern (e.g., `v1.0.7`)
-- Manual workflow dispatch (for testing)
+| Workflow | Triggers | Checks |
+|---|---|---|
+| [canvas-mcp-testing.yml](canvas-mcp-testing.yml) | Push to `main` or `development`; PR targeting `main` or `feature/sdm-authoring` | Ruff, mypy, Python 3.11–3.13 tests, TypeScript tests/build, confirmation-protocol verification and enhancement tests |
+| [security-testing.yml](security-testing.yml) | Push to `main` or `development`; PR targeting `main`; Sunday 00:00 UTC | Security regression tests, Bandit/Semgrep, frozen-lock dependency audit including all extras, secret scan and CodeQL |
+| [closing-keyword-guard.yml](closing-keyword-guard.yml) | PR opened/edited/reopened/synchronized; push to `main` | Guards accidental issue-closing prose; PR scan applies only to the default-branch target |
+| [scorecard.yml](scorecard.yml) | Push to `main`; branch-protection events; Monday 06:27 UTC; manual dispatch | OSSF Scorecard, SARIF and public result publication on the default branch |
 
-**What it does**:
-1. Extracts version information from the tag
-2. Generates release notes from commit history since last tag
-3. Creates a GitHub release with the generated notes
-4. Updates the README.md "Latest Release" section with:
-   - New version number
-   - Release date
-   - Link to full release notes
-5. Commits and pushes the README changes to main branch
-   - If main is protected, creates a PR instead
+The test and security workflows do not expose `workflow_dispatch`. Check each
+file before suggesting a manual run. `pip-audit` fails on findings; its existing
+CVE-2025-69872 exception is unchanged. The 2026-10-01 urllib3 2.8.0 lock repair
+resolved three findings without new ignores. See the
+[release checklist](../../internal/release-checklist.md) for shipped-versus-locked
+version boundaries. Do not use CI-skipping markers to avoid required validation.
 
-**Manual testing**:
-```bash
-# Option 1: Via GitHub UI
-Go to Actions → "Create Release and Update README" → Run workflow
-Enter tag name (e.g., v1.0.7-test)
+## Release and deployment
 
-# Option 2: Via gh CLI
-gh workflow run create-release.yml -f tag_name=v1.0.7-test
-```
+| Workflow | Triggers | Effects |
+|---|---|---|
+| [create-release.yml](create-release.yml) | `v*` tag push; manual dispatch naming an existing tag | Builds the Desktop Extension from the exact tag, stamps its manifest version, creates/updates release notes and attaches the bundle and provenance |
+| [publish-mcp.yml](publish-mcp.yml) | `v*` tag push; manual dispatch naming an existing tag | Tests/builds the Python package, publishes to PyPI, waits for PyPI visibility, then publishes to MCP Registry |
+| [deploy-prod.yml](deploy-prod.yml) | `v*` tag push; manual dispatch (job accepts `main` or `v*` refs) | Builds/pushes the container and deploys the configured production target |
+| [deploy-staging.yml](deploy-staging.yml) | Push to `staging`, excluding documentation/tool-only paths; manual dispatch | Builds/pushes the container and deploys the configured staging target |
 
-### publish-mcp.yml
-**Purpose**: Publishes the package to PyPI and MCP Registry.
+`create-release.yml` does **not** edit README, push documentation commits or open
+a fallback PR. Update release documentation in the reviewed source change.
+Merging to `main` does not deploy production. A tag can trigger publication and
+production deployment together; neither a test tag nor a manual release run is
+a harmless workflow test. Confirm the intended repository, tag, package rights,
+target and authorization first.
 
-**Triggers**:
-- Tag push matching `v*` pattern (e.g., `v1.0.7`)
+Upstream's latest published release is v1.13.0 (2026-09-27 EDT / 2026-09-28 UTC).
+The SDM fork has no published latest release as of this check; merged SDM work
+and the hosted-dependency lock repair remain unreleased source changes. Follow
+the [release checklist](../../internal/release-checklist.md) and verify each
+package, registry entry, attached artifact and authorized deployment separately.
 
-**What it does**:
-1. Runs tests to ensure code quality
-2. Builds the Python package
-3. Publishes to PyPI using OIDC authentication
-4. Publishes to MCP Registry
+## Model-assisted workflows
 
-**Prerequisites**:
-- PyPI trusted publisher configured
-- Package version in `pyproject.toml` and `src/canvas_mcp/__init__.py` must match the pushed tag; while the workflow doesn't explicitly validate this, a mismatch will cause confusion as the published package version won't match the git tag
+These definitions can consume model credentials and perform external actions.
+Their presence or GitHub `active` status does not authorize invoking them.
 
-## Code Quality Workflows
+| Workflow | Trigger and effect |
+|---|---|
+| [claude-code-review.yml](claude-code-review.yml) | PR opened/synchronized; skips drafts; requires configured Claude OAuth and posts review comments. Includes documentation review in its prompt |
+| [claude.yml](claude.yml) | Supported issue, comment and review events containing `@claude`; interactive Claude action |
+| [weekly-maintenance.yml](weekly-maintenance.yml) | Sunday 00:00 UTC or manual dispatch; model-assisted maintenance analysis and issue creation |
+| [auto-label-issues.yml](auto-label-issues.yml) | New issue; model-assisted labels and explanatory comment |
 
-### auto-update-docs.yml
-**Purpose**: Automatically updates documentation when tool files are modified.
-
-**Triggers**:
-- Pull requests that modify files in `src/canvas_mcp/tools/` or `src/canvas_mcp/server.py`
-
-**What it does**:
-- Uses Claude Code to review tool changes
-- Updates README.md with new tools or modified signatures
-- Commits documentation updates directly to the PR branch
-
-### claude-code-review.yml
-**Purpose**: Automated code review using Claude.
-
-**Triggers**:
-- Pull requests
-- Comments on pull requests
-
-### auto-claude-review.yml
-**Purpose**: Lightweight automated code review.
-
-**Triggers**:
-- Pull requests
-
-## Testing Workflows
-
-### canvas-mcp-testing.yml
-**Purpose**: Runs the test suite.
-
-**Triggers**:
-- Pull requests
-- Push to main branch
-- Manual workflow dispatch
-
-**What it does**:
-- Runs pytest with coverage reporting
-- Tests all Canvas MCP tools and functionality
-
-### security-testing.yml
-**Purpose**: Security scanning and vulnerability detection.
-
-**Triggers**:
-- Pull requests
-- Push to main branch
-- Scheduled (weekly)
-
-**What it does**:
-- Runs Bandit for Python security issues
-- Scans dependencies for known vulnerabilities
-- Checks for secrets in code
-
-## Maintenance Workflows
-
-### weekly-maintenance.yml
-**Purpose**: Automated weekly maintenance tasks.
-
-**Triggers**:
-- Scheduled (Sunday at midnight UTC)
-- Manual workflow dispatch
-
-**What it does**:
-- Checks for outdated dependencies
-- Reviews Canvas API compatibility
-- Scans for code quality issues
-- Creates maintenance report as GitHub issue
-
-### auto-label-issues.yml
-**Purpose**: Automatically labels issues based on content.
-
-**Triggers**:
-- New issues created
-
-## Interactive Workflows
-
-### claude.yml
-**Purpose**: Interactive Claude integration for pull requests.
-
-**Triggers**:
-- Comments mentioning `@claude` in pull requests
-
-## Workflow Best Practices
-
-1. **Testing workflows before merge**: Most workflows have `workflow_dispatch` triggers for manual testing
-2. **Skipping CI**: Use `[skip ci]` in commit messages to prevent workflow loops
-3. **Protected branches**: Workflows that commit changes (like `create-release.yml`) will create PRs if main is protected
-4. **Secrets management**: All workflows use GitHub secrets for authentication, never hardcode credentials
-
-## Release Process
-
-To create a new release:
-
-1. **Update version files**:
-   ```bash
-   # Edit pyproject.toml and src/canvas_mcp/__init__.py
-   git commit -am "chore: bump version to X.Y.Z"
-   git push
-   ```
-
-2. **Create and push tag**:
-   ```bash
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
-
-3. **Automated process**:
-   - `publish-mcp.yml` publishes to PyPI and MCP Registry
-   - `create-release.yml` creates GitHub release and updates README
-   - README "Latest Release" section is automatically updated
-   - GitHub repository right panel shows the new release
-
-4. **Verify**:
-   - Check GitHub releases page for new release
-   - Verify README.md shows correct version
-   - Confirm PyPI shows new version
-   - Check MCP Registry listing
+`auto-update-docs.yml` and `auto-claude-review.yml` are not present in this
+checkout or the fork's current workflow inventory. There is no automatic
+workflow that patches documentation for each tool change. Update `AGENTS.md`,
+`tools/README.md` and `tools/TOOL_MANIFEST.json` with the implementation, and
+review relevant entry-point documentation.
 
 ## Troubleshooting
 
-### Release workflow fails to push README changes
-- If main branch is protected, the workflow will create a PR instead
-- Review and merge the PR to complete the release process
-
-### Publish workflow fails
-- Verify version numbers match in all files
-- Check PyPI trusted publisher configuration
-- Ensure all tests pass before tagging
-
-### Documentation not updating
-- Check if `auto-update-docs.yml` workflow ran successfully
-- Review Claude Code action logs for errors
-- Manually update documentation if needed
+- Read the exact failed job and its artifacts before retrying. A dependency
+  finding, scanner error and runner admission failure need different repairs.
+- Publishing uses project dependency constraints, while the dependency audit
+  exports `uv.lock`; check both when validating a security release.
+- Check version fields, tag contents, trusted-publisher configuration and PyPI
+  visibility before retrying a failed publish. The registry workflow already
+  polls PyPI for up to six minutes.
+- A model workflow without its configured credential cannot run successfully;
+  do not add credentials or trigger a paid review merely to validate docs.
+- Documentation changes are reviewed source changes. There is no README-update
+  workflow or branch-protection fallback PR to wait for.

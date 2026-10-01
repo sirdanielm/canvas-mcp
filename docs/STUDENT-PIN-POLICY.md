@@ -1,8 +1,11 @@
 # Student PIN policy for local documents
 
 Effective September 28, 2026. Use the same permanent four-digit student PIN in
-local working copies, exports, and Quinn's library across SDM projects. Replace
-student name and email columns with one `student_pin` column. Keep the original
+local working copies, exports, and Quinn's library across SDM projects. Selected
+table exports replace student name and email columns with one `student_pin`
+column. The separate [whole-workbook archive](local-pin-exports.md) preserves its
+column layout and replaces recognized identity cells with the same permanent PIN;
+it is operator-private and is not Quinn library admission. Keep the original
 source and the identity crosswalk private and unchanged.
 
 ## One authoritative source
@@ -30,11 +33,12 @@ about that local snapshot, not a fresh live-roster claim.
 
 ## Export a new local copy
 
-Run from this checkout:
+Run from the stable SDM checkout with its sibling `LocalGrAss-github` available,
+using the configured Python environment:
 
 ```sh
-python3 scripts/export-student-pins.py --help
-python3 scripts/export-student-pins.py \
+.venv/bin/python scripts/export-student-pins.py --help
+.venv/bin/python scripts/export-student-pins.py \
   --source /private/operator/review.xlsx \
   --source-sheet Review \
   --email-column student_email \
@@ -52,8 +56,11 @@ unapproved columns are excluded. Run `--help` for the current complete contract.
 
 This launcher calls the single implementation in the sibling
 `LocalGrAss-github/scripts/export-student-pins.py`; it does not maintain a second
-mapper. An unavailable shared implementation or registry is a stop, not a reason
-to invent a mapping. An explicit `--source-registry` selects an operator-reviewed
+mapper. This thin launcher resolves the sibling relative to its checkout; unlike
+the whole-workbook renderer, it does not discover the primary checkout from a
+managed Git worktree. Run it from the stable sibling layout or invoke the reviewed
+shared script directly. An unavailable shared implementation or registry is a
+stop, not a reason to invent a mapping. An explicit `--source-registry` selects an operator-reviewed
 registry; `--roster`, when supplied, must match that registry's trusted hash.
 
 The tool preserves leading zeros and uses exact normalized email matches. It

@@ -146,7 +146,19 @@ Canvas MCP provides **up to 103 tools** for interacting with Canvas LMS; the def
 | `search_canvas_tools` | Discover MCP tools and code API operations | Finding available tools and bulk ops |
 | `execute_typescript` | Run TypeScript locally | 30+ items, custom logic, local per-item processing |
 
-**Decision tree:** Simple query → MCP tools. Batch grading (10+) → `bulk_grade_submissions`. Complex bulk (30+) → `execute_typescript`.
+**Decision tree:** Simple query → MCP tools. Batch grading (10+) → `bulk_grade_submissions` with a dry run first. Complex bulk (30+) → `execute_typescript` only when enabled and explicitly authorized.
+
+`execute_typescript` is off by default and disabled in the supplied hosted deployment
+configuration. Enabling it requires separately reviewed operator configuration.
+It requires `EXECUTE_TYPESCRIPT_ENABLED=true`; when `ALLOWED_WRITE_TOOLS` is set,
+name `execute_typescript` explicitly (`all` does not include it). Treat every run
+as fully privileged Canvas access: code can bypass MCP confirmation tokens and
+content fencing. Run only within explicit user authorization for the intended scope and effects;
+existing authorization remains valid. A missing tool is an operator boundary, not a reason to bypass it.
+
+The helper and captured execution output can include per-student identifiers,
+including during dry runs. Keep that output private and report only aggregate
+results to the conversation; do not assume local processing anonymizes stdout.
 
 </details>
 
@@ -606,9 +618,10 @@ Use `search_canvas_tools` to discover available operations, then `execute_typesc
 ### Bulk Grading Example
 
 ```typescript
-import { bulkGrade } from './canvas/grading/bulkGrade';
+import { bulkGrade } from './canvas/grading/bulkGrade.js';
 
 await bulkGrade({
+  dryRun: true, // Preview only; explicit approval is required to apply
   courseIdentifier: "60366",
   assignmentId: "123",
   gradingFunction: (submission) => {
@@ -616,7 +629,7 @@ await bulkGrade({
       f.filename.endsWith('.ipynb')
     );
     if (!notebook) return null;
-    return { points: 100, comment: "Great work!" };
+    return { grade: 100, comment: "Great work!" };
   }
 });
 ```
@@ -716,3 +729,6 @@ The maintained SDM implementation is promoted through reviewed changes to this
 fork's `main`. Shared local tools are developed in LocalGrAss, with Canvas domain
 services and installed targets owned here. See [maintenance and recovery](docs/repository-maintenance.md)
 and the [canonical GrAss architecture](docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md).
+
+The [documentation map](docs/documentation-map.md) identifies current operator,
+integration and engineering references and explains how to read dated records.

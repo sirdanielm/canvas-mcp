@@ -31,180 +31,117 @@ Please provide:
 
 ---
 
-## Security Best Practices for Users
+## Implemented security boundaries
 
-### API Token Security
+Checked against the implementation on 2026-10-01. These controls reduce specific
+risks; they do not certify an entire deployment or establish FERPA compliance.
 
-**Critical: Your Canvas API token has full access to your Canvas account**
+### Credentials and transport
 
-1. **Never commit tokens to version control**
-   - Always use `.env` file for token storage
-   - Verify `.env` is in `.gitignore`
-   - Use the provided `env.template` as a starting point
+- Canvas access depends on the issued token's grants and the account's Canvas
+  permissions. Canvas MCP cannot expand or rewrite those grants. Treat a token
+  as a credential that may expose sensitive records and permit consequential
+  writes; use the minimum authority appropriate to the task.
+- The standard stdio server reads credentials from its process environment
+  (optionally loaded from a restricted `.env`). Keep credentials out of Git,
+  logs and chat. The SDM launchers instead retrieve the Canvas token from macOS
+  Keychain; see [the local workflow](docs/sdm-gradebook-workflow.md). They are
+  separate from the generic overlay token-storage placeholders.
+- HTTP supports an `MCP_ACCESS_KEYS` gate or explicitly configured external
+  authentication. The Entra path trusts platform-injected identity only when
+  a correctly configured authenticator fronts the endpoint; it checks that
+  identity against the configured/approved access records. The app cannot prove
+  that the external authenticator is present. Do not expose a bypassable backend.
+- HTTP requests carry each caller's `X-Canvas-Token`; the Canvas API URL is
+  server-pinned. Startup rejects a server-wide `CANVAS_API_TOKEN` in HTTP mode
+  and refuses an unconfigured access gate unless the operator explicitly opts
+  into external authentication. Stdio relies on the local process boundary.
+- Cleartext Canvas URLs are rejected, not upgraded. The only opt-in exception
+  is an explicit loopback development URL with `CANVAS_ALLOW_INSECURE_HTTP=true`.
+  Protect the HTTP MCP endpoint with TLS at its serving/authentication boundary.
+- Revoke exposed or unused tokens and follow institutional credential-rotation
+  policy. Never publish tokens or raw student data in security reports.
 
-2. **Token Storage**
-   - Store tokens in `.env` file with restricted permissions (`chmod 600 .env`)
-   - Never share tokens via email, chat, or screenshots
-   - Use environment-specific tokens (dev vs. production)
+### Tool availability and human approval
 
-3. **Token Rotation**
-   - Rotate tokens periodically (recommended: every 90 days)
-   - Immediately rotate if token may have been exposed
-   - Revoke tokens when no longer needed
+`ALLOWED_WRITE_TOOLS` controls which side-effect tools are registered. Unset
+means read-only on HTTP and preserves existing registered tools on stdio.
+An empty value or `none` removes side-effect tools; an explicit list admits
+only those names. `all` excludes code execution. Registration feature gates
+still apply. A missing tool is an operator boundary, not permission to bypass it.
 
-4. **Access Scope**
-   - Canvas tokens have full account access - there is no scope limitation
-   - Consider using a dedicated Canvas account with limited permissions for MCP operations
-   - Never use admin account tokens unless absolutely necessary
+Confirmation tokens bind a preview to the requested operation and current
+state; they do not prove human approval. Tool access, Canvas authority, teacher
+approval and publication verification are distinct requirements. Untrusted
+Canvas text is fenced by supported read tools but remains untrusted data.
+See [the agent guide](AGENTS.md#operator-write-policy).
 
-### Code Execution Security
+### Code execution
 
-The Canvas MCP server includes code execution capabilities (`execute_typescript` tool) for advanced operations.
+`execute_typescript` is off by default (`EXECUTE_TYPESCRIPT_ENABLED=false`),
+including the supplied Docker/Azure deployment defaults. An enforced write
+allowlist must explicitly name it; `all` does not enable it. HTTP execution,
+if deliberately enabled, requires a working container sandbox and the caller's
+request credentials; local/unsandboxed execution is refused on HTTP.
 
-**Important Security Considerations:**
+When enabled, code receives a Canvas token and can make immediate writes without
+preview/confirmation tokens, read anonymization or untrusted-content fencing.
+Review each execution as a privileged Canvas operation. The allowlist controls
+tool registration; it does not constrain arbitrary Canvas calls made by code.
 
-1. **Review Generated Code**
-   - Always review TypeScript code before execution
-   - Understand what the code will do with your Canvas data
-   - Be cautious of code that modifies grades, enrollments, or course settings
+In stdio, `TS_SANDBOX_MODE=auto` can fall back to local execution when container
+support is unavailable. Local execution has process/environment/resource
+limits, not complete filesystem, process or network isolation. The Node-level
+network guard is best effort and bypassable; a container alone does not turn
+its hostname allowlist into strong egress enforcement. See
+[upstream issue 157](https://github.com/vishalsachdev/canvas-mcp/issues/157).
+The default requested execution timeout is 120 seconds and may be capped by
+server sandbox limits; timeouts do not undo writes that already happened.
 
-2. **Execution Environment**
-   - The wrapper writes code to a temporary file, then deletes that file after execution
-   - Environment variables are filtered, but the Canvas token remains accessible
-   - Local mode is not a complete filesystem or process isolation boundary; use external isolation for untrusted code
+### Privacy and local exports
 
-3. **Timeout Protection**
-   - Code execution has a 120-second timeout by default
-   - Long-running operations are automatically terminated
+The central Canvas client applies endpoint-specific identity masking when
+`ENABLE_DATA_ANONYMIZATION` is enabled (default true). Supported names use
+hash-derived labels such as `Student_a8f7e23d`; supported email fields are
+pseudonymized and operational Canvas IDs remain available. These are
+pseudonyms, not a guarantee of anonymity. Free text, submissions, grades,
+course content and exempt profile/content fields can remain sensitive.
 
-4. **What Code Execution Can Access**
-   - Your Canvas API token (via environment variables)
-   - Your Canvas instance (via API calls)
-   - Files and processes allowed by the server's operating-system account in local mode
-   - Network destinations reachable from the server; the built-in allowlist is best-effort and not a strict egress boundary (see [issue #157](https://github.com/vishalsachdev/canvas-mcp/issues/157))
+Generic MCP labels do not satisfy the SDM permanent four-digit PIN policy.
+Use the authenticated registry-bound mapping for explicitly authorized local
+copies, preserve originals, and hold missing/conflicting identities. A private
+PIN archive is still student data. See [PIN policy](docs/STUDENT-PIN-POLICY.md),
+[private export validation](docs/local-pin-exports.md) and
+[post-QC archive gates](docs/post-qc-pin-archives.md).
 
-### Data Privacy & FERPA Considerations
+### Errors, retries and audit evidence
 
-Canvas MCP includes built-in privacy features for educational data:
+The client applies request timeouts and bounded 429 backoff, including supported
+`Retry-After` values. Those controls do not make every write safe to retry.
+For an uncertain write, inspect durable state and independent readback before
+retrying; never infer failure merely from a timeout or lost response.
 
-1. **Data Anonymization**
-   - Enable via `ENABLE_DATA_ANONYMIZATION=true` in `.env`
-   - Masks supported student identity fields before formatted tool output reaches the AI client
-   - Preserves student IDs for functional operations
-   - Can reduce identity exposure, but does not by itself establish FERPA compliance
+Validation, URL sanitization and error handling reduce accidental exposure but
+do not guarantee that every error or diagnostic is free of sensitive material.
+Inspect and redact logs before sharing; do not dump tokens, student records or
+raw API responses into public issues. Keep private operational receipts outside
+Git and website upload roots. The SDM gradebook publisher has separate preview,
+explicit-enable and durable readback controls; general MCP logging is not a
+substitute for those receipts.
 
-2. **What Gets Anonymized**
-   - Student names → Generic identifiers (Student A, Student B, etc.)
-   - Student emails → Anonymized addresses
-   - Student IDs → Preserved (needed for Canvas operations)
+## Remaining limitations
 
-3. **What Does NOT Get Anonymized**
-   - Course information
-   - Assignment titles and descriptions
-   - Your own profile information
-   - Submission content and grades (but student identifiers are anonymized)
-
-### Network Security
-
-1. **HTTPS Only**
-   - Canvas API requires HTTPS
-   - HTTP URLs are automatically upgraded to HTTPS
-
-2. **User-Agent Header**
-   - Canvas MCP includes proper User-Agent identification
-   - Required by Canvas API (effective January 2026)
-   - Format: `canvas-mcp/{version} (repository-url)`
-
-3. **Rate Limiting**
-   - Canvas API rate limits: ~700 requests per 10 minutes
-   - Canvas MCP includes automatic retry with exponential backoff
-   - Use `max_concurrent=5` for bulk operations to avoid rate limits
-
-### Deployment Security
-
-1. **Environment Isolation**
-   - Run Canvas MCP in isolated environments (containers, virtual machines)
-   - Avoid running on shared systems with untrusted users
-   - Use separate Canvas tokens for different environments
-
-2. **File Permissions**
-   - Restrict access to configuration files: `chmod 600 .env`
-   - Ensure code execution directory has appropriate permissions
-   - Review generated code files in `code_api/` directory
-
-3. **Logging and Monitoring**
-   - Enable API request logging for debugging: `LOG_API_REQUESTS=true`
-   - Monitor for unusual API activity
-   - Review error logs for security issues
-
----
-
-## Built-in Security Features
-
-Canvas MCP includes several security features:
-
-1. **Automatic Rate Limit Handling**
-   - Exponential backoff on 429 errors
-   - Configurable retry limits
-   - Respects Canvas `Retry-After` headers
-
-2. **Timeout Protection**
-   - API request timeouts (configurable)
-   - Code execution timeouts (120s default)
-   - Prevents infinite loops and hangs
-
-3. **Input Validation**
-   - Type validation for all tool parameters
-   - Course ID validation and caching
-   - Parameter sanitization
-
-4. **Error Handling**
-   - Graceful error responses (no stack traces to users)
-   - Detailed error logging for debugging
-   - No sensitive data in error messages
-
-5. **Privacy Protection**
-   - Configurable data anonymization
-   - Optional masking of supported student identity fields
-   - Controls that can support FERPA-conscious operating practices
-
----
-
-## Known Security Limitations
-
-1. **No Authentication**
-   - MCP server trusts the local environment
-   - No built-in authentication for MCP clients
-   - Relies on Canvas API token for authorization
-
-2. **Code Execution Risks**
-   - `execute_typescript` tool executes arbitrary code
-   - Local mode has resource and environment guardrails but no complete filesystem, process, or egress isolation boundary
-   - User responsible for reviewing generated code
-
-3. **No Rate Limiting Control**
-   - Cannot prevent aggressive API usage
-   - Relies on Canvas server-side rate limiting
-   - User responsible for bulk operation throttling
-
-4. **Token Scope**
-   - Canvas API tokens inherit the permissions of the Canvas account that created them
-   - No way to limit token permissions via Canvas MCP
-   - Use Canvas account permissions for access control
-
----
-
-## Security Roadmap
-
-Future security enhancements under consideration:
-
-- [ ] Optional MCP client authentication
-- [ ] Code execution sandboxing (Docker/VM isolation)
-- [ ] Token encryption at rest
-- [ ] Audit logging for sensitive operations
-- [ ] Rate limiting controls for bulk operations
-- [ ] Granular operation permissions
-- [ ] Security scanning for generated code
+- Local stdio trust and external HTTP authentication must be enforced by the
+  operator's actual deployment, not by a configuration label.
+- Arbitrary code execution remains a privileged escape from tool-level preview
+  and privacy guarantees; strict egress isolation is not implemented by the
+  Node guard.
+- Placeholder overlay flags do not provide generic key storage, mTLS, SIEM
+  forwarding or day-based retention. Supported structured redaction and optional
+  access/execution audit events are implemented; they do not guarantee complete
+  redaction or a durable grade-delivery ledger. See [overlay status](config/overlays/README.md).
+- Rate limits, account permissions and token grants remain subject to Canvas;
+  optional masking and local workflow gates do not establish institutional compliance.
 
 ---
 
@@ -238,4 +175,4 @@ For security concerns:
 
 ---
 
-*Last Updated: December 2025*
+*Last reviewed against implementation: October 1, 2026*

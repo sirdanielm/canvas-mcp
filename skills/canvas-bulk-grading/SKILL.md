@@ -111,11 +111,32 @@ bulk_grade_submissions(
 )
 ```
 
-Review the dry run output. If everything looks correct, re-run with `dry_run: false`.
+Show the dry-run results to the instructor and obtain explicit approval for the exact grades and feedback before re-running with `dry_run: false`. A successful dry run is not approval.
 
 ### Strategy C: Code Execution (30+ submissions)
 
-For large classes or custom grading logic, use `execute_typescript` to run grading locally. This avoids loading all submission data into the conversation context.
+For large classes or custom grading logic, code execution can keep per-item processing out of the conversation context.
+
+`execute_typescript` is off by default and disabled in the supplied hosted deployment
+configuration. Enabling it requires separately reviewed operator configuration.
+It requires `EXECUTE_TYPESCRIPT_ENABLED=true`; when `ALLOWED_WRITE_TOOLS` is set,
+name `execute_typescript` explicitly (`all` does not include it). Treat every run
+as fully privileged Canvas access: code can bypass MCP confirmation tokens and
+content fencing. Run only within explicit user authorization for the intended scope and effects;
+existing authorization remains valid. A missing tool is an operator boundary, not a reason to bypass it.
+
+The helper and captured execution output can include per-student identifiers,
+including during dry runs. Keep that output private and report only aggregate
+results to the conversation; do not assume local processing anonymizes stdout.
+
+`bulkGrade({dryRun: true, ...})` skips its own grade submission, but still runs
+your callback. It does not validate the returned grades against Canvas or a rubric,
+and cannot prevent a callback from making its own writes. Keep preview callbacks
+free of side effects, review the exact intended changes, and obtain explicit
+instructor approval before applying. A `graded` count during dry run means
+would-be results, not saved grades. Use `grade` for a direct score or
+`rubricAssessment` for rubric scoring; top-level `points` is deprecated and ignored.
+
 
 ```
 execute_typescript(code: `
@@ -124,9 +145,9 @@ execute_typescript(code: `
   await bulkGrade({
     courseIdentifier: "COURSE_ID",
     assignmentId: "ASSIGNMENT_ID",
-    dryRun: true,  // preview first; re-run with false after review
+    dryRun: true,  // callback preview only; apply only after explicit instructor approval
     gradingFunction: (submission) => {
-      // Custom grading logic runs locally -- no token cost
+      // Local processing; any model/API cost depends on the callback.
       const notebook = submission.attachments?.find(
         f => f.filename.endsWith('.ipynb')
       );

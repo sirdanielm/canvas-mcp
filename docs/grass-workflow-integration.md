@@ -6,17 +6,17 @@ Each stage retains its source and revision basis. A successful request, a passin
 software test, or a completed QC run does not establish teacher approval or
 verified delivery.
 
-The canonical architecture and implementation plan are maintained with
-[LocalGrAss](https://github.com/sirdanielm/LocalGrAss), in
-`docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md` and
-`docs/GRASS_NEXT_BUILD_PLAN.md`. Repository access may require authentication.
+The canonical [architecture contract](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md),
+[build plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_NEXT_BUILD_PLAN.md),
+and [production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md)
+are maintained with LocalGrAss. Repository access may require authentication.
 Quinn and local AI remain optional future adapters.
 
 ## Repository responsibilities
 
 | Repository | Responsibility |
 | --- | --- |
-| Canvas MCP SDM profile | Authenticated Canvas reads, local gradebook mirror and permanent PIN source; separately gated publisher |
+| Canvas MCP SDM profile | Authenticated Canvas reads, local gradebook mirror and permanent PIN source; separately gated score-only publisher |
 | sdmGrAss | Grader runtime, lifecycle controls, desktop imports and diagnostic QC |
 | GrAss | Saved-result intake and central proposal workflows |
 | LocalGrAss | New local core, immutable revisions and explanations of saved score/comment pairs |
@@ -26,13 +26,21 @@ Its captured snapshot and identity bindings must be verified before admission;
 snapshot hashes do not establish live Canvas freshness. Originals, private
 crosswalks, credentials and detailed student records remain outside Git.
 
-## Current implementation boundary — September 30, 2026
+## Current implementation boundary — October 1, 2026
 
-LocalGrAss PR1, PR3 and PR4, sdmGrAss PR333–PR337, and GrAss PR118 and PR122 are merged. The new local
-core has synthetic validation and retained explanation history. Authenticated
-teacher review, verified original-byte adapters and a live publisher remain
-separate implementation work. Post-merge review findings must still be evaluated;
-merge status alone is not evidence that all findings are resolved.
+The published LocalGrAss `main` was checked at `dd0578c`. Its local core implements
+transactional saved results, proposal settlement, preserved teacher decisions and
+read-only explanations. Original-byte verification and quarantined SQLite recovery
+are implemented prototypes. Its newer local-tool registry is development tooling;
+it grants no grading or publication authority.
+
+A durable byte-catalog/evidence-revision binding, semantic Canvas mirror import,
+authenticated teacher review, the authoritative decision-to-release bridge, and a
+real score/feedback publisher remain separate implementation work. The existing
+Canvas score-edit publisher does not deliver feedback or authenticate the person
+approving its preview. See the published
+[implementation status](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/IMPLEMENTATION_STATUS.md).
+Merge status alone does not resolve later review findings or activate an adapter.
 
 The desktop import/QC workflow writes durable aggregate receipts. The newest
 attempt remains authoritative even when failed, interrupted or held. The
@@ -68,8 +76,8 @@ exact QC source hashes, and returns before archive publication. All 2,165 Python
 tests passed with 21 existing skips; all 65 exporter tests, lint/types and the
 hosted Python matrix, TypeScript and confirmation checks passed.
 
-The actual current batch remains **16/16 held**, with no archives created. First
-blocker triage found the same unmapped source-owner provenance address in 15
+The batch captured at this checkpoint was **16/16 held**, with no archives
+created. First blocker triage found the same unmapped source-owner provenance address in 15
 workbooks and an unresolved explicit student email in one cache. The source-owner
 address does not match the authenticated Drive profile; it must not be silently
 classified as the teacher or mapped to a student PIN. These are two different
@@ -87,9 +95,9 @@ are blocked from opening as active Registries. Evidence blobs, external-state
 reconciliation and activation remain separate work. See the
 [production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md).
 
-Fresh authenticated Canvas reads establish the two academic settings for the
-affected assignment: **Core 30; Advanced DEFINED, 40 including Core**. The current
-grouped weights can be preserved with the existing legacy rubric policy; no
+Authenticated Canvas reads captured at this checkpoint established the two
+academic settings for the affected assignment: **Core 30; Advanced DEFINED, 40
+including Core**. The captured grouped weights can be preserved with the existing legacy rubric policy; no
 invented per-question allocation is needed. Investigation also found an incomplete
 Advanced rubric and an obsolete A6 key. A complete private draft repairs eight
 fields together. Canonical runtime validation passes both tracks; academic QC on
@@ -123,9 +131,10 @@ entirely synthetic inputs. See the [aggregate validation receipt](validation/pri
 The merge tree matches the reviewed and tested head. These are software checks,
 not grading-accuracy or source-freshness claims.
 
-The listed code-review backlog is resolved. Remaining work is integration:
-verified original-byte source adapters, authenticated teacher decisions,
-backup/restore and bounded workers, then the authoritative release-to-publisher
+The listed code-review backlog was resolved at this checkpoint. The later
+source/recovery checkpoint supersedes its byte-verifier and database-backup TODOs.
+Remaining work includes authenticated teacher decisions, production source and
+recovery connections, bounded workers and the authoritative release-to-publisher
 bridge. The [private PIN exporter](local-pin-exports.md) is opt-in; the automatic
 [post-QC archive hook](post-qc-pin-archives.md) remains uninstalled until fleet
 compatibility and batch recovery pass. Publication uncertainty requires

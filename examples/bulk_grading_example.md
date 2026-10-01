@@ -2,6 +2,30 @@
 
 This example demonstrates how the code execution API can keep per-submission processing out of the model's context.
 
+## Execution and approval requirements
+
+`execute_typescript` is off by default and disabled in the supplied hosted deployment
+configuration. Enabling it requires separately reviewed operator configuration.
+It requires `EXECUTE_TYPESCRIPT_ENABLED=true`; when `ALLOWED_WRITE_TOOLS` is set,
+name `execute_typescript` explicitly (`all` does not include it). Treat every run
+as fully privileged Canvas access: code can bypass MCP confirmation tokens and
+content fencing. Run only within explicit user authorization for the intended scope and effects;
+existing authorization remains valid. A missing tool is an operator boundary, not a reason to bypass it.
+
+The helper and captured execution output can include per-student identifiers,
+including during dry runs. Keep that output private and report only aggregate
+results to the conversation; do not assume local processing anonymizes stdout.
+
+`bulkGrade({dryRun: true, ...})` skips its own grade submission, but still runs
+your callback. It does not validate the returned grades against Canvas or a rubric,
+and cannot prevent a callback from making its own writes. Keep preview callbacks
+free of side effects, review the exact intended changes, and obtain explicit
+instructor approval before applying. A `graded` count during dry run means
+would-be results, not saved grades. Use `grade` for a direct score or
+`rubricAssessment` for rubric scoring; top-level `points` is deprecated and ignored.
+
+`analyzeNotebook` and related helpers below are illustrative placeholders, not supplied library functions. Do not execute untrusted submitted code without a separately reviewed isolation plan.
+
 ## Scenario
 
 Grade 90 Jupyter notebook submissions for Assignment 123.
@@ -12,6 +36,8 @@ Grade 90 Jupyter notebook submissions for Assignment 123.
 ## Traditional Approach (high context use)
 
 ### The Problem
+
+The following is illustrative MCP-call pseudocode, not executable TypeScript. Use discovery for each tool's actual snake_case parameters, and obtain instructor approval before any grade write.
 
 ```typescript
 // Load ALL submissions into context
@@ -50,9 +76,10 @@ for (const sub of submissions) {
 ### The Solution
 
 ```typescript
-import { bulkGrade } from './canvas/grading/bulkGrade';
+import { bulkGrade } from './canvas/grading/bulkGrade.js';
 
 await bulkGrade({
+  dryRun: true, // preview only; explicit instructor approval is required to apply
   courseIdentifier: "60366",
   assignmentId: "123",
   gradingFunction: (submission) => {
@@ -64,7 +91,7 @@ await bulkGrade({
     );
 
     if (!notebook) {
-      console.log(`No notebook for user ${submission.userId}`);
+      console.log("Notebook attachment missing; skipped.");
       return null; // Skip this submission
     }
 
@@ -149,6 +176,7 @@ You can implement any grading logic you want:
 
 ```typescript
 await bulkGrade({
+  dryRun: true, // preview only; explicit instructor approval is required to apply
   courseIdentifier: "60366",
   assignmentId: "123",
   gradingFunction: (submission) => {
@@ -224,8 +252,8 @@ await bulkGrade({
   dryRun: true,  // ⭐ Test mode - doesn't actually grade
   gradingFunction: (submission) => {
     // Your grading logic here
-    console.log(`Would grade: ${submission.userId}`);
-    return { points: 100, ... };
+    console.log("One submission preview computed.");
+    return { grade: 100 };
   }
 });
 ```
@@ -236,7 +264,7 @@ await bulkGrade({
 2. **Handle errors gracefully** - return `null` to skip problematic submissions
 3. **Provide detailed rubric comments** to help students understand their grades
 4. **Log progress** using `console.log()` to track grading status
-5. **Validate rubric criterion IDs** before grading (use `list_assignment_rubrics`)
+5. **Validate rubric criterion IDs** before grading (use `get_rubric` with the assignment ID)
 
 ## Common Rubric Criterion ID Patterns
 
@@ -249,7 +277,9 @@ To find the correct IDs for your rubric:
 
 ```typescript
 // First, discover the rubric structure
-const rubric = await search_canvas_tools("list_assignment_rubrics", "full");
+// Discovery returns the tool signature, not the rubric itself.
+await search_canvas_tools("get_rubric", "full");
+// Then call get_rubric with course_identifier and assignment_id.
 
 // Then use the correct criterion IDs in bulkGrade
 ```
@@ -261,7 +291,7 @@ const rubric = await search_canvas_tools("list_assignment_rubrics", "full");
 - Verify file paths are correct
 
 ### "Criterion ID not found"
-- Use `list_assignment_rubrics` to get correct criterion IDs
+- Use `get_rubric` with the assignment ID to get correct criterion IDs
 - Remember: IDs often start with underscore (`"_8027"`)
 
 ### "Rate limit exceeded"

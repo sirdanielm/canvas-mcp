@@ -211,14 +211,16 @@ Advanced tools for bulk operations and custom logic.
 | `execute_typescript` | Run TypeScript for bulk operations |
 
 > **⚠️ Security caveat:** enabling `execute_typescript`
-> (`EXECUTE_TYPESCRIPT_ENABLED=true`; it is **off by default** and disabled on
-> hosted deployments) **voids the confirmation-token and untrusted-content
+> (`EXECUTE_TYPESCRIPT_ENABLED=true`; it is **off by default** and disabled in
+> the supplied hosted deployment configuration) **voids the confirmation-token and untrusted-content
 > fencing guarantees** described in this document. The sandbox holds
 > `CANVAS_API_TOKEN` and can reach the Canvas API directly (the in-process
 > network guard is bypassable — see issue 157), so code run there can send
 > messages or write content without any preview/confirm step or fence
 > markers. Treat every `execute_typescript` run as a fully privileged Canvas
-> action.
+> action. Stay within explicit user authorization for the intended scope and
+> effects; existing authorization remains valid. A local sandbox or dry-run
+> option does not establish authorization.
 
 ## When to Use What
 
@@ -266,7 +268,8 @@ Is it a simple query?
    → get_assignment_analytics(course_id, assignment_id)
 
 3. "Send reminders to missing students"
-   → send_conversation(course_id, recipients, subject, body)
+   → send_conversation(course_id, recipients, subject, body) previews only.
+   Show the exact preview and obtain approval before repeating with its token.
 ```
 
 ### Educator: Bulk Grading

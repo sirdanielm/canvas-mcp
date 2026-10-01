@@ -6,6 +6,13 @@ Prepared September 26, 2026 from the local sdmGrAss checkout at
 This is a source-grounded handoff proposal, not live configuration, deployment,
 grading, or Canvas publication. The sdmGrAss checkout was inspected without edits.
 
+This is a historical proposal, not a current assignment-policy registry. The
+point totals, source mappings, reader behavior and gates below were observed at
+the recorded revision. Before resuming, check the current published sdmGrAss
+implementation and independently selected live assignment/template/key revisions;
+retain any mismatch for review. The [integration boundary](grass-workflow-integration.md)
+separates this existing fleet intake from the new LocalGrAss core.
+
 ## Shared identity contract
 
 The Canvas assignment code is `2.1c`; the fleet target is `grader-2-1-3`.
@@ -19,7 +26,7 @@ its own document/key; Advanced uses 25 and its own document/key. Keep the existi
 `assignment_key` cross-workflow join and track policy. Do not make a new identity
 service, grading ledger, retry queue, or source folder hierarchy.
 
-## Observed current reader path
+## Reader path observed September 26
 
 1. The existing manifest records source identity, MIME type, and modification time.
 2. `apps-script/3text.gs` reads Google Docs through

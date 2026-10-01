@@ -1,12 +1,15 @@
 # internal/ — non-published project docs
 
-These markdown files are **internal references** and are intentionally kept
-**out of `docs/`** because `docs/` is the root that Cloudflare Pages serves as
-the public website (`canvas-mcp.illinihunt.org`). Anything under `docs/` is
-publicly reachable by URL; anything here is not.
+These files are development references outside the Cloudflare Pages upload root,
+`docs/`. **Tracked files here are public on GitHub.** The directory name does not
+provide confidentiality. Only deliberately reviewed references are un-ignored;
+operator history, credentials, recovery copies and private reports remain
+Git-ignored. Website exclusion and Git exclusion are separate controls.
 
-Keep internal/operator/compliance/design notes in this directory (or in
-gitignored `*.local.md` files) — **do not** move them into `docs/`.
+Keep private operator/compliance/design notes in Git-ignored locations here or
+in Git-ignored `*.local.md` files. Never move them into `docs/` or un-ignore them
+for convenience. See the [documentation map](../docs/documentation-map.md) and
+[repository maintenance guide](../docs/repository-maintenance.md).
 
 Contents:
 

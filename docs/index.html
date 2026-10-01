@@ -1873,9 +1873,10 @@
                         <span class="code-filename">bulkGrade.ts</span>
                     </div>
                     <div class="code-body">
-<pre><span class="code-keyword">import</span> { bulkGrade } <span class="code-keyword">from</span> <span class="code-string">'./canvas/grading'</span>;
+<pre><span class="code-keyword">import</span> { bulkGrade } <span class="code-keyword">from</span> <span class="code-string">'./canvas/grading/bulkGrade.js'</span>;
 
 <span class="code-keyword">await</span> <span class="code-function">bulkGrade</span>({
+  dryRun: <span class="code-keyword">true</span>, <span class="code-comment">// Preview only; explicit approval is required to apply</span>
   courseIdentifier: <span class="code-string">"60366"</span>,
   assignmentId: <span class="code-string">"123"</span>,
   <span class="code-function">gradingFunction</span>: (submission) => {
@@ -1886,7 +1887,7 @@
     <span class="code-keyword">if</span> (!notebook) <span class="code-keyword">return null</span>;
 
     <span class="code-keyword">return</span> {
-      points: <span class="code-number">100</span>,
+      grade: <span class="code-number">100</span>,
       comment: <span class="code-string">"Great work!"</span>
     };
   }

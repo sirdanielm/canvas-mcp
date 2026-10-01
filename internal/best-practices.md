@@ -2,6 +2,11 @@
 
 *Based on 2025 Claude Code best practices and 6-month development history analysis*
 
+Historical development notes, retained as written. Current repository rules and
+validation live in [CLAUDE.md](../CLAUDE.md) and the
+[documentation map](../docs/documentation-map.md). Client features, usage claims
+and suggested workflows below are dated observations, not current policy.
+
 ## Your Current "Vibe Coding" Patterns (Analyzed)
 
 **What I observed from your git history:**

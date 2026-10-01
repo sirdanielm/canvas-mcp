@@ -21,9 +21,9 @@ The original operation was reconciled without resending grade data and reached
 VERIFIED at `2026-09-30T09:14:19.813474+00:00` (05:14:19 EDT). Its durable receipt is
 `acf9176779cc14eddbf9a35c0eac5d1ef3f97d7046e0cfcc260bcf1b7f65d271`.
 
-The per-user launch agent is installed at
-`~/Library/LaunchAgents/org.sdm.canvas-gradebook-refresh.plist` and was bootstrapped
-in `gui/501`; PID 61352 was observed at activation. Two READY heartbeats advanced
+At that activation checkpoint, the per-user launch agent was installed at
+`~/Library/LaunchAgents/org.sdm.canvas-gradebook-refresh.plist` and bootstrapped
+in the operator's GUI session. Two READY heartbeats advanced
 from `09:15:45.700009` to `09:16:18.441440` UTC, with a clear queue and zero local
 unresolved operations. The actual **Show refresh progress** menu displayed
 VERIFIED, both course counts, and **Local worker READY**. This completes the
@@ -157,10 +157,10 @@ uv sync --frozen --group dev --extra local-keychain
 .venv/bin/python scripts/sdm_gradebook_worker.py configure
 ```
 
-`configure` creates a private configuration with a stable worker UUID. A private
-configuration was prepared locally at the September 29 checkpoint; the worker
-was not started. It does
+`configure` creates a private configuration with a stable worker UUID. It does
 not start a process, contact Google, or overwrite an existing configuration.
+The September 29 configuration-only checkpoint preceded the September 30
+activation described above.
 The default configuration is
 `~/.config/canvas-authoring/gradebook-worker.json`; private state remains in this
 checkout's `local_gradebooks/`. Use the same store as the MCP so existing baseline

@@ -1,5 +1,20 @@
 # Repository and local tooling maintenance
 
+## Verified promotion
+
+[PR #5](https://github.com/sirdanielm/canvas-mcp/pull/5) merged on October 1, 2026
+at `68041f0704f6114d9edad1811843915dbc38e1fb`. Both retained branches were then
+synchronized and clean; all eight recorded operational source files matched
+before and after promotion. The completed PIN checkout was retired and the
+managed sync-review checkout archived, with verified private recovery copies
+and branch refs retained. This is a dated completion receipt, not a permanent
+claim about the current number of worktrees. New tasks may create review trees.
+
+For current revisions and checks, read [fork main](https://github.com/sirdanielm/canvas-mcp/tree/main)
+and [GitHub Actions](https://github.com/sirdanielm/canvas-mcp/actions).
+The [documentation map](documentation-map.md) identifies maintained guides and
+historical records.
+
 ## Maintained branch and ownership
 
 The fork's `main` branch contains the reviewed SDM Canvas implementation,

@@ -2,39 +2,37 @@
 
 Long-form guidance that used to load in every session. CLAUDE.md keeps the one-line
 rule for each section; this file keeps the reasoning, examples and incident detail.
-Sections are verbatim as of the move.
+Historical incident and adoption sections remain dated snapshots. The Git workflow
+below was refreshed for the SDM fork on 2026-10-01.
 
-Verified 2026-09-30: every file path, script, workflow, test name, symbol and commit hash named below
-exists; `main` requires a PR with one approval plus `test-enhancements` and `lint` (ruleset "Main Branch
-Protection"); `deploy-prod.yml` triggers on `v*` tags and manual runs only. The adoption figures are
-dated snapshots and were not re-pulled.
+Verified 2026-10-01: GitHub reports `sirdanielm/canvas-mcp` main as unprotected and
+`vishalsachdev/canvas-mcp` main as protected. Do not transfer upstream ruleset
+claims to the fork. The checked-in production workflow triggers only on `v*`
+tags and manual dispatch; workflow presence does not prove deployment credentials
+or a running SDM hosted service. Adoption figures were not re-pulled.
 
-## Git Workflow - ASK FIRST
+## Git workflow
 
-**Before starting any new feature or significant change, ASK:**
-> "Should I create a feature branch for this, or work directly on main?"
+Use reviewed branches and PRs, including documentation changes. PR review and
+green applicable CI are the SDM workflow policy even though GitHub does not
+enforce branch protection here. An existing user authorization covers ordinary
+branch/worktree choices; clarify only unresolved consequential scope or target
+ambiguity. Branch prefixes are `feature/`, `fix/`, `docs/`, and `refactor/`.
 
-| Change Type | Default Branch | Notes |
-|-------------|----------------|-------|
-| New tool/feature | `feature/tool-name` | PR with CI checks |
-| Bug fix | `fix/issue-description` | PR recommended |
-| Documentation only | `main` okay | Direct push acceptable |
-| Quick fix (typo, etc.) | `main` okay | Direct push acceptable |
+### Parallel work and preservation
 
-**Branch naming:** `feature/`, `fix/`, `docs/`, `refactor/`
+Isolate concurrent PR work in suitable worktrees from the current maintained
+branch. Keep the primary checkout's shared Git directory and the operational
+`feature/sdm-authoring` checkout available. Synchronize that installation-compatible
+branch after reviewed promotion to `main`; Git sync does not restart or deploy
+services. Integrate new base changes without overwriting another session's work
+and rerun appropriate validation.
 
-This repo has branch protection on `main` (PR + status checks required), but admin can bypass. Always ask the user which workflow they prefer for the current task.
-
-### Parallel work: one PR = one worktree
-
-This repo often has several agents/sessions working at once. The primary checkout
-(`/Users/vishal/code/canvas-mcp`) stays on `main`, clean — treat it as read-only (triage,
-review, reading). All branch work happens in a sibling worktree named `canvas-mcp-<slug>`
-on branch `fix/NNN-slug`, created from `origin/main` (gitignored files like `.env` don't
-carry over — symlink them). Never repurpose a worktree for a different issue; remove it
-after its PR merges and delete the branch (local + remote). After any sibling PR merges,
-rebase surviving worktree branches onto `main` and rerun tests there. Full lifecycle:
-global `worktree-pr` skill.
+Before retiring a review checkout, inspect ancestry, staged/unstaged/untracked
+files and ignored preservation needs. Preserve unique work and verify recovery;
+archive managed worktrees through Codex. Do not automatically remove branches,
+private stores or an operational checkout. See
+[repository maintenance](../docs/repository-maintenance.md).
 
 ### Closing-keyword guard — run `./scripts/install-hooks.sh` once per clone
 
@@ -130,9 +128,9 @@ changes. Keep required lint, type-checking, and CI gates; do not merge with fail
 required checks. Report what was verified and any failures, skipped coverage, or
 environment limitations. Do not weaken assertions to obtain a green run.
 
-## Hosted Deployment (Azure — #115)
+## Upstream hosted deployment reference (Azure — upstream #115)
 
-There is a **private, Entra-gated** hosted instance for Gies course staff. It is **not shared
+The upstream operator documents a **private, Entra-gated** hosted instance for Gies course staff. This is upstream context, not evidence of a configured SDM deployment. It is **not shared
 publicly** — keep its endpoint URL, Entra app IDs, deploy specifics, and access-key holders out
 of this (public) repo. All operational detail lives in the **gitignored** `internal/ops-hosted.local.md`
 (moved out of `docs/` on 2026-06-21 — that dir is the Cloudflare Pages publish root and was serving
@@ -145,7 +143,7 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   server-pinned; `CANVAS_API_TOKEN` must never be set in HTTP mode (startup guard). Deploy is
   GitHub Actions: `deploy-staging.yml` on push to `staging`; `deploy-prod.yml` only on a `v*`
   release tag or a manual run from `main`. **Merging to `main` does not deploy production**
-  (since 2026-09-27); ship unreleased `main` with `gh workflow run deploy-prod.yml --ref main`.
+  (since 2026-09-27). A manual production dispatch from `main` ships unreleased code and requires explicit deployment authorization; it is not a validation step.
 - The open-source **self-hosted (stdio)** path is the public product — see `README.md` / `AGENTS.md`.
   HTTP-transport env-var *names* live in `env.template` / `core/config.py`; the hosted *instance*
   is operator-only.

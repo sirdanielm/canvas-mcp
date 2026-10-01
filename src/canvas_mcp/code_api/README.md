@@ -30,6 +30,28 @@ code_api/
     └── communications/   # Messaging operations
 ```
 
+## Execution authority
+
+`execute_typescript` is off by default and disabled in the supplied hosted deployment
+configuration. Enabling it requires separately reviewed operator configuration.
+It requires `EXECUTE_TYPESCRIPT_ENABLED=true`; when `ALLOWED_WRITE_TOOLS` is set,
+name `execute_typescript` explicitly (`all` does not include it). Treat every run
+as fully privileged Canvas access: code can bypass MCP confirmation tokens and
+content fencing. Run only within explicit user authorization for the intended scope and effects;
+existing authorization remains valid. A missing tool is an operator boundary, not a reason to bypass it.
+
+The helper and captured execution output can include per-student identifiers,
+including during dry runs. Keep that output private and report only aggregate
+results to the conversation; do not assume local processing anonymizes stdout.
+
+`bulkGrade({dryRun: true, ...})` skips its own grade submission, but still runs
+your callback. It does not validate the returned grades against Canvas or a rubric,
+and cannot prevent a callback from making its own writes. Keep preview callbacks
+free of side effects, review the exact intended changes, and obtain explicit
+instructor approval before applying. A `graded` count during dry run means
+would-be results, not saved grades. Use `grade` for a direct score or
+`rubricAssessment` for rubric scoring; top-level `points` is deprecated and ignored.
+
 ## Setup
 
 ### Environment Variables
@@ -74,21 +96,20 @@ search_canvas_tools("", "names")
 ### Basic Operations
 
 ```typescript
-import { listSubmissions, gradeWithRubric } from './canvas/grading';
+import { listSubmissions } from './canvas/assignments/listSubmissions.js';
+import { gradeWithRubric } from './canvas/grading/gradeWithRubric.js';
 
 // List submissions (stays in execution environment!)
 const submissions = await listSubmissions({
   courseIdentifier: "60366",
   assignmentId: "123",
-  includeUser: true  // Include user details (name, email, etc.)
+  includeUser: false // Avoid requesting unnecessary identity fields
 });
 
-// Access user information
-submissions.forEach(sub => {
-  console.log(`${sub.user?.name} (${sub.user?.email}): ${sub.score ?? 'ungraded'}`);
-});
+// Report aggregate metadata only.
+console.log({submissionCount: submissions.length});
 
-// Grade a single submission
+// Direct write: run only after explicit instructor approval of this exact payload.
 await gradeWithRubric({
   courseIdentifier: "60366",
   assignmentId: "123",
@@ -106,16 +127,17 @@ await gradeWithRubric({
 ### Bulk Operations (⭐ Highest Value)
 
 ```typescript
-import { bulkGrade } from './canvas/grading';
+import { bulkGrade } from './canvas/grading/bulkGrade.js';
 
 // Grade 90 submissions without returning every item to the model.
 await bulkGrade({
+  dryRun: true, // side-effect-free callback preview; approval is required to apply
   courseIdentifier: "60366",
   assignmentId: "123",
   maxConcurrent: 5,  // Process 5 at a time
   rateLimitDelay: 1000,  // 1s between batches
   gradingFunction: async (submission) => {
-    // This runs LOCALLY - no token cost!
+    // Local processing; any model/API cost depends on the callback.
 
     const notebook = submission.attachments?.find(
       f => f.filename.endsWith('.ipynb')
@@ -155,9 +177,9 @@ await bulkGrade({
 
 ### ✅ Error Handling & Retries
 
-- Automatic retry logic with exponential backoff (1s, 2s, 4s)
-- Don't retry 4xx errors (client errors)
-- Retry 5xx errors and network failures
+- GET requests retry eligible failures with exponential backoff (1s, 2s, 4s).
+- Client errors (4xx) are not automatically retried.
+- Writes are never automatically retried. An uncertain write may already be saved; inspect Canvas before deciding whether another attempt is safe.
 
 ### ✅ Input Validation
 
@@ -240,7 +262,7 @@ gradingFunction: (submission) => {
     // Your logic here
     return gradeResult;
   } catch (error) {
-    console.error(`Error processing ${submission.user_id}:`, error);
+    console.error("Submission processing failed; inspect private diagnostics.");
     return null; // Skip on error
   }
 }
@@ -270,7 +292,7 @@ Use `console.log()` for visibility:
 
 ```typescript
 gradingFunction: (submission) => {
-  console.log(`Processing user ${submission.user_id}...`);
+  console.log("Processing one submission...");
   // ... your logic
 }
 ```
@@ -375,4 +397,4 @@ When adding new wrapper functions:
 
 - [Anthropic Blog: Code Execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
 - [Canvas LMS API Documentation](https://developerdocs.instructure.com/services/canvas)
-- [Canvas MCP Server](../../README.md)
+- [Canvas MCP Server](../../../README.md)

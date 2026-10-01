@@ -17,7 +17,11 @@ Canvas remains the source of truth. Captures are observations over a time interv
 not server-side atomic backups. Keep the archive under Git-ignored
 `local_gradebooks/`. Student rosters, grades, submissions, replies, and paid/model
 calls are outside this content collector. Existing gradebook tooling remains the
-separate path for authorized private grade/status snapshots.
+separate path for authorized private grade/status snapshots. Permanent PINs come
+from its registry-bound `Student Info` source, described in the
+[PIN policy](STUDENT-PIN-POLICY.md); this content mirror is not an identity registry.
+A content snapshot or description proposal also does not admit evidence into the
+[new grading workflow](grass-workflow-integration.md).
 
 ## Daily commands
 

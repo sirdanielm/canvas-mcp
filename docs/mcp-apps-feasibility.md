@@ -1,6 +1,9 @@
 # Feasibility & Design: Interactive UI for Canvas results via MCP Apps
 
-**Status:** Scoping / design doc (no implementation yet)
+**Status:** Historical scoping/design proposal from June 7, 2026. Implementation
+and client-support statements below describe that proposal, not a current
+deployment check. Use the [documentation map](documentation-map.md) for current
+operator and integration references.
 **Author:** scoped 2026-06-07
 **Architecture:** spec-interpreter renderers — reliable presets now (Tier B), generative-per-query optional (Tier D, §2.4)
 **Pilot surface:** `get_assignment_analytics` → first instance of the `dashboard` renderer
