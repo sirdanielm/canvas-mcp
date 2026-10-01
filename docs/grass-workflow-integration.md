@@ -28,19 +28,21 @@ crosswalks, credentials and detailed student records remain outside Git.
 
 ## Current implementation boundary — October 1, 2026
 
-The published LocalGrAss `main` was checked at `dd0578c`. Its local core implements
-transactional saved results, proposal settlement, preserved teacher decisions and
-read-only explanations. Original-byte verification and quarantined SQLite recovery
-are implemented prototypes. Its newer local-tool registry is development tooling;
-it grants no grading or publication authority.
+The [October 1 connection slice](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PILOT_CONNECTIONS_2026-10-01.md)
+adds durable original-byte/catalog evidence associations, a Canvas-owned
+[receipt/PIN capture port](grass-capture-contract.md), authenticated DECIDE-only
+local teacher review with durable drafts, and an authoritative fake-only
+workflow release bridge. Each send-intent transaction rechecks current academic,
+identity, binding and decision authority. Independent score/comment readbacks and
+restart tests use fictional inputs and FakeTransport only.
 
-A durable byte-catalog/evidence-revision binding, semantic Canvas mirror import,
-authenticated teacher review, the authoritative decision-to-release bridge, and a
-real score/feedback publisher remain separate implementation work. The existing
-Canvas score-edit publisher does not deliver feedback or authenticate the person
-approving its preview. See the published
+Real grouped-policy scoring, source ownership/page/legibility, real evidence
+review, authenticated RELEASE provisioning and Canvas target/attempt/feedback
+transport remain separate production work. Existing quarantined recovery cannot
+activate a restored worker. The Canvas score-edit publisher still does not
+deliver feedback or authenticate a teacher's preview approval. See the
 [implementation status](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/IMPLEMENTATION_STATUS.md).
-Merge status alone does not resolve later review findings or activate an adapter.
+No Git merge or successful capture admits a real grading case or enables writes.
 
 The desktop import/QC workflow writes durable aggregate receipts. The newest
 attempt remains authoritative even when failed, interrupted or held. The
@@ -55,14 +57,15 @@ teacher-approved pairs.
 
 ## Next engineering work
 
-1. Bind the new original-byte catalog to the exact evidence revision, then add
-   the narrow receipt-bound Canvas mirror importer and canonical identity checks.
+1. Use the tested capture/intake port with exact original source/page/ownership
+   receipts and a supported academic-policy/observation adapter.
 2. Extend quarantined database recovery to original evidence and external
-   receipt stores; establish exclusive ownership before any future activation.
-3. Implement authenticated review and the transactional decision-to-release
-   bridge before connecting a real score/feedback publisher.
-4. Admit the corrected academic packet only through fresh source/binding checks
-   and the guarded setup workflow; resolve archive identity holds separately.
+   receipt stores; establish exclusive worker ownership before activation.
+3. Use authenticated durable review to inspect actual evidence, then add scoped
+   RELEASE provisioning and a reviewed real score/feedback publisher.
+4. Adopt the coherent academic packet only through fresh source/binding checks
+   and guarded setup. Preserve the existing grouped policy; an older unconfirmed
+   50/50 draft is not replacement authority. Resolve archive holds separately.
 
 Assignment point totals and participation/Advanced policies require explicit
 academic authority. Missing policy is a hold; it cannot be inferred from an old

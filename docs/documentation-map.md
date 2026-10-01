@@ -10,7 +10,7 @@ test, Git merge or setup example does not establish live authorization.
 | --- | --- | --- |
 | Install/use Canvas MCP | [README](../README.md), [agent guide](../AGENTS.md), [tool guide](../tools/README.md), [manifest](../tools/TOOL_MANIFEST.json) | Main MCP registry and configured role/write/feature gates; separate from the gradebook server |
 | Curriculum authoring | [Authoring workflow](sdm-canvas-authoring-workflow.md) | Exact unpublished drafts and explicit publication; no student grading through this connection |
-| Canvas observations and working edits | [Gradebook workflow](sdm-gradebook-workflow.md), [worker](sdm-gradebook-worker.md), [course mirror](course-mirror.md) | Canvas GET observation is separate from edits, source evidence and publication |
+| Canvas observations and working edits | [Gradebook workflow](sdm-gradebook-workflow.md), [worker](sdm-gradebook-worker.md), [course mirror](course-mirror.md), [capture port](grass-capture-contract.md) | Canvas GET observation is separate from edits, source evidence and publication |
 | Local identity copies | [Permanent PIN policy](STUDENT-PIN-POLICY.md), [private exports](local-pin-exports.md), [post-QC archive contract](post-qc-pin-archives.md) | Registry-bound Student Info authority; QC compatibility and archive permission are separate |
 | Grader results to review to publisher | [Workflow integration](grass-workflow-integration.md), [canonical contract pointer](GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md) | Immutable results, exact teacher decision, separate release, independent score/feedback verification |
 | Repository and development practice | [Maintenance](repository-maintenance.md), [development guide](../CLAUDE.md), [workflow inventory](../.github/workflows/README.md), [security](../SECURITY.md) | PR and tested revision; deployment, paid review and classroom writes require their own authority |
@@ -18,8 +18,7 @@ test, Git merge or setup example does not establish live authorization.
 [LocalGrAss](https://github.com/sirdanielm/LocalGrAss) owns the new local core and
 shared toolbox catalog. Canvas-owned services and installed targets remain in
 this repository. Read its [production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md)
-for remaining semantic source admission, teacher authentication and real
-publisher integration. Quinn/local AI remains an optional future adapter.
+for implemented durable receipt intake/local teacher authentication and the remaining real source/policy/publisher integration. Quinn/local AI remains an optional future adapter.
 
 ## Historical records
 

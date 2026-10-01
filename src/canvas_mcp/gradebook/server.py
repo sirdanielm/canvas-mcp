@@ -6,6 +6,7 @@ from typing import Any
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from .capture import save_capture
 from .client import GradebookClient, GradebookError
 from .ledger import Ledger
 from .model import compare_edits, summary
@@ -44,9 +45,11 @@ def create_server(
         try:
             snapshot = await client.snapshot(resolve(course))
             artifact_id, path = store.save("snapshot", snapshot)
+            capture_receipt_id = save_capture(store, snapshot)
             return {
                 **summary(snapshot),
                 "snapshot_id": artifact_id,
+                "capture_receipt_id": capture_receipt_id,
                 "local_file": str(path),
                 "canvas_writes": 0,
             }
