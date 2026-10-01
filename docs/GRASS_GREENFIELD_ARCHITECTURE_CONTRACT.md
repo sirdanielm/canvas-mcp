@@ -6,6 +6,7 @@ The canonical GrAss design and new implementation are maintained in
 - [Architecture contract](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md)
 - [Implementation plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_NEXT_BUILD_PLAN.md)
 - [Production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md)
+- [Implementation status](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/IMPLEMENTATION_STATUS.md)
 - [Local tooling ownership](https://github.com/sirdanielm/LocalGrAss)
 
 Shared local tooling is developed in LocalGrAss; Canvas-specific services,
@@ -16,3 +17,7 @@ verified Canvas readback remain separate requirements.
 Original design transfers, frozen comparison versions and operator checkpoints
 are preserved in the operator's private archive. They are historical evidence;
 edit the canonical LocalGrAss contract for current design work.
+
+See the [documentation map](documentation-map.md) for current Canvas operator
+guides and the distinction between implementation, installed runtime and live
+publication authority.

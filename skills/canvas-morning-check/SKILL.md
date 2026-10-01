@@ -93,11 +93,11 @@ After presenting the report, offer actionable next steps:
 
 > Would you like me to:
 > 1. Draft and send a message to struggling students (uses `send_conversation`)
-> 2. Send reminders about upcoming deadlines (uses `send_conversation`; multiple recipients are a preview + confirmation call)
+> 2. Send reminders about upcoming deadlines (uses `send_conversation`; every send, including one recipient, requires preview + confirmation)
 > 3. Get detailed analytics for a specific assignment (uses `get_assignment_analytics`)
 > 4. Check another course
 
-If the user selects option 1, use the `send_conversation` MCP tool to message the identified students directly through Canvas.
+If the user selects a messaging option, call `send_conversation` without a token to preview. Show the exact recipients and message, obtain explicit approval, then repeat with identical arguments and the returned `confirmation_token`. If the tool is unavailable under the operator write policy, stop at the draft.
 
 ## MCP Tools Used
 
@@ -118,7 +118,7 @@ If the user selects option 1, use the `send_conversation` MCP tool to message th
 
 **User:** "Send a reminder to students missing Quiz 3"
 
-**Agent:** Calls `send_conversation` to message the identified students with a reminder.
+**Agent:** Gets a `send_conversation` preview, shows the exact recipients and reminder, and sends only after explicit approval by repeating the same request with its token.
 
 ## Notes
 

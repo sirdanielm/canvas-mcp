@@ -15,6 +15,13 @@ read-only compatibility assessment using the same renderer and shared registry,
 without creating an archive. Bind each invocation to the exact source SHA-256
 recorded by QC; keep its result separate from the QC verdict.
 
+Before interpreting a saved QC report, locate the installed harness through
+`~/Desktop/GrAss Local Checks/.fleet-importer/harness-path.txt` and read its
+`scripts/local_check_status.py --json` output. That command reads the newest
+aggregate attempt receipt; it does not run QC or archival ingest. A failed or
+unavailable newest attempt is a hold, never permission to select an older clean
+report. The input hashes describe captured bytes, not current Canvas freshness.
+
 ## One hook and one authority
 
 Both shortcuts reach `sdmGrAss/scripts/local-qc-launcher.py::main`. The single
@@ -72,8 +79,8 @@ successful case; it does not establish fleet workbook coverage.
 
 ## September 30 compatibility checkpoint
 
-The current `preflight` API examined the 16 workbooks in the exact saved batch
-covered by a complete post-run QC report. All 16 source hashes matched that
+At this checkpoint, the `preflight` API examined the 16 workbooks in the exact
+saved batch covered by a complete post-run QC report. All 16 source hashes matched that
 report. All 16 archives remained held: 15 for unresolved email content and one
 for an unresolved identity column. Source files, the shared registry and QC
 reports remained unchanged; no archive was created and no desktop tool or

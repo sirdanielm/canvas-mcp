@@ -142,7 +142,7 @@ Present participation as a summary:
 After identifying non-participants, offer to:
 
 1. **Post an announcement** using `create_announcement` with a general reminder about discussion deadlines.
-2. **Message specific students** using `send_conversation` to contact students who are behind on participation.
+2. **Message specific students** using `send_conversation`: preview first, show the exact recipients and content, obtain approval, then repeat with the token and identical arguments. This applies even to one recipient.
 
 ### Draft Thoughtful Replies
 
@@ -206,7 +206,7 @@ When an educator wants to reply to student posts:
 
 **User:** "Send them a reminder."
 
-**Agent:** Drafts a reminder message referencing the discussion deadline, shows it for confirmation, then calls `send_conversation` to message the non-participating students.
+**Agent:** Drafts a reminder message referencing the discussion deadline, shows it for confirmation, then obtains the `send_conversation` preview and sends only after the user approves that exact preview, repeating the request with its token.
 
 ---
 

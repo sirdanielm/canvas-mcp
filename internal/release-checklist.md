@@ -1,6 +1,10 @@
 # Release Checklist
 
-> Paths, workflow behavior and version-field counts verified 2026-09-30 against v1.13.0.
+> Workflow behavior and fork/upstream release state checked 2026-10-01. Upstream latest release: v1.13.0 (2026-09-27 EDT / 2026-09-28 UTC). The SDM fork has no published latest release; its merged main includes additional unreleased work.
+
+Select the repository, package ownership and exact candidate before any release.
+Tag pushes, workflow dispatches, package publication and website deployment
+require their own authorization; a documentation update or merge does not authorize them.
 
 When bumping the version in `pyproject.toml`, also update:
 
@@ -11,13 +15,16 @@ When bumping the version in `pyproject.toml`, also update:
 - [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (Cloudflare Pages site; deploy by hand with `npx wrangler pages deploy docs/ --project-name=canvas-mcp --branch=main`)
 - [ ] `uv.lock` - Run `uv lock` after bumping `pyproject.toml`; the lock records the project version and drifts otherwise
 - [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
-- [ ] Confirm the production deploy ran: the tag push also triggers `deploy-prod.yml`. Merges to `main` do not deploy production; between releases, ship `main` with a manual `deploy-prod.yml` run from `main`.
+- [ ] Verify each authorized release/deployment result separately. A `v*` tag also triggers the retained `deploy-prod.yml`; successful deployment requires configured credentials and a valid target. Merges to `main` do not deploy production. Manual dispatch from `main` is a separate deployment action.
+- [ ] Verify README/site release text was updated in the reviewed source change: `create-release.yml` builds and attaches the Desktop Extension and provenance but does not edit README or create a documentation PR.
 
 > `manifest.json` (Desktop Extension) does **not** need a manual bump — `create-release.yml` stamps the tag version into it and attaches `canvas-mcp.mcpb` to the GitHub Release automatically. The committed `manifest.json` version is just a default.
 
 ## Pending for the next release
 
-- Nothing flagged as of 2026-09-30. (v1.13.0 shipped 2026-09-27; see `CHANGELOG.md`.)
+- SDM `main` includes the gradebook worker, integrity-checked private PIN exporter and publication-free archive preflight; these are merged source features, not claims about the upstream v1.13.0 package. Use [repository maintenance](../docs/repository-maintenance.md) for ownership and integration boundaries.
+- The urllib3 lock entry was upgraded from 2.7.0 to 2.8.0 in fork PR5, addressing CVE-2026-97687, CVE-2026-97688 and CVE-2026-97689 in the optional hosted dependency chain. The frozen local audit and fresh hosted CI passed without adding vulnerability ignores. Include this in the next relevant release notes.
+- A lockfile repair validates the locked environment; the package publisher installs from project dependency constraints. Verify the built/published artifact and deployment dependency resolution separately before claiming the repair is shipped.
 
 ## Gotchas
 

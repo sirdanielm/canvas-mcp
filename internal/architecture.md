@@ -149,3 +149,24 @@ the annotations, and fail closed for a tool it does not know.
 - `send_peer_review_inbox_messages()`: Direct Canvas Inbox messages about incomplete peer reviews
 - `send_peer_review_followup_campaign()`: Complete analytics → messaging pipeline
 - Privacy-aware: Works with anonymization while preserving functional user IDs
+
+## SDM authoring, gradebook and GrAss boundaries
+
+The SDM launchers are separate local installations: curriculum authoring uses
+macOS Keychain credentials and a narrow client/server tool allowlist; gradebook
+operations use exact workbook bindings, immutable Canvas observations, preserved
+Edit baselines and a durable refresh/publish journal. The read-only refresh
+worker does not import the Canvas publisher. A successful mirror refresh can
+write the bound Google workbook while making only GET requests to Canvas.
+
+The current publisher is a separately enabled score/excusal lane. Its exact
+preview, fresh preflight and durable readback do not authenticate a teacher or
+provide the proposed score-plus-feedback bridge. Keep uncertain operations held
+for reconciliation; never treat the refresh worker as a publisher.
+
+Shared GrAss result/registry/review development belongs to LocalGrAss. Its
+original-byte source verifier and quarantined recovery prototype are implemented
+foundations. Semantic Canvas capture admission, real teacher authentication and
+the authoritative decision-to-release bridge remain integration work. Quinn/local
+AI is optional. See the [canonical contract pointer](../docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md)
+and [production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md).

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### SDM fork maintenance
+
+- Promoted the reviewed SDM authoring/gradebook implementation, GET refresh
+  worker, integrity-checked private PIN exporter and archive-compatibility
+  preflight into fork `main` through [PR #5](https://github.com/sirdanielm/canvas-mcp/pull/5).
+  The operational `feature/sdm-authoring` branch remains synchronized.
+- Updated the frozen optional hosted dependency `urllib3` from 2.7.0 to 2.8.0
+  after the dependency gate found three vulnerabilities; fresh dependency,
+  security and enhancement CI passed. This changes no write policy or runtime
+  activation gate.
+- Preserved unique design history and retired completed review worktrees with
+  verified recovery evidence. Added canonical architecture/ownership pointers
+  and website exclusions for historical private working documents.
+- Reconciled current operator, API, security and workflow documentation with
+  implemented behavior. Historical release notes and dated audit records remain
+  snapshots. Fork-main updates are not a new upstream package release, website
+  upload or production deployment.
+
 ## [1.13.0] — 2026-09-27
 
 ### Security

@@ -2188,6 +2188,27 @@ Execute TypeScript code in a Node.js environment with access to Canvas API crede
 
 This tool can reduce model-context use by processing bulk items locally and returning only selected output. Actual savings depend on the workload and AI client.
 
+`execute_typescript` is off by default and disabled in the supplied hosted deployment
+configuration. Enabling it requires separately reviewed operator configuration.
+It requires `EXECUTE_TYPESCRIPT_ENABLED=true`; when `ALLOWED_WRITE_TOOLS` is set,
+name `execute_typescript` explicitly (`all` does not include it). Treat every run
+as fully privileged Canvas access: code can bypass MCP confirmation tokens and
+content fencing. Run only within explicit user authorization for the intended scope and effects;
+existing authorization remains valid. A missing tool is an operator boundary, not a reason to bypass it.
+
+The helper and captured execution output can include per-student identifiers,
+including during dry runs. Keep that output private and report only aggregate
+results to the conversation; do not assume local processing anonymizes stdout.
+
+`bulkGrade({dryRun: true, ...})` skips its own grade submission, but still runs
+your callback. It does not validate the returned grades against Canvas or a rubric,
+and cannot prevent a callback from making its own writes. Keep preview callbacks
+free of side effects, review the exact intended changes, and obtain explicit
+instructor approval before applying. A `graded` count during dry run means
+would-be results, not saved grades. Use `grade` for a direct score or
+`rubricAssessment` for rubric scoring; top-level `points` is deprecated and ignored.
+
+
 **Parameters:**
 - `code`: TypeScript code to execute. Can import from './canvas/*' modules.
 - `timeout` (optional): Maximum execution time in seconds (default: 120)
@@ -2204,10 +2225,11 @@ This tool can reduce model-context use by processing bulk items locally and retu
 import { bulkGrade } from './canvas/grading/bulkGrade.js';
 
 await bulkGrade({
+  dryRun: true, // callback preview only; explicit approval is required to apply
   courseIdentifier: "60366",
   assignmentId: "123",
   gradingFunction: (submission) => {
-    // This runs locally - no token cost!
+    // Per-item processing runs locally; costs depend on the callback.
     const notebook = submission.attachments?.find(
       f => f.filename.endsWith('.ipynb')
     );
@@ -2242,7 +2264,7 @@ await bulkGrade({
 **Usage Tips:**
 - First use `search_canvas_tools` or `list_code_api_modules` to discover available operations
 - Import operations from './canvas/*' paths (e.g., './canvas/grading/bulkGrade.js')
-- Processing happens locally - only results flow back to Claude's context
+- Processing happens locally; captured output can still include identifiers and must be handled privately
 - Best for bulk operations, large datasets, and complex analysis
 - Traditional tools still best for simple queries and small datasets
 

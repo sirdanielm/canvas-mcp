@@ -412,6 +412,9 @@ API references:
 
 Native XLSX readback verified both GET and Edit tabs against immutable snapshots: 120 Core students, 51 Advanced students, and zero pending edits. No Canvas writes were made. Settings outside the canvas-gradebook connection were preserved. Use the launcher CLI after any binding change so the updated tab names are read afresh. A push requires `--enable-push`, a prepared operation, explicit approval of its exact preview, and its single-use confirmation token; never use an actual grade write as a test.
 
-Live connection behavior follows the [official MCP configuration reference](https://learn.chatgpt.com/docs/extend/mcp?surface=cli). Refresh and push are requested through the agent; editing a cell is not an automatic push. The currently deployed menu supplies guidance, stored status, and navigation.
-The new queue menu and local worker require the activation procedure in the
-[worker runbook](sdm-gradebook-worker.md).
+This migration checkpoint predates the refresh worker. In the later activated
+workflow, the menu queues an explicit refresh; push preparation and confirmation
+remain separate gated operations. Editing a cell is not an automatic push.
+Fresh installations follow the activation procedure in the
+[worker runbook](sdm-gradebook-worker.md); an existing installation requires a
+current heartbeat and operation readback, not another installation or a Git pull.

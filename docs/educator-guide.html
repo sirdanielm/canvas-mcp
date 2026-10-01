@@ -366,17 +366,19 @@ canvas-mcp-server --config</code></pre>
 This will:
 1. Analyze completion
 2. Identify incomplete reviews
-3. Send targeted reminders
-4. Generate a report</code></pre>
+3. Preview exact recipients/messages and obtain instructor approval
+4. Send with the confirmation token and identical arguments
+5. Generate a report</code></pre>
 
                         <h3>Bulk Grading (Code Execution API)</h3>
                         <p>For large-scale grading operations with custom logic, use the <a href="bulk-grading.html">Code Execution API</a> to keep per-submission processing out of the model's context:</p>
                         <pre><code><span class="code-keyword">await</span> bulkGrade({
+  dryRun: <span class="code-keyword">true</span>, <span class="code-comment">// Preview only; explicit approval is required to apply</span>
   courseIdentifier: <span class="code-string">"60366"</span>,
   assignmentId: <span class="code-string">"123"</span>,
   gradingFunction: (submission) => {
     <span class="code-comment">// Custom grading logic</span>
-    <span class="code-keyword">return</span> { points: <span class="code-number">100</span>, comment: <span class="code-string">"Great work!"</span> };
+    <span class="code-keyword">return</span> { grade: <span class="code-number">100</span>, comment: <span class="code-string">"Great work!"</span> };
   }
 });</code></pre>
                         <a href="bulk-grading.html" class="btn btn-secondary" style="margin-top: 16px;">Learn More About Bulk Grading →</a>

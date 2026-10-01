@@ -2,10 +2,15 @@
 
 Prepare private archival copies only through an explicit authorized ingest action. Reading a QC status does not start an export. There is no folder watcher, timer, or background access; existing working files and live Sheets remain unchanged.
 
-Use Python 3.11 or newer (the CLI refuses older interpreters before reading exports). Install the local dependency with `python -m pip install -e '.[local-exports]'`. Then create a private archive directory outside Git (permissions `0700`) and run:
+Use Python 3.11 or newer (the CLI refuses older interpreters before reading exports).
+For a fresh SDM checkout, install the locked environment with
+`uv sync --frozen --group dev --extra local-keychain --extra local-exports`.
+For an existing worker installation, follow its [maintenance procedure](sdm-gradebook-worker.md#everyday-use-and-local-operation)
+before changing dependencies. Create a private archive directory outside Git
+(permissions `0700`) and run with that interpreter:
 
 ```sh
-python scripts/pseudonymize_gradebook_export.py ingest \
+.venv/bin/python scripts/pseudonymize_gradebook_export.py ingest \
   --source /absolute/private/export.xlsx \
   --output /absolute/private-archive/export-pins.xlsx
 ```
@@ -16,7 +21,7 @@ Use `preflight` to assess compatibility through the same complete renderer and
 shared identity authority without creating an archive or specifying an output:
 
 ```sh
-python scripts/pseudonymize_gradebook_export.py preflight \
+.venv/bin/python scripts/pseudonymize_gradebook_export.py preflight \
   --source /absolute/private/export.xlsx \
   --expected-source-sha256 EXACT_SHA256_FROM_THE_QC_REPORT
 ```
@@ -46,7 +51,9 @@ These are **private pseudonymous archives**, not anonymized/public datasets. Can
 
 Formula caches are captured values from the original file, not freshly recalculated results. These archives do not prove that their source matches current Canvas.
 
-Validation uses synthetic fixtures: `python -m pytest tests/test_pseudonymize_export.py -q`. Required CI installs `.[local-exports]` and runs these tests without optional skipping. The default development group also includes the spreadsheet runtime, so `uv run --locked python -m pytest tests/ -q` can collect the complete suite without a separate manual dependency step.
+Validation uses synthetic fixtures: install the development group with
+`uv sync --frozen --group dev --extra local-keychain --extra local-exports`, then run
+`.venv/bin/python -m pytest tests/test_pseudonymize_export.py -q`. Required CI installs `.[local-exports]` and runs these tests without optional skipping. The default development group also includes the spreadsheet runtime, so `uv run --locked python -m pytest tests/ -q` can collect the complete suite without a separate manual dependency step.
 
 Malformed CSV quoting and duplicate keys in embedded JSON hold the archive rather than silently dropping content. Valid multiline CSV and escaped JSON string identities are covered by regression tests.
 
