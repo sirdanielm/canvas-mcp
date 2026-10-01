@@ -709,3 +709,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 Created by [Vishal Sachdev](https://github.com/vishalsachdev)
+
+## SDM repository maintenance
+
+The maintained SDM implementation is promoted through reviewed changes to this
+fork's `main`. Shared local tools are developed in LocalGrAss, with Canvas domain
+services and installed targets owned here. See [maintenance and recovery](docs/repository-maintenance.md)
+and the [canonical GrAss architecture](docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md).
