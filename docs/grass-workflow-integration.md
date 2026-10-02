@@ -18,8 +18,8 @@ Quinn and local AI remain optional future adapters.
 | --- | --- |
 | Canvas MCP SDM profile | Authenticated Canvas reads, local gradebook mirror and permanent PIN source; separately gated score-only publisher |
 | sdmGrAss | Grader runtime, lifecycle controls, desktop imports and diagnostic QC |
-| GrAss | Saved-result intake and central proposal workflows |
-| LocalGrAss | New local core, immutable revisions and explanations of saved score/comment pairs |
+| GrAss | Native academic policy, verified paper/question evidence, saved results and proposal exports |
+| LocalGrAss | Local review dashboard, durable drafts, immutable revisions and authenticated final pair decisions |
 
 The existing gradebook mirror is the recommended first read-only source adapter.
 Its captured snapshot and identity bindings must be verified before admission;
@@ -70,6 +70,62 @@ documented in [its operations guide](sdm-gradebook-worker.md). Syncing its Git
 branch neither restarts that worker nor requests another refresh. Its Canvas
 transport is GET-only; refreshing reference data is distinct from publishing
 teacher-approved pairs.
+
+## Paper-review dashboard coordination — October 2, 2026
+
+The agreed user experience is an original paper page beside the exact question,
+accepted rubric, proposed points, a short evidence-based reason and editable
+feedback. Question inspection and edits are draft work that rolls up to **one
+explicit final assignment score/feedback decision**. Source-fidelity confirmation,
+draft saving, pair acceptance, release and verified delivery are distinct actions.
+The [LocalGrAss teacher-review contract](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/TEACHER_REVIEW.md)
+and [private paper-viewer guide](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/UNIT1-PRIVATE-REVIEW.md)
+own the review experience; this section records the connections between repositories.
+
+As checked in the owning repositories on October 2, LocalGrAss has a working-copy
+paper viewer and an existing authenticated draft/acceptance journal. The real
+Unit 1 viewer remains read-only: its edits and approvals are not connected to that
+journal. Tool 7 is fictional practice. Saved progress means explicit saved drafts
+and queue context; unsaved browser edits are not durable or autosaved. A persistent
+teacher **Hold** action still needs a revision-bound reason in the existing journal;
+engineering/evidence holds remain separate and cannot be cleared by that action.
+These working-copy features are not a deployment or browser-verification claim.
+
+Build the connection in this order:
+
+1. **Admit exact sources and academic context.** Use independently accepted form,
+   rubric, identity, original-page and producer-membership bindings. Missing or
+   conflicting authority holds the case. An export hash proves captured bytes,
+   not academic acceptance or live Canvas freshness.
+2. **Compose the existing records.** Reuse GrAss's private
+   `grass_unit1_policy_review_export_v1` records and manifest, verifying the
+   manifest, entries digest and native result/feedback revisions. Join question IDs
+   and page roles to the existing verified context. Feedback `details` describes
+   deductions; it is not the full rubric or all positive evidence. Reuse the native
+   rubric/evidence projection rather than rescoring inside the dashboard. Show
+   original pages until reviewed crop coordinates exist.
+3. **Connect review to the existing journal.** Import the immutable owner result
+   through LocalGrAss's existing workflow, compose evidence into teacher review,
+   and reuse `save_draft` / `accept_draft` and the existing draft, decision and
+   acceptance tables. Do not create a second question-approval store. Preserve
+   draft history and require comparison when the source, result or decision changes.
+4. **Complete the review controls.** Add a durable teacher Hold reason through the
+   same revision-guarded commands. Distinguish saved drafts, accepted assignment
+   pairs and unresolved evidence holds. Verify keyboard use, image enlargement,
+   narrow windows and browser behavior before calling the dashboard usable.
+5. **Connect delivery separately.** Export the exact accepted pair, provision
+   scoped authenticated RELEASE, and connect a durable Canvas transport ledger.
+   Verify score and feedback with independent GET readbacks. Uncertain sends
+   require reconciliation before any retry.
+
+Keep native `FORM_POINTS`, raw criterion points and mastery contributions visible;
+no implicit Canvas scaling or acceptance is authorized. The Canvas
+[disabled Unit 1 protocol](unit1-pair-preview-contract.md), merged in
+[PR8](https://github.com/sirdanielm/canvas-mcp/pull/8) and
+[PR9](https://github.com/sirdanielm/canvas-mcp/pull/9), supplies comparison and wire
+specifications, not an active publisher. sdmGrAss owns runtime/fleet provenance and
+central policy diagnostics; diagnostic QC does not approve a score. Quinn/local AI
+remains an optional adapter and is not a dependency of this review path.
 
 ## Next engineering work
 
