@@ -161,7 +161,8 @@ and verified all 15 grader provenance bindings after a 30-minute delay. This
 validates that source path, not real grading or the later clickable CLI wiring.
 
 Before installing the adapter, verify the complete clickable handoff, independently
-pinned canonical dependency bytes and durable latest-attempt reporting. An older
+pinned canonical dependency bytes, a compatible installed status reader and
+its agent-handoff routing, and durable latest-attempt reporting. An older
 workflow's late child must not hide a newer failed attempt. The aggregate receipt
 must separately identify 16-target structural checks and 15-grader canonical
 checks, without implying grade approval or publication. These are release gates
