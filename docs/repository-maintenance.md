@@ -10,6 +10,22 @@ managed sync-review checkout archived, with verified private recovery copies
 and branch refs retained. This is a dated completion receipt, not a permanent
 claim about the current number of worktrees. New tasks may create review trees.
 
+[PR #8](https://github.com/sirdanielm/canvas-mcp/pull/8) merged on October 2,
+2026 at `97852f6e80203776566bacc464de93b27292fd0f` after independent review and
+passing applicable CI. The primary `main` and operational `feature/sdm-authoring`
+checkouts were then fast-forwarded and verified clean at that revision; the latter
+was pushed to its matching remote branch. The added Unit 1 preview and fictional
+channel contracts remain unregistered. No runtime restart, package release,
+Canvas write or teacher-approval activation accompanied this promotion.
+
+The related [LocalGrAss PR #12](https://github.com/sirdanielm/LocalGrAss/pull/12)
+merged at `adc73554c4b373a9428e3ccfb7f4d184e5ca7d43` on the same date. Its exact
+`b6c60d7` source passed independent trust-seam review and the required isolated
+unittest suite (943 passed, 10 optional skips); current-head hosted CI was absent.
+The owner checkout's newer uncommitted source/CLI work was preserved. Recovery
+Desk and original-paper review are separate from the still-unactivated academic
+provider, paper-source admission and real release connections.
+
 For current revisions and checks, read [fork main](https://github.com/sirdanielm/canvas-mcp/tree/main)
 and [GitHub Actions](https://github.com/sirdanielm/canvas-mcp/actions).
 The [documentation map](documentation-map.md) identifies maintained guides and

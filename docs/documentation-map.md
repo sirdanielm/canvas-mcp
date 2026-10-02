@@ -1,6 +1,7 @@
 # Documentation map and authority
 
-This map was reconciled with GitHub on October 1, 2026. Use the current source
+This map was reconciled with GitHub on October 1, 2026; Unit 1 protocol and
+promotion pointers were updated on October 2. Use the current source
 and exact installed configuration to establish capability; a dated plan, green
 test, Git merge or setup example does not establish live authorization.
 
@@ -13,6 +14,7 @@ test, Git merge or setup example does not establish live authorization.
 | Canvas observations and working edits | [Gradebook workflow](sdm-gradebook-workflow.md), [worker](sdm-gradebook-worker.md), [course mirror](course-mirror.md), [capture port](grass-capture-contract.md) | Canvas GET observation is separate from edits, source evidence and publication |
 | Local identity copies | [Permanent PIN policy](STUDENT-PIN-POLICY.md), [private exports](local-pin-exports.md), [post-QC archive contract](post-qc-pin-archives.md) | Registry-bound Student Info authority; QC compatibility and archive permission are separate |
 | Grader results to review to publisher | [Workflow integration](grass-workflow-integration.md), [canonical contract pointer](GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md) | Immutable results, exact teacher decision, separate release, independent score/feedback verification |
+| Unit 1 paper pair preview and wire protocol | [Unit 1 contract](unit1-pair-preview-contract.md) | Unregistered offline observations/forms; fictional controls practice and original-paper inspection remain separate from real acceptance/release |
 | Repository and development practice | [Maintenance](repository-maintenance.md), [development guide](../CLAUDE.md), [workflow inventory](../.github/workflows/README.md), [security](../SECURITY.md) | PR and tested revision; deployment, paid review and classroom writes require their own authority |
 
 [LocalGrAss](https://github.com/sirdanielm/LocalGrAss) owns the new local core and

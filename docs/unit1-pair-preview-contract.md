@@ -1,11 +1,31 @@
 # Unit 1 accepted-pair publication preview
 
-This is an **unregistered offline prototype**, retained on the reviewed worktree
-branch. It is not deployed, authenticated acceptance, a new publisher, or a
-working transfer into Edit. `canvas_mcp.gradebook.unit1_preview` performs no
+The offline preview and fictional delivery contracts are maintained in the SDM
+fork through [PR #8](https://github.com/sirdanielm/canvas-mcp/pull/8), merged on
+October 2, 2026. They remain **unregistered offline prototypes**. A merge does not
+deploy them, authenticate teacher acceptance, create a publisher, or transfer a
+working pair into Edit. `canvas_mcp.gradebook.unit1_preview` performs no
 Canvas/Sheet/model calls and exports no write-ready edit envelope or confirmation
 token. Both delivery channels remain `NOT_SENT`; publication and pair verification
 remain false on every result.
+
+## What the teacher controls mean
+
+The intended classroom flow is saved grader evidence and advisory results →
+Grader Proposal → teacher-approved score/feedback pair → separately authorized
+Canvas publisher → independent score and comment GET readback. Each transition
+retains its evidence and revisions so the final pair can explain how it was made.
+
+**Save draft** preserves edits for later review. It does not accept a final pair
+or send anything to Canvas. **Accept** freezes the exact reviewed pair and its
+current evidence; a separately authenticated release then permits the publisher
+to send that exact pair. A successful send is still awaiting independent readback.
+
+The Desktop **7 — Teacher Review Demo** currently rehearses these controls on a
+fictional ten-point exercise in a separate store. It is optional practice, not a
+step that processes real Unit 1 papers. **9 — Unit 1 Private Review** inspects real
+originals read-only; it does not yet provide classroom acceptance or release.
+The real accepted-pair exporter and scoped release connection remain unfinished.
 
 ## One handoff, distinct authorities
 
@@ -23,7 +43,10 @@ records through it. The generic case explanation's `actor_authentication` remain
 draft and immutable acceptance provenance; an integration must verify those
 records and current decision/result/academic heads. A JSON `accepted: true`, an
 ActorContext, or a hash copied from the pending file does not prove human consent.
-The current release bridge remains FakeTransport-only.
+The current release bridge remains FakeTransport-only. LocalGrAss also has an
+advisory owner-result import candidate; its real academic authentication and
+independent paper-source providers remain unactivated, and the release bridge
+explicitly refuses those real owner results. This is not an accepted-pair export.
 
 ## Proposed private envelope
 
@@ -113,6 +136,50 @@ no-op. Preview data contains private identifiers and feedback and must stay
 outside Git/logs/public dashboards. Use aggregate status in unauthenticated
 Tools Home; source/feedback review requires the private authenticated owner path.
 
+## Disabled Canvas wire protocol
+
+`unit1_canvas_protocol` adds a separate, unregistered data boundary for exact
+Canvas assignment/submission GET bodies and narrow form request specifications.
+It performs no network, credential lookup, authentication, persistence or send.
+The existing fictional verifier still rejects real target namespaces.
+
+`CanvasTarget` declares one canonical HTTPS origin and exact course, assignment
+and student IDs. Only `ROSTER_ASSIGNMENT` with exact `on_paper` metadata is
+supported. `OriginalGet` retains the original method, URL, status and body bytes;
+independent expected body digests establish captured integrity, not freshness or
+reader authority. Submission queries admit only visibility and submission
+comments. They reject `read_status`, which can mark records read, and all other
+query additions. Missing fields, observed nulls, zero and invalid types remain
+distinct. Unknown protections remain holds; no safe defaults are inferred.
+
+The parser retains bounded operational fields and comments privately, plus
+complete assignment, non-comment submission and per-comment metadata digests.
+It excludes name/email/user objects from inspectable records. Digests preserve
+unselected metadata drift without exposing those labels. Comment completeness
+must come from a separate reader claim; an array or matching hash cannot prove it.
+The eventual reader must establish that claim independently.
+
+`build_form_request_spec` compares independently retained observation and approved
+component digests. The component binds the decision, target-binding reference,
+exact target, expected publisher author, channel and payload. These proposed
+Python protocol digests are not an authoritative LocalGrAss accepted-pair export
+or cross-language canonical equivalence. Separate score and comment forms have
+no posting, status, excusal or inferred attempt field. Scores preserve the exact
+approved decimal text and reject over-maximum or decreased values.
+
+Every specification remains non-executable, with execution/publication readiness
+false and teacher-final, release and live-freshness holds. A pure supplied-data
+comment comparison checks complete baseline/readback coverage, unchanged existing
+comment metadata, and one new response-linked ID with exact bound author/body.
+A lost response remains qualified observed state, never retry permission. Even
+matching supplied readback retains authority/freshness holds and unestablished
+student visibility; it cannot mark a production pair approved or delivered.
+
+Tests construct real HTTP form requests through a controlled mock transport and
+compare independently specified URL, method, headers and encoded bytes. This is
+wire-format evidence, not an implemented production HTTP port, retry controller,
+live Canvas test or classroom readiness claim.
+
 ## Existing interfaces and remaining live connection
 
 The existing `preview_gradebook_changes` service reads live Canvas; this prototype
@@ -156,7 +223,7 @@ by this prototype.
 
 ## Validation
 
-Run `python -m pytest tests/test_unit1_pair_preview.py tests/test_unit1_delivery_contract.py -v`
+Run `python -m pytest tests/test_unit1_pair_preview.py tests/test_unit1_delivery_contract.py tests/test_unit1_canvas_protocol.py -v`
 in the repository dev environment, then its complete Python suite, Ruff and mypy. Fixtures are fictional.
 The exact source canary also compares supported printed-form half-point examples
 against GrAss's current native `examCanvasStage.projectScore`. Retained validation

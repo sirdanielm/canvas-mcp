@@ -57,6 +57,8 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - The SDM worker, private archive exporter and archive preflight are merged to `main`; the urllib3 2.8.0 hosted-dependency lock repair is also merged. These are unreleased fork changes; see the [release checklist](internal/release-checklist.md).
 - Shared GrAss implementation continues in LocalGrAss; Canvas services and installed targets remain owned here. Receipt-bound capture, authenticated durable local teacher review and an authoritative fake-only release bridge are implemented; real policy/source/publisher activation remains held. See [repository maintenance](docs/repository-maintenance.md).
 
+- Unit 1 pair previews, fictional channel contracts, and the disabled exact-GET/form protocol are maintained source only, with no MCP/CLI registration or live send. The real academic provider, paper-source admission, accepted-pair exporter and authenticated RELEASE remain unconnected; see [the Unit 1 contract](docs/unit1-pair-preview-contract.md).
+
 ## Upstream focus snapshot (2026-09-30)
 - [ ] **#157** sandbox egress is mitigated, not closed (self-hosted only; `execute_typescript` is disabled on hosted). Needs an egress proxy or network namespace.
 - [ ] **#236** OAuth2 developer-key flow: additive only, blocked on admin access to pilot a scoped key.
