@@ -7,7 +7,7 @@ import stat
 import pytest
 
 from canvas_mcp.gradebook.client import GradebookError
-from canvas_mcp.gradebook.model import digest
+from canvas_mcp.gradebook.model import digest, submission_cell
 from canvas_mcp.gradebook.store import Store
 from canvas_mcp.gradebook.unit1_preview import (
     BINDING_FIELDS,
@@ -373,3 +373,204 @@ def test_exact_assignment_special_workflows_remain_held(inputs, field, value):
         "exact_assignment_context_held"
         in build_pair_preview(pair, **kwargs)["score"]["holds"]
     )
+
+
+def roster_inputs(inputs):
+    pair, kwargs = inputs
+    pair.update(
+        kind="grass_unit1_accepted_pair_v2",
+        schema_version=2,
+        target_mode="ROSTER_ASSIGNMENT",
+        attribution_revision="fictional-attribution-v1",
+        attribution_sha256="c" * 64,
+    )
+    assignment = kwargs["target_context"]["assignment"]
+    assignment["submission_types"] = ["on_paper"]
+    for snapshot in (kwargs["baseline"], kwargs["current"]):
+        snapshot["cells"]["301:201"].update(
+            attempt=None, submitted_at=None, workflow_state="unsubmitted"
+        )
+    kwargs["target_context"]["submission"] = copy.deepcopy(
+        kwargs["current"]["cells"]["301:201"]
+    )
+    kwargs.update(canvas_attempt=None, canvas_submitted_at=None)
+    state = {
+        k: kwargs["target_context"]["submission"][k]
+        for k in ("attempt", "submitted_at", "workflow_state")
+    }
+    pair.update(
+        assignment_metadata_sha256=digest(assignment),
+        observed_canvas_state_sha256=digest(state),
+    )
+    kwargs["current_binding"].update(
+        {
+            key: pair[key]
+            for key in (
+                "target_mode",
+                "attribution_revision",
+                "attribution_sha256",
+                "assignment_metadata_sha256",
+                "observed_canvas_state_sha256",
+            )
+        }
+    )
+    kwargs["raw_canvas_observations"] = {
+        name: {"user_id": 301, "assignment_id": 201, **copy.deepcopy(state)}
+        for name in ("baseline", "current")
+    }
+    kwargs["expected_pair_sha256"] = digest(pair)
+    return pair, kwargs
+
+
+def test_roster_assignment_retains_null_canvas_attempt_and_stays_disabled(inputs):
+    pair, kwargs = roster_inputs(inputs)
+    before = copy.deepcopy((pair, kwargs))
+    preview = build_pair_preview(pair, **kwargs)
+    assert preview["target_mode"] == "ROSTER_ASSIGNMENT"
+    assert preview["canvas_attempt"] is None
+    assert preview["accepted_pair"]["paper_attempt"] == "R2"
+    assert preview["score"]["status"] == "CANDIDATE_FOR_PREVIEW"
+    assert not preview["publication_ready"] and not preview["verified_pair"]
+    assert "teacher_acceptance_unverified" in preview["release_holds"]
+    assert (pair, kwargs) == before
+
+
+@pytest.mark.parametrize("attempt", [0, 1])
+def test_roster_assignment_retains_observed_attempt_without_paper_inference(
+    inputs, attempt
+):
+    pair, kwargs = roster_inputs(inputs)
+    state = {"attempt": attempt, "submitted_at": None, "workflow_state": "unsubmitted"}
+    for snapshot in (kwargs["baseline"], kwargs["current"]):
+        snapshot["cells"]["301:201"].update(state)
+    kwargs["target_context"]["submission"].update(state)
+    kwargs["canvas_attempt"] = attempt
+    for raw in kwargs["raw_canvas_observations"].values():
+        raw.update(state)
+    pair["observed_canvas_state_sha256"] = digest(state)
+    kwargs["current_binding"]["observed_canvas_state_sha256"] = digest(state)
+    kwargs["expected_pair_sha256"] = digest(pair)
+    assert (
+        build_pair_preview(pair, **kwargs)["score"]["status"] == "CANDIDATE_FOR_PREVIEW"
+    )
+
+
+@pytest.mark.parametrize(
+    "types", [None, [], ["none"], ["online_upload"], ["on_paper", "online_upload"]]
+)
+def test_roster_mode_requires_exact_on_paper_metadata(inputs, types):
+    pair, kwargs = roster_inputs(inputs)
+    kwargs["target_context"]["assignment"]["submission_types"] = types
+    pair["assignment_metadata_sha256"] = digest(kwargs["target_context"]["assignment"])
+    kwargs["current_binding"]["assignment_metadata_sha256"] = pair[
+        "assignment_metadata_sha256"
+    ]
+    kwargs["expected_pair_sha256"] = digest(pair)
+    with pytest.raises(GradebookError, match="ROSTER_ON_PAPER_REQUIRED"):
+        build_pair_preview(pair, **kwargs)
+
+
+def test_roster_mode_cannot_be_enabled_by_candidate_alone(inputs):
+    pair, kwargs = roster_inputs(inputs)
+    del kwargs["current_binding"]["target_mode"]
+    with pytest.raises(GradebookError, match="PAIR_BINDING_CHANGED"):
+        build_pair_preview(pair, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("attempt", 2),
+        ("submitted_at", "2026-10-01T12:00:00Z"),
+        ("workflow_state", "submitted"),
+    ],
+)
+def test_roster_mode_holds_remote_observed_state_drift(inputs, field, value):
+    pair, kwargs = roster_inputs(inputs)
+    kwargs["current"]["cells"]["301:201"][field] = value
+    kwargs["target_context"]["submission"][field] = value
+    preview = build_pair_preview(pair, **kwargs)
+    assert "canvas_roster_binding_changed" in preview["score"]["holds"]
+    assert preview["score"]["status"] == "HELD"
+
+
+@pytest.mark.parametrize("field", ["attempt", "submitted_at", "workflow_state"])
+def test_roster_mode_distinguishes_missing_state_from_explicit_null(inputs, field):
+    pair, kwargs = roster_inputs(inputs)
+    for snapshot in (kwargs["baseline"], kwargs["current"]):
+        del snapshot["cells"]["301:201"][field]
+    del kwargs["target_context"]["submission"][field]
+    preview = build_pair_preview(pair, **kwargs)
+    assert "canvas_roster_binding_changed" in preview["score"]["holds"]
+
+
+def test_roster_metadata_digest_must_match_independent_binding(inputs):
+    pair, kwargs = roster_inputs(inputs)
+    kwargs["target_context"]["assignment"]["due_at"] = "2026-10-03T12:00:00Z"
+    with pytest.raises(GradebookError, match="ROSTER_ASSIGNMENT_METADATA_CHANGED"):
+        build_pair_preview(pair, **kwargs)
+
+
+def test_roster_mode_never_overrides_unpublished_or_invisible_guard(inputs):
+    pair, kwargs = roster_inputs(inputs)
+    kwargs["target_context"]["assignment"]["published"] = False
+    pair["assignment_metadata_sha256"] = digest(kwargs["target_context"]["assignment"])
+    kwargs["current_binding"]["assignment_metadata_sha256"] = pair[
+        "assignment_metadata_sha256"
+    ]
+    kwargs["expected_pair_sha256"] = digest(pair)
+    for snapshot in (kwargs["baseline"], kwargs["current"]):
+        snapshot["cells"]["301:201"]["visible"] = False
+    kwargs["target_context"]["submission"]["visible"] = False
+    preview = build_pair_preview(pair, **kwargs)
+    assert preview["score"]["status"] == "HELD"
+    assert "exact_assignment_context_held" in preview["score"]["holds"]
+    assert "submission_not_verified" in preview["score"]["holds"]
+    assert "exact_canvas_attempt_required" not in preview["score"]["holds"]
+
+
+@pytest.mark.parametrize("field", ["attempt", "submitted_at", "workflow_state"])
+def test_raw_omission_cannot_be_normalized_into_observed_null(inputs, field):
+    pair, kwargs = roster_inputs(inputs)
+    for name in ("baseline", "current"):
+        raw = kwargs["raw_canvas_observations"][name]
+        raw.update(assignment_visible=True, score=40, excused=False)
+        del raw[field]
+        kwargs[name]["cells"]["301:201"] = submission_cell(raw)
+    kwargs["target_context"]["submission"] = copy.deepcopy(
+        kwargs["current"]["cells"]["301:201"]
+    )
+    preview = build_pair_preview(pair, **kwargs)
+    assert preview["score"]["status"] == "HELD"
+    assert "raw_canvas_state_evidence_required" in preview["score"]["holds"]
+
+
+def test_roster_mode_requires_raw_before_and_current_witness(inputs):
+    pair, kwargs = roster_inputs(inputs)
+    del kwargs["raw_canvas_observations"]
+    preview = build_pair_preview(pair, **kwargs)
+    assert "raw_canvas_state_evidence_required" in preview["score"]["holds"]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("user_id", 302),
+        ("assignment_id", 202),
+        ("attempt", True),
+        ("workflow_state", None),
+    ],
+)
+def test_roster_raw_observation_identity_and_types_hold(inputs, field, value):
+    pair, kwargs = roster_inputs(inputs)
+    kwargs["raw_canvas_observations"]["current"][field] = value
+    preview = build_pair_preview(pair, **kwargs)
+    assert "raw_canvas_state_evidence_required" in preview["score"]["holds"]
+
+
+def test_v1_cannot_self_select_paper_mode(inputs):
+    pair, kwargs = inputs
+    pair["target_mode"] = "ROSTER_ASSIGNMENT"
+    kwargs["expected_pair_sha256"] = digest(pair)
+    with pytest.raises(GradebookError, match="TARGET_MODE_INVALID"):
+        build_pair_preview(pair, **kwargs)

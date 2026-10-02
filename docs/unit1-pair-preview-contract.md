@@ -27,9 +27,11 @@ The current release bridge remains FakeTransport-only.
 
 ## Proposed private envelope
 
-`build_pair_preview(pair, ...)` expects `kind=grass_unit1_accepted_pair_v1` and
-integer `schema_version=1`. This is a proposed interoperability format; a real
-accepted-pair exporter is not yet connected.
+`build_pair_preview(pair, ...)` accepts the original
+`kind=grass_unit1_accepted_pair_v1`, integer `schema_version=1` for attempt-bound
+checks, or the additive `grass_unit1_accepted_pair_v2`, integer `schema_version=2`
+for explicit paper roster/assignment binding. These are proposed interoperability
+formats; a real accepted-pair exporter is not yet connected.
 
 | Fields | Meaning |
 | --- | --- |
@@ -77,11 +79,27 @@ historical course-versus-assignment visibility discrepancy and Canvas UI parity
 remain owner issues; local tests do not resolve them.
 
 Paper review remains available when Canvas attempt is unknown. **Paper R2 is not
-Canvas attempt 2.** Independently supplied `canvas_attempt` and
-`canvas_submitted_at` must match both retained snapshots before this score becomes
-a preview candidate. Unknown attempt, changed target cell, higher current score,
-excused target, changed grading maximum or unknown/true `teacher_final` protection
-holds. Separate `score_permission` and `feedback_permission` claims are retained
+Canvas attempt 2.** The original `grass_unit1_accepted_pair_v1` retains its
+attempt-bound checks. The additive `grass_unit1_accepted_pair_v2` envelope supports
+only explicit `target_mode=ROSTER_ASSIGNMENT`, matching the shared architecture
+contract for paper assessments. It requires independently retained attribution
+revision/digest, exact assignment metadata digest and observed Canvas-state digest
+in `current_binding`; a candidate cannot select the mode by itself. Exact assignment
+metadata must say `submission_types == ['on_paper']`. Mixed/unknown types hold.
+
+V2 preserves `attempt`, `submitted_at` and `workflow_state` exactly, including an
+observed null attempt or zero. `raw_canvas_observations` must carry the retained
+original exact-target baseline and current GET objects. The parser requires raw
+field presence and valid types before comparing normalized cells; normalization
+alone fills missing fields with null and cannot prove observed nulls. Missing raw
+evidence holds. Bools do not equal integer attempts. Independently supplied
+attempt/timestamp and both snapshot states must agree with the retained binding. The attribution digest is
+provenance integrity, not authenticated teacher confirmation: acceptance and
+RELEASE remain explicit holds. This does not widen the current capture v1 schema.
+Unpublished or invisible paper assignments remain held, just as other targets do.
+Attempt-bound mode still holds an unknown attempt. Any mode holds a changed target
+cell, higher current score, excusal, changed grading maximum or unknown/true
+`teacher_final` protection. Separate `score_permission` and `feedback_permission` claims are retained
 independently; neither claim makes the pair executable.
 
 An unchanged target score is `NO_SCORE_CHANGE` only when the current Canvas value
@@ -126,8 +144,9 @@ Remaining sequence:
 1. GrAss completes and validates the current policy-aware score/feedback export.
 2. LocalGrAss connects actual private evidence review and an authenticated current
    teacher acceptance export; preserve source/policy/result and original hashes.
-3. Canvas resolves exact identity and paper-to-Canvas attempt mapping, fresh exact
-   assignment visibility/UI parity and teacher-final protection.
+3. Canvas resolves exact identity, explicitly supported target mode and actual
+   observed submission state, fresh exact assignment visibility/UI parity and
+   teacher-final protection. Paper mode does not create an attempt mapping.
 4. Connect scoped, authenticated RELEASE and reviewed independent score/comment
    transport, durable uncertainty and readback; only then request a tiny live pilot.
 
@@ -137,8 +156,87 @@ by this prototype.
 
 ## Validation
 
-Run `python -m pytest tests/test_unit1_pair_preview.py -v` in the repository dev
-environment, then its complete Python suite, Ruff and mypy. Fixtures are fictional.
+Run `python -m pytest tests/test_unit1_pair_preview.py tests/test_unit1_delivery_contract.py -v`
+in the repository dev environment, then its complete Python suite, Ruff and mypy. Fixtures are fictional.
 The exact source canary also compares supported printed-form half-point examples
 against GrAss's current native `examCanvasStage.projectScore`. Retained validation
 counts and remaining limits belong in the local checkpoint, not live readiness.
+
+## Minimal backend connection still required
+
+The current `TeacherAuthentication.actor_for_session` yields a fresh authenticated
+**DECIDE-only** actor. `WorkflowReleaseBridge` rechecks the current saved decision,
+proposal, result and accepted academic/evidence dependencies inside every
+send-intent transaction, but its simulator enforces the exact fake transport class
+and fake case target. The existing Canvas Publisher's confirmation token binds a
+reviewed edit request; it does not authenticate a teacher acceptance or RELEASE.
+There is no legitimate live transport substitution at either seam today.
+
+Connect the missing backend in this order, reusing current authorities:
+
+1. Extend the existing authenticated account/session seam with an explicitly
+   provisioned, assignment-scoped RELEASE capability; preserve DECIDE-only as the
+   default. Recheck the account/session, expiry, revocation and scope at action
+   time. Never accept a caller-created ActorContext as authentication. No new
+   approval table or independent teacher-decision store is needed.
+2. Add an immutable versioned target binding linked to the current accepted
+   decision and the registered source/identity authority. Declare ATTEMPT_BOUND
+   or ROSTER_ASSIGNMENT support explicitly; retain the actual submission state,
+   assignment metadata, score scale, teacher-final provenance and their digests.
+   Coordinate a versioned capture/export contract with LocalGrAss; reject v1
+   receipts that lack required mode semantics instead of silently widening them.
+3. Reuse the existing registry transaction and accepted decision/result/academic
+   heads when reserving durable delivery components. Store the exact channel
+   payload and baseline before send. A production delivery ledger may add tables
+   to that same private store; it must not manufacture new approval authority or
+   change the synthetic bridge's exact FakeTransport restriction. Exclude the
+   wider Canvas origin/course/assignment/student target across decisions and
+   local paper attempts while any send outcome is uncertain. A unique stable
+   delivery identity binds the accepted decision, target-binding revision, channel
+   and exact payload independently of release token, expiry and refreshed preflight.
+   Renewing RELEASE resumes that identity: verified replay is a no-op; uncertain
+   replay is GET-only and cannot append feedback twice.
+4. Admit each real send only through that authenticated release transaction and
+   fresh exact GET preflight. Recheck course permission, active roster, target,
+   current grade, excusal, teacher-final protection, visibility, publication,
+   special grading, closed period, late deductions and current-submission state.
+   Preserve higher grades; never publish an unpublished assignment as a side
+   effect. Canvas has no general atomic GET-to-PUT grade compare-and-swap, so
+   retain and report that race and hold readback drift.
+5. Implement separate score and submission-comment channels, using the existing
+   configured account and bounded requests. On the exact submission PUT endpoint,
+   score sends only `submission[posted_grade]`; comment sends only
+   `comment[text_comment]` and `comment[group_comment]=false`. For paper mode omit
+   `comment[attempt]`; for supported attempt-bound mode send only its verified
+   Canvas attempt. Use Canvas form serialization, never change posting/status,
+   and never combine a retryable grade update with an append-only comment.
+   [Canvas submission API](https://developerdocs.instructure.com/services/canvas/resources/submissions)
+6. Independently GET the exact submission with visibility and submission comments
+   after each send. Verify score and feedback separately against retained intent.
+   Score readback must recheck target/metadata/protection/state, not just numeric
+   equality. A new comment must have a response-linked ID absent from the complete
+   pre-send ID baseline, correct author, exact target and exact approved body.
+   Unknown comment coverage, old identical comments, duplicates and foreign
+   authors hold. Save response and readback receipts durably. A lost response
+   permits qualified OBSERVED_APPLIED evidence, not confirmed delivery; recovery
+   is GET-only and never automatically resends an uncertain comment.
+
+`unit1_delivery_contract` is the bounded fictional protocol test seam for these
+comparisons. It performs no network, persistence or release authentication and
+cannot substitute for the connection above. Synthetic verification does not mark
+a production pair verified. The real account/role extension, immutable accepted
+pair exporter, versioned capture, production ledger and live adapter remain held.
+
+The fictional channel API consists of `build_component_contract` and
+`verify_component`. The caller supplies independent expected decision, target
+binding and payload digests; the synthetic delivery ID includes the decision,
+binding, channel and exact payload, never the release token. Results are always
+`synthetic_only=true`, `retry_writes=false`, and
+`student_visibility=NOT_ESTABLISHED`. Only response-linked independent readback
+can yield synthetic `VERIFIED_APPLIED`; a lost response yields unverified
+`OBSERVED_APPLIED` or `UNCERTAIN`. An exact score no-op can be
+`VERIFIED_UNCHANGED`, which says nothing about feedback. Explicit
+`score_side_effects=CANVAS_POINTS_GRADED` permits narrowly modeled grading state
+and valid timezone-aware grading timestamp effects; comment delivery cannot alter
+score, grade or submission state. Request-form serialization and a real HTTP port
+are not implemented by this module.

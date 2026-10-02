@@ -57,6 +57,16 @@ BINDING_FIELDS = (
 )
 
 
+ROSTER_BINDING_FIELDS = (
+    "target_mode",
+    "attribution_revision",
+    "attribution_sha256",
+    "assignment_metadata_sha256",
+    "observed_canvas_state_sha256",
+)
+ROSTER_STATE_FIELDS = ("attempt", "submitted_at", "workflow_state")
+
+
 def _need(condition: bool, code: str) -> None:
     if not condition:
         raise GradebookError(code)
@@ -108,6 +118,32 @@ def project_raw_score(pair: dict[str, Any]) -> str:
     return str(whole + int(2 * remainder >= scaled.denominator))
 
 
+def _raw_roster_state(raw: Any, uid: str, aid: str) -> dict[str, Any]:
+    """Check original GET presence before normalization can fill missing nulls."""
+    _need(
+        isinstance(raw, dict)
+        and str(raw.get("user_id")) == uid
+        and str(raw.get("assignment_id")) == aid
+        and all(field in raw for field in ROSTER_STATE_FIELDS),
+        "RAW_CANVAS_STATE_INVALID",
+    )
+    attempt, submitted, workflow = (raw[field] for field in ROSTER_STATE_FIELDS)
+    _need(
+        (attempt is None or (type(attempt) is int and attempt >= 0))
+        and (
+            submitted is None
+            or (
+                isinstance(submitted, str)
+                and 0 < len(submitted) <= 128
+                and submitted.isascii()
+            )
+        )
+        and workflow in ("unsubmitted", "submitted", "graded", "pending_review"),
+        "RAW_CANVAS_STATE_INVALID",
+    )
+    return {field: raw[field] for field in ROSTER_STATE_FIELDS}
+
+
 def build_pair_preview(
     pair: dict[str, Any],
     *,
@@ -121,18 +157,23 @@ def build_pair_preview(
     score_permission: bool,
     feedback_permission: bool,
     target_context: dict[str, Any] | None = None,
+    raw_canvas_observations: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a private disabled preview, never a Publisher review/edit envelope.
 
-    Paper review has no Canvas-attempt precondition. This projection holds the
-    publication side when exact attempt linkage is unknown. Permission claims do
-    not authenticate acceptance or establish permission to execute a write.
+    V1 retains attempt-bound admission. V2 explicitly binds paper work through
+    an independent roster/assignment and observed state, including a null attempt.
+    Neither a digest nor attribution provenance authenticates human acceptance.
+    Permission claims never establish permission to execute a write.
     """
     _need(
         isinstance(pair, dict)
-        and pair.get("kind") == "grass_unit1_accepted_pair_v1"
         and type(pair.get("schema_version")) is int
-        and pair["schema_version"] == 1,
+        and (pair.get("kind"), pair["schema_version"])
+        in (
+            ("grass_unit1_accepted_pair_v1", 1),
+            ("grass_unit1_accepted_pair_v2", 2),
+        ),
         "PAIR_SCHEMA_INVALID",
     )
     _need(
@@ -149,7 +190,39 @@ def build_pair_preview(
         ),
         "PAIR_BINDING_CHANGED",
     )
-    for field in DIGEST_FIELDS:
+    roster_mode = pair["schema_version"] == 2
+    if roster_mode:
+        _need(pair.get("target_mode") == "ROSTER_ASSIGNMENT", "TARGET_MODE_INVALID")
+        _need(
+            all(
+                key in pair
+                and key in current_binding
+                and pair[key] == current_binding[key]
+                for key in ROSTER_BINDING_FIELDS
+            ),
+            "PAIR_BINDING_CHANGED",
+        )
+        _need(
+            isinstance(pair["attribution_revision"], str)
+            and 0 < len(pair["attribution_revision"]) <= 256
+            and pair["attribution_revision"].isascii()
+            and pair["attribution_revision"].strip() == pair["attribution_revision"],
+            "PAIR_SCOPE_INVALID",
+        )
+    else:
+        _need(
+            pair.get("target_mode", "ATTEMPT_BOUND") == "ATTEMPT_BOUND",
+            "TARGET_MODE_INVALID",
+        )
+    for field in DIGEST_FIELDS + (
+        (
+            "attribution_sha256",
+            "assignment_metadata_sha256",
+            "observed_canvas_state_sha256",
+        )
+        if roster_mode
+        else ()
+    ):
         _need(
             isinstance(pair[field], str)
             and bool(re.fullmatch(r"[a-f0-9]{64}", pair[field])),
@@ -229,6 +302,15 @@ def build_pair_preview(
             and str(assignment.get("course_id")) == pair["course_id"],
             "EXACT_ASSIGNMENT_TARGET_MISMATCH",
         )
+        if roster_mode:
+            _need(
+                assignment.get("submission_types") == ["on_paper"],
+                "ROSTER_ON_PAPER_REQUIRED",
+            )
+            _need(
+                digest(assignment) == pair["assignment_metadata_sha256"],
+                "ROSTER_ASSIGNMENT_METADATA_CHANGED",
+            )
         if target_context.get("submission") != current.get("cells", {}).get(key):
             reasons.append("exact_assignment_snapshot_conflict")
         if assignment.get("points_possible") != float(maximum):
@@ -238,9 +320,26 @@ def build_pair_preview(
         except (GradebookError, KeyError, TypeError):
             reasons.append("exact_assignment_context_held")
     known_attempt = type(canvas_attempt) is int and canvas_attempt >= 0
-    if not known_attempt:
+    if not known_attempt and not roster_mode:
         reasons.append("exact_canvas_attempt_required")
-    for snapshot in (baseline, current):
+    if roster_mode and not (canvas_attempt is None or known_attempt):
+        reasons.append("canvas_roster_binding_changed")
+    raw_states: dict[str, dict[str, Any]] = {}
+    if roster_mode:
+        try:
+            _need(
+                isinstance(raw_canvas_observations, dict)
+                and set(raw_canvas_observations) == {"baseline", "current"},
+                "RAW_CANVAS_STATE_INVALID",
+            )
+            assert raw_canvas_observations is not None
+            raw_states = {
+                name: _raw_roster_state(raw_canvas_observations[name], uid, aid)
+                for name in ("baseline", "current")
+            }
+        except GradebookError:
+            reasons.append("raw_canvas_state_evidence_required")
+    for name, snapshot in (("baseline", baseline), ("current", current)):
         assignments = [a for a in snapshot.get("assignments", []) if a.get("id") == aid]
         if (
             len(assignments) != 1
@@ -251,15 +350,31 @@ def build_pair_preview(
         if uid not in {student.get("id") for student in snapshot.get("students", [])}:
             reasons.append("target_not_in_both_snapshots")
         cell = snapshot.get("cells", {}).get(key)
+        if roster_mode and (
+            not isinstance(cell, dict)
+            or not all(field in cell for field in ROSTER_STATE_FIELDS)
+            or name not in raw_states
+            or {field: cell[field] for field in ROSTER_STATE_FIELDS} != raw_states[name]
+            or digest({field: cell[field] for field in ROSTER_STATE_FIELDS})
+            != pair["observed_canvas_state_sha256"]
+            or cell.get("attempt") != canvas_attempt
+            or type(cell.get("attempt")) is not type(canvas_attempt)
+            or cell.get("submitted_at") != canvas_submitted_at
+        ):
+            reasons.append("canvas_roster_binding_changed")
         if not isinstance(cell, dict) or cell.get("visible") is not True:
             reasons.append("submission_not_verified")
             continue
         if cell.get("value") == "EX" or cell.get("excused") is True:
             reasons.append("excused_target_protected")
-        if known_attempt and (
-            type(cell.get("attempt")) is not int
-            or cell["attempt"] != canvas_attempt
-            or cell.get("submitted_at") != canvas_submitted_at
+        if (
+            known_attempt
+            and not roster_mode
+            and (
+                type(cell.get("attempt")) is not int
+                or cell["attempt"] != canvas_attempt
+                or cell.get("submitted_at") != canvas_submitted_at
+            )
         ):
             reasons.append("canvas_attempt_binding_changed")
     comparison = compare_edits(
@@ -301,6 +416,7 @@ def build_pair_preview(
         "accepted_pair": copy.deepcopy(pair),
         "baseline_snapshot_id": digest(baseline),
         "current_snapshot_id": digest(current),
+        "target_mode": "ROSTER_ASSIGNMENT" if roster_mode else "ATTEMPT_BOUND",
         "canvas_attempt": canvas_attempt,
         "canvas_submitted_at": canvas_submitted_at,
         "exact_target_context_sha256": (
