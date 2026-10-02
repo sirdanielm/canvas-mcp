@@ -52,6 +52,14 @@ and pending feedback even when a score matches. It is unregistered and offline:
 no accepted-pair exporter, live preflight, RELEASE authentication, comment
 transport, token or Edit transfer is connected. Publication remains unavailable.
 
+The maintained offline code also has a disabled exact-GET parser and separate
+score/comment form specifications, with independent author/payload bindings and
+complete existing-comment metadata comparisons. It has no HTTP sender or real
+release provider. Desktop tool 7 is optional fictional editing practice; tool 9
+inspects original Unit 1 papers read-only. Saving a draft does not approve or
+deliver a classroom pair. The pair-preview contract explains these controls and
+the remaining production connections.
+
 The desktop import/QC workflow writes durable aggregate receipts. The newest
 attempt remains authoritative even when failed, interrupted or held. The
 clickable status tool and on-demand agent instructions read these receipts;
