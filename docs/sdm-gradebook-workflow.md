@@ -353,6 +353,16 @@ After enabling the write tool, the protocol is:
    current value without claiming which actor wrote it.
 5. Refresh the workbooks and review any remaining edits.
 
+A matching score or excusal alone does not complete readback. Visibility,
+grading-period restrictions, the reviewed attempt and submission time, and
+assignment metadata must still match. A lost current-submission flag, introduced
+deduction, or unrelated workflow/late-policy change keeps the operation uncertain
+and the target locked. The comparison permits bounded Canvas grading effects:
+establishing the current-submission flag, becoming graded, clearing a computed
+missing flag, and clearing excusal-related late/missing state. Zero deductions may
+become null when the result is no longer late. Read-only reconciliation applies
+the same checks; it never resends the request or verifies feedback delivery.
+
 The write sends only numeric points or an explicit excusal. It does not send
 comments/messages or change posting policies. **Existing Canvas posting policy
 may make a confirmed grade visible to students.** Canvas also has no atomic

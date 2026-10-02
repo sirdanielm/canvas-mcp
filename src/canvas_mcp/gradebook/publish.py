@@ -158,14 +158,66 @@ async def put_once(
 
 
 def matches_proposal(ctx: dict[str, Any], item: dict[str, Any]) -> bool:
+    """Verify the result without discarding the reviewed target's safety state."""
     cell = ctx["submission"]
     expected = item["expected"]["submission"]
+    excusing = item["proposed"] == "EX"
+    # Grade text, graded_at and posted_at may change when Canvas grades/posts
+    # under the existing posting policy. Neither a score nor an excusal owns
+    # visibility, grading-period or attempt protections.
+    unchanged = (
+        "visible",
+        "attempt",
+        "submitted_at",
+    )
+    # Canvas clears derived late/missing flags and late-policy status when
+    # excusing. Grading can also clear a computed missing flag, but cannot
+    # clear an explicitly assigned missing status or introduce a new one.
+    missing_matches = (
+        cell["missing"] is False
+        if excusing
+        else cell["missing"] == expected["missing"]
+        or (cell["missing"] is False and expected["late_policy_status"] is None)
+    )
+    # A successful grade can establish the current-attempt flag, but cannot
+    # lose a previously observed true flag or introduce a newer-attempt hold.
+    current_grade_matches = (
+        cell["grade_matches_current_submission"]
+        is expected["grade_matches_current_submission"]
+    ) or (
+        expected["grade_matches_current_submission"] is None
+        and cell["grade_matches_current_submission"] is True
+    )
+    # Canvas clears a zero deduction to null when the result is no longer
+    # late. Preserve that documented effect, not a new/changed deduction.
+    deducted, before_deducted = cell["points_deducted"], expected["points_deducted"]
+    deductions_match = (
+        not isinstance(deducted, bool)
+        and not isinstance(before_deducted, bool)
+        and deducted == before_deducted
+    ) or (
+        deducted is None
+        and type(before_deducted) in (int, float)
+        and before_deducted == 0
+        and cell["late"] is False
+    )
     return bool(
         cell["value"] == item["proposed"]
-        and cell["excused"] == (item["proposed"] == "EX")
-        and cell["attempt"] == expected["attempt"]
-        and cell["submitted_at"] == expected["submitted_at"]
+        and cell["excused"] == excusing
+        and all(
+            type(cell[field]) is type(expected[field]) and cell[field] == expected[field]
+            for field in unchanged
+        )
+        and current_grade_matches
+        and deductions_match
+        and type(ctx["closed_period"]) is type(item["expected"]["closed_period"])
+        and ctx["closed_period"] == item["expected"]["closed_period"]
         and ctx["assignment"] == item["expected"]["assignment"]
+        and cell["workflow_state"] in (expected["workflow_state"], "graded")
+        and missing_matches
+        and cell["late"] == (False if excusing else expected["late"])
+        and cell["late_policy_status"]
+        == (None if excusing else expected["late_policy_status"])
     )
 
 
