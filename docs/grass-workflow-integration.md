@@ -44,6 +44,14 @@ deliver feedback or authenticate a teacher's preview approval. See the
 [implementation status](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/IMPLEMENTATION_STATUS.md).
 No Git merge or successful capture admits a real grading case or enables writes.
 
+The separate [Unit 1 pair-preview prototype](unit1-pair-preview-contract.md)
+compares a proposed private accepted-pair envelope with independently retained
+source/policy/result/identity/form bindings and exact Canvas observations. It
+preserves paper versus Canvas attempts, teacher final versus raw/converted points,
+and pending feedback even when a score matches. It is unregistered and offline:
+no accepted-pair exporter, live preflight, RELEASE authentication, comment
+transport, token or Edit transfer is connected. Publication remains unavailable.
+
 The desktop import/QC workflow writes durable aggregate receipts. The newest
 attempt remains authoritative even when failed, interrupted or held. The
 clickable status tool and on-demand agent instructions read these receipts;
