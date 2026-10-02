@@ -104,17 +104,28 @@ Build the connection in this order:
    deductions; it is not the full rubric or all positive evidence. Fully correct
    answers can have no response text in that export. Require the native sealed
    physical/final-policy observations as well as frozen question/rubric context
-   before explaining awarded points. Reuse that read-only owner projection; do
-   not infer a rationale or rescore in the dashboard. Native callback seams exist;
-   the versioned serialized question-view export remains future owner work. A
-   recorded reason can be empty and is not a student-response transcription:
-   label that absence, and retain structured owner facts and the original page.
+   before explaining awarded points. GrAss's pure
+   `makeQuestionEvidence(validated, pairedEntry)` now joins those verified owner
+   records into `grass_unit1_question_evidence_v1`; see its
+   [private question-evidence contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT1_QUESTION_EVIDENCE.md).
+   [PR136](https://github.com/sirdanielm/GrAss/pull/136) merged at `5a8e598` with
+   successful exact-head and post-merge CI. The function performs no file access,
+   scoring or acceptance; LocalGrAss consumer adoption is still pending. It
+   preserves raw rubric credit, weighted points, positive observations, native
+   revisions and original page bindings. A recorded reason can be empty and is
+   not a student-response transcription: label that absence. The first version
+   refuses incomplete original observation sets, including supplemental MC-census
+   recovery; it never reconstructs original evidence from final policy results.
+   Its digest proves integrity, not identity or academic acceptance. Verify the
+   private artifact, digest and independently trusted bindings before admission.
    Show original pages until reviewed crop coordinates exist.
 3. **Connect review to the existing journal.** Import the immutable owner result
    through LocalGrAss's existing workflow, compose evidence into teacher review,
    and reuse `save_draft` / `accept_draft` and the existing draft, decision and
-   acceptance tables. Do not create a second question-approval store. Preserve
-   draft history and require comparison when the source, result or decision changes.
+   acceptance tables. Do not create a second question-approval store. The editable
+   draft row and immutable accepted-decision history have different retention
+   semantics; do not promise an archive of every intermediate edit. Retain saved
+   records and decisions, and require comparison when their basis changes.
 4. **Complete the review controls.** Add a durable teacher Hold reason through the
    same revision-guarded commands. Distinguish saved drafts, accepted assignment
    pairs and unresolved evidence holds. Verify keyboard use, image enlargement,
@@ -130,12 +141,33 @@ legacy rubric or evidence tiers needs a separate source/result adapter into the
 shared review journal. Renaming its policy or widening the Unit 1 importer is
 not a compatibility fix.
 
-The fleet export-capture working prototype retains original byte hashes and
-raw central rows, and explicitly requires canonical QC binding. It does not yet
-connect the independent manifest-pin handoff and exact capture/provenance binding
-through the installed clickable import/QC path. Verify those connections before
-changing the production export format; legacy structural import receipts cannot
-be upgraded into policy-conformity receipts.
+The selected fleet policy authority is the four Assignment Packets columns
+`evidence_policy_contract`, `evidence_mode`, `grading_policy` and
+`evidence_policy_note`, under `assignment-staging-v2`. The alternate
+`evidence_policy_json` proposal is not this contract. sdmGrAss's canonical binder
+and QC changes merged in [PR345](https://github.com/sirdanielm/sdmGrAss/pull/345)
+at `8952585`, with successful exact-head and post-merge CI. A captured policy row
+still supplies neither teacher acceptance nor current production authorization.
+
+The LocalGrAss fleet export/import adapter remains a source candidate in
+[PR14](https://github.com/sirdanielm/LocalGrAss/pull/14). Its sequence is **capture
+canonical inventory → export → download/import with an independently obtained
+manifest hash → bind exact retained captures → structural and canonical QC**.
+Keep original export times and bytes immutable; record the later snapshot
+observation separately. Importing later cannot renew the original 24-hour age
+limit or recreate a pre-export inventory. A fictional end-to-end check executed
+the exporter, created two actual ZIP files, imported all 16 original workbooks
+and verified all 15 grader provenance bindings after a 30-minute delay. This
+validates that source path, not real grading or the later clickable CLI wiring.
+
+Before installing the adapter, verify the complete clickable handoff, independently
+pinned canonical dependency bytes and durable latest-attempt reporting. An older
+workflow's late child must not hide a newer failed attempt. The aggregate receipt
+must separately identify 16-target structural checks and 15-grader canonical
+checks, without implying grade approval or publication. These are release gates
+while source fixes and integration validation remain pending. The installed
+exporter/toolbox is unchanged by this documentation update; legacy structural
+receipts cannot be upgraded into policy-conformity receipts.
 
 The first paper-review connection must test save/restart/resume, rejection of
 unsaved edits, concurrent/new result revisions, source mutation, revoked sessions,
