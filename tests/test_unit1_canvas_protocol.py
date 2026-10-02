@@ -24,6 +24,178 @@ def raw_bytes(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
+@pytest.mark.parametrize("edge", [" ", "\t", "\n", "\v", "\f", "\0"])
+@pytest.mark.parametrize("leading", [True, False])
+def test_surrounding_server_whitespace_is_rejected_without_rewriting(
+    inputs, edge, leading
+):
+    payload = edge + "Approved feedback" if leading else "Approved feedback" + edge
+    with pytest.raises(GradebookError, match="EXACT_APPROVED_FEEDBACK_REQUIRED"):
+        request_spec(observation(inputs), "COMMENT", payload)
+
+
+def timestamp_readback(inputs, *, posting=False):
+    assignment = copy.deepcopy(inputs[1])
+    assignment["post_manually"] = False
+    initial = copy.deepcopy(inputs[2])
+    initial["updated_at"] = "2026-10-02T10:00:00Z"
+    before = observation(inputs, assignment=assignment, submission=initial)
+    raw = copy.deepcopy(initial)
+    raw["updated_at"] = "2026-10-02T10:00:01Z"
+    if posting:
+        raw["posted_at"] = "2026-10-02T10:00:01Z"
+    raw["submission_comments"].append(
+        {"id": 502, "author_id": 701, "comment": "Approved feedback"}
+    )
+    after = observation(inputs, assignment=assignment, submission=raw)
+    return before, after, request_spec(before, "COMMENT", "Approved feedback")
+
+
+@pytest.mark.parametrize("posting", [False, True])
+@pytest.mark.parametrize("response_received", [False, True])
+def test_expected_timestamp_side_effects_keep_response_and_release_boundaries(
+    inputs, posting, response_received
+):
+    before, after, spec = timestamp_readback(inputs, posting=posting)
+    result = compare_comment_readback(
+        spec,
+        before,
+        after,
+        publisher_author_id="701",
+        response_received=response_received,
+        response_comment_id="502" if response_received else None,
+    )
+    assert result.outcome == (
+        "VERIFIED_APPLIED" if response_received else "OBSERVED_APPLIED"
+    )
+    assert result.stored_verified is response_received
+    assert not result.retry_writes and not result.publication_authorized
+    assert result.student_visibility == "NOT_ESTABLISHED"
+    assert "live_freshness_not_established" in result.holds
+
+
+def test_interior_and_unicode_whitespace_that_canvas_preserves_is_not_rewritten(inputs):
+    for payload in ("First line.\nSecond\tline.", "\u00a0Approved feedback\u00a0"):
+        spec = request_spec(observation(inputs), "COMMENT", payload)
+        assert spec.payload == payload
+        assert parse_qs(spec.encoded_body.decode())["comment[text_comment]"] == [
+            payload
+        ]
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "backward-update",
+        "missing-update-before",
+        "missing-update-after",
+        "null-update-before",
+        "null-update-after",
+        "bad-update",
+        "naive-update",
+        "boolean-update",
+        "changed-posted-time",
+        "cleared-posted-time",
+        "missing-posted-time",
+        "manual-posting",
+        "unknown-posting",
+        "early-posting",
+        "future-posting",
+        "changed-attempt",
+        "changed-score",
+        "extra-metadata",
+    ],
+)
+def test_timestamp_exceptions_do_not_hide_unknown_or_unrelated_changes(inputs, variant):
+    assignment = copy.deepcopy(inputs[1])
+    assignment["post_manually"] = False
+    initial = copy.deepcopy(inputs[2])
+    initial["updated_at"] = "2026-10-02T10:00:00Z"
+    if variant in {"changed-posted-time", "cleared-posted-time", "missing-posted-time"}:
+        initial["posted_at"] = "2026-10-01T10:00:00Z"
+    if variant == "missing-update-before":
+        initial.pop("updated_at")
+    if variant == "null-update-before":
+        initial["updated_at"] = None
+    if variant == "manual-posting":
+        assignment["post_manually"] = True
+    if variant == "unknown-posting":
+        assignment.pop("post_manually")
+    raw = copy.deepcopy(initial)
+    raw["updated_at"] = "2026-10-02T10:00:01Z"
+    if variant == "backward-update":
+        raw["updated_at"] = "2026-10-02T09:59:59Z"
+    if variant == "missing-update-after":
+        raw.pop("updated_at")
+    if variant == "null-update-after":
+        raw["updated_at"] = None
+    if variant == "bad-update":
+        raw["updated_at"] = "unknown"
+    if variant == "naive-update":
+        raw["updated_at"] = "2026-10-02T10:00:01"
+    if variant == "boolean-update":
+        raw["updated_at"] = True
+    if variant == "changed-posted-time":
+        raw["posted_at"] = "2026-10-02T10:00:01Z"
+    if variant == "cleared-posted-time":
+        raw["posted_at"] = None
+    if variant == "missing-posted-time":
+        raw.pop("posted_at")
+    if variant in {"manual-posting", "unknown-posting"}:
+        raw["posted_at"] = "2026-10-02T10:00:01Z"
+    if variant == "early-posting":
+        raw["posted_at"] = "2026-10-02T09:59:59Z"
+    if variant == "future-posting":
+        raw["posted_at"] = "2026-10-02T10:00:02Z"
+    if variant == "changed-attempt":
+        raw["attempt"] = 1
+    if variant == "changed-score":
+        raw["score"] = 1
+    if variant == "extra-metadata":
+        raw["cached_due_date"] = "2026-10-03T00:00:00Z"
+    raw["submission_comments"].append(
+        {"id": 502, "author_id": 701, "comment": "Approved feedback"}
+    )
+    before = observation(inputs, assignment=assignment, submission=initial)
+    after = observation(inputs, assignment=assignment, submission=raw)
+    result = compare_comment_readback(
+        request_spec(before, "COMMENT", "Approved feedback"),
+        before,
+        after,
+        publisher_author_id="701",
+        response_received=True,
+        response_comment_id="502",
+    )
+    assert result.outcome in {"CONFLICT", "HELD"}
+    assert (
+        not result.stored_verified
+        and not result.retry_writes
+        and not result.publication_authorized
+    )
+
+
+def test_timestamp_changes_without_a_new_comment_do_not_verify_delivery(inputs):
+    before, _, spec = timestamp_readback(inputs)
+    assignment = copy.deepcopy(inputs[1])
+    assignment["post_manually"] = False
+    raw = copy.deepcopy(inputs[2])
+    raw["updated_at"] = "2026-10-02T10:00:01Z"
+    after = observation(inputs, assignment=assignment, submission=raw)
+    result = compare_comment_readback(
+        spec,
+        before,
+        after,
+        publisher_author_id="701",
+        response_received=True,
+        response_comment_id="502",
+    )
+    assert (
+        result.outcome == "UNCERTAIN"
+        and not result.stored_verified
+        and not result.retry_writes
+    )
+
+
 @pytest.fixture
 def inputs():
     target = CanvasTarget("https://canvas.example.invalid", "101", "201", "301")
