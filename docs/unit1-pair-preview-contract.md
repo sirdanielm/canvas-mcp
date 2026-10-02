@@ -180,6 +180,30 @@ compare independently specified URL, method, headers and encoded bytes. This is
 wire-format evidence, not an implemented production HTTP port, retry controller,
 live Canvas test or classroom readiness claim.
 
+### Exact comment text and timestamp side effects
+
+The isolated repair candidate rejects surrounding characters removed by Canvas's
+Ruby `String#strip`, including ASCII whitespace and NUL. It preserves accepted
+text verbatim rather than trimming it after approval; interior line breaks and
+Unicode whitespace that Canvas preserves remain unchanged.
+
+The observation retains its complete submission metadata digest. A separate
+`comment_metadata_sha256` excludes only `updated_at` and `posted_at`, whose raw
+presence and values remain retained and checked. Update times may advance, but
+missing/null/malformed/backward transitions hold. An existing posting time cannot
+change or disappear. A null posting time may become a timestamp only with an
+observed automatic-posting policy and inside the observed update interval.
+All other metadata, target/attempt/score state and existing-comment metadata
+remain protected. A timestamp change alone does not establish a new comment.
+
+This changes the disabled observation encoding: rebuild an observation from its
+retained original GET bodies and independently pinned body hashes. Do not edit
+an old observation, decision or release hash to adopt the new shape. A unique
+new response-linked comment still requires its bound ID/author/body; a lost
+response remains `OBSERVED_APPLIED`, with no retry permission. Authority,
+freshness, visibility and publication holds remain unchanged. No live delivery
+was performed to validate these offline checks.
+
 ## Existing interfaces and remaining live connection
 
 The existing `preview_gradebook_changes` service reads live Canvas; this prototype

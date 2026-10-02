@@ -54,6 +54,7 @@ SUBMISSION_FIELDS = (
     "workflow_state",
     "graded_at",
     "posted_at",
+    "updated_at",
     "grade_matches_current_submission",
     "late_policy_status",
     "points_deducted",
@@ -104,6 +105,7 @@ class ExactObservation:
     submission_body_sha256: str
     assignment_metadata_sha256: str
     submission_metadata_sha256: str
+    comment_metadata_sha256: str
     submission_state_sha256: str
     assignment_fields: tuple[tuple[str, RawField], ...] = field(repr=False)
     submission_fields: tuple[tuple[str, RawField], ...] = field(repr=False)
@@ -417,6 +419,10 @@ def _observation_holds(
     for name in ("submitted_at", "graded_at", "posted_at"):
         if name not in submission or not _timestamp(submission[name]):
             holds.append("submission_" + name + "_unknown")
+    if "updated_at" in submission and (
+        submission["updated_at"] is None or not _timestamp(submission["updated_at"])
+    ):
+        holds.append("submission_updated_at_unknown")
     if submission.get("workflow_state") not in (
         "unsubmitted",
         "submitted",
@@ -539,6 +545,13 @@ def parse_exact_observation(
         digest(metadata),
         digest(
             {
+                key: value
+                for key, value in metadata.items()
+                if key not in {"updated_at", "posted_at"}
+            }
+        ),
+        digest(
+            {
                 "fields": [[name, asdict(value)] for name, value in s_fields],
                 "comments": [asdict(value) for value in comments],
                 "comment_coverage_complete": coverage,
@@ -587,7 +600,10 @@ def _payload(channel: str, payload: str) -> None:
         )
     else:
         _need(
-            0 < len(payload) <= 6000 and bool(payload.strip()) and "\r" not in payload,
+            0 < len(payload) <= 6000
+            and bool(payload.strip())
+            and "\r" not in payload
+            and payload == payload.strip("\0\t\n\v\f\r "),
             "EXACT_APPROVED_FEEDBACK_REQUIRED",
         )
         try:
@@ -754,6 +770,53 @@ def _validate_spec(spec: FormRequestSpec) -> None:
     )
 
 
+def _comment_timestamps_match(
+    before: ExactObservation, after: ExactObservation
+) -> bool:
+    """Allow only bounded comment side effects; preserve missing and null state."""
+    old_update, new_update = (
+        value.submission_field("updated_at") for value in (before, after)
+    )
+    if old_update.present != new_update.present:
+        return False
+    if old_update.value != new_update.value:
+        if (
+            type(old_update.value) is not str
+            or type(new_update.value) is not str
+            or not _timestamp(old_update.value)
+            or not _timestamp(new_update.value)
+        ):
+            return False
+        if datetime.fromisoformat(
+            new_update.value.replace("Z", "+00:00")
+        ) < datetime.fromisoformat(old_update.value.replace("Z", "+00:00")):
+            return False
+    old_post, new_post = (
+        value.submission_field("posted_at") for value in (before, after)
+    )
+    if old_post == new_post:
+        return True
+    posting = before.assignment_field("post_manually")
+    if (
+        not old_post.present
+        or not new_post.present
+        or old_post.value is not None
+        or type(new_post.value) is not str
+        or not _timestamp(new_post.value)
+        or not posting.present
+        or posting.value is not False
+        or type(old_update.value) is not str
+        or type(new_update.value) is not str
+        or not _timestamp(old_update.value)
+        or not _timestamp(new_update.value)
+    ):
+        return False
+    start = datetime.fromisoformat(old_update.value.replace("Z", "+00:00"))
+    posted = datetime.fromisoformat(new_post.value.replace("Z", "+00:00"))
+    end = datetime.fromisoformat(new_update.value.replace("Z", "+00:00"))
+    return start <= posted <= end
+
+
 def compare_comment_readback(
     spec: FormRequestSpec,
     before: ExactObservation,
@@ -813,8 +876,18 @@ def compare_comment_readback(
         before.target != spec.target
         or after.target != spec.target
         or before.assignment_metadata_sha256 != after.assignment_metadata_sha256
-        or before.submission_metadata_sha256 != after.submission_metadata_sha256
-        or before.submission_fields != after.submission_fields
+        or before.comment_metadata_sha256 != after.comment_metadata_sha256
+        or tuple(
+            value
+            for value in before.submission_fields
+            if value[0] not in {"updated_at", "posted_at"}
+        )
+        != tuple(
+            value
+            for value in after.submission_fields
+            if value[0] not in {"updated_at", "posted_at"}
+        )
+        or not _comment_timestamps_match(before, after)
     ):
         return result("CONFLICT", ("remote_target_or_state_drift",))
     if (
