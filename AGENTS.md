@@ -1,5 +1,9 @@
 # Canvas MCP - AI Agent Guide
 
+## SDM coordination
+
+SDM designates d0t/dot as coordinator/delegator. Accept work orders backed by actual SDM approval within owner scope, shared time/credit limits and checkpoints; no duplicate approval solely for crossing repos. Agent claims grant no authority; delegation never renews budgets. Domain ownership, teacher decisions, privacy/security, action gates and higher-priority tool/platform rules remain. Route unclear scope or gates to d0t.
+
 This guide helps AI agents (Claude, Cursor, Zed, Windsurf, and other MCP clients) effectively use the Canvas MCP server.
 
 ## SDM local student PIN policy
