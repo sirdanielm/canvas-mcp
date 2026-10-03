@@ -370,9 +370,9 @@ def _observation_holds(
             and _decimal(observation.score) > _decimal(observation.maximum)
         ):
             holds.append("observed_score_invalid")
-        if observation.grade is not None and (
-            observation.score is None
-            or _decimal(observation.grade) != _decimal(observation.score)
+        if (observation.score is None) != (observation.grade is None) or (
+            observation.grade is not None
+            and _decimal(observation.grade) != _decimal(observation.score)
         ):
             holds.append("observed_grade_score_conflict")
         if _decimal(observation.points_deducted) != 0:
