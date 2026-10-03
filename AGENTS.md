@@ -507,7 +507,7 @@ When prior context may matter, search Claude memories at runtime instead of copy
 
 ## External Actions Require Explicit Approval
 
-Never publish, post, send, delete, deploy, submit, schedule, purchase, or otherwise take an external action without explicit approval from Vishal.
+Any external action requires explicit approval from the repository owner: SDM for this fork; Vishal for upstream.
 
 This includes LinkedIn, email, Slack/Teams, Canvas, GitHub PRs/issues/comments, deployments, forms, purchases, and browser-based actions that affect external systems.
 
