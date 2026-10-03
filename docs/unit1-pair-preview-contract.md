@@ -331,3 +331,10 @@ can yield synthetic `VERIFIED_APPLIED`; a lost response yields unverified
 and valid timezone-aware grading timestamp effects; comment delivery cannot alter
 score, grade or submission state. Request-form serialization and a real HTTP port
 are not implemented by this module.
+
+The fictional score verifier requires score and grade to have consistent null
+state in both the baseline and readback, matching the exact Canvas parser.
+An ungraded submission may have both values null; a numeric score requires a
+numerically equal grade, including zero and equivalent decimal spellings.
+A previously numeric grade disappearing during a score update remains a conflict,
+even when the numeric score matches the approved value or the response was lost.

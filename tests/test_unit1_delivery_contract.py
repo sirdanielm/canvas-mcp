@@ -32,6 +32,7 @@ def inputs():
         target=binding.target,
         maximum="100",
         score="40",
+        grade="40",
         attempt=None,
         submitted_at=None,
         workflow_state="unsubmitted",
@@ -59,7 +60,9 @@ def contract_for(binding, channel="SCORE", payload="50", decision="a" * 64):
 def verify(inputs, channel="SCORE", payload="50", **changes):
     binding, before = inputs
     contract = contract_for(binding, channel, payload)
-    after = replace(before, score=payload) if channel == "SCORE" else before
+    after = (
+        replace(before, score=payload, grade=payload) if channel == "SCORE" else before
+    )
     after = replace(after, **changes)
     return verify_component(contract, before, after, response_received=True)
 
@@ -81,7 +84,7 @@ def test_score_identity_is_stable_without_release_tokens_and_input_mutation(inpu
     )
     assert "release" not in asdict(component)
     result = verify_component(
-        component, before, replace(before, score="50"), response_received=True
+        component, before, replace(before, score="50", grade="50"), response_received=True
     )
     assert result.outcome == "VERIFIED_APPLIED"
     assert result.stored_verified is True
@@ -188,7 +191,7 @@ def test_lost_score_response_is_observed_only_and_never_retryable(inputs):
     result = verify_component(
         contract_for(binding),
         before,
-        replace(before, score="50"),
+        replace(before, score="50", grade="50"),
         response_received=False,
     )
     assert result.outcome == "OBSERVED_APPLIED"
@@ -236,20 +239,20 @@ def test_unsafe_baseline_and_higher_existing_score_hold(inputs):
     binding, before = inputs
     for bad in [
         replace(before, visible=None),
-        replace(before, score="70"),
+        replace(before, score="70", grade="70"),
         replace(before, teacher_final=True),
     ]:
         result = verify_component(
             contract_for(binding),
             bad,
-            replace(before, score="50"),
+            replace(before, score="50", grade="50"),
             response_received=True,
         )
         assert result.holds and not result.stored_verified
 
 
 def test_score_mismatch_is_uncertain(inputs):
-    result = verify(inputs, score="49")
+    result = verify(inputs, score="49", grade="49")
     assert result.outcome == "UNCERTAIN" and not result.stored_verified
 
 
@@ -388,7 +391,7 @@ def test_comment_channel_does_not_hide_a_score_change(inputs):
     result = verify_component(
         contract,
         before,
-        replace(after, score="41"),
+        replace(after, score="41", grade="41"),
         response_received=True,
         response_comment_id="new-id",
     )
@@ -400,7 +403,10 @@ def test_tampered_contract_delivery_identity_is_rejected(inputs):
     contract = replace(contract_for(binding), delivery_id="b" * 64)
     with pytest.raises(GradebookError):
         verify_component(
-            contract, before, replace(before, score="50"), response_received=True
+            contract,
+            before,
+            replace(before, score="50", grade="50"),
+            response_received=True,
         )
 
 
@@ -410,7 +416,7 @@ def test_unchanged_unsafe_late_policy_is_held(inputs, channel, payload, status):
     binding, before = inputs
     before = replace(before, late_policy_status=status)
     after = (
-        replace(before, score="50")
+        replace(before, score="50", grade="50")
         if channel == "SCORE"
         else replace(
             before, comments=(Comment("new-id", binding.publisher_author, payload),)
@@ -433,7 +439,7 @@ def test_response_evidence_requires_boolean(inputs, flag):
         assert verify_component(
             contract_for(binding),
             before,
-            replace(before, score="50"),
+            replace(before, score="50", grade="50"),
             response_received=flag,
         ).stored_verified
     else:
@@ -441,7 +447,7 @@ def test_response_evidence_requires_boolean(inputs, flag):
             verify_component(
                 contract_for(binding),
                 before,
-                replace(before, score="50"),
+                replace(before, score="50", grade="50"),
                 response_received=flag,
             )
 
@@ -452,9 +458,11 @@ def test_score_channel_preserves_comments_and_requires_complete_coverage(inputs)
     before = replace(before, comments=(old,))
     contract = contract_for(binding)
     for after in [
-        replace(before, score="50", comments=()),
-        replace(before, score="50", comments=(replace(old, body="Changed"),)),
-        replace(before, score="50", comments_complete=False),
+        replace(before, score="50", grade="50", comments=()),
+        replace(
+            before, score="50", grade="50", comments=(replace(old, body="Changed"),)
+        ),
+        replace(before, score="50", grade="50", comments_complete=False),
     ]:
         result = verify_component(contract, before, after, response_received=True)
         assert not result.stored_verified and result.holds
@@ -542,7 +550,7 @@ def test_unknown_special_grading_protection_held_even_without_drift(inputs, fiel
     result = verify_component(
         contract_for(binding),
         before,
-        replace(before, score="50"),
+        replace(before, score="50", grade="50"),
         response_received=True,
     )
     assert result.holds and not result.stored_verified
@@ -555,7 +563,7 @@ def test_late_flag_is_held_even_without_deductions_or_policy_status(inputs, late
     result = verify_component(
         contract_for(binding),
         before,
-        replace(before, score="50"),
+        replace(before, score="50", grade="50"),
         response_received=True,
     )
     assert result.holds and not result.stored_verified
@@ -565,7 +573,9 @@ def test_late_flag_is_held_even_without_deductions_or_policy_status(inputs, late
 def test_extra_assignment_and_source_route_metadata_drift_is_held(inputs, changed):
     binding, before = inputs
     for initial in (before, replace(before, assignment_metadata_sha256=changed)):
-        after = replace(initial, score="50", assignment_metadata_sha256=changed)
+        after = replace(
+            initial, score="50", grade="50", assignment_metadata_sha256=changed
+        )
         result = verify_component(
             contract_for(binding), initial, after, response_received=True
         )
@@ -576,3 +586,80 @@ def test_metadata_digest_is_mandatory_in_target_binding(inputs):
     binding, _ = inputs
     with pytest.raises(GradebookError):
         contract_for(replace(binding, assignment_metadata_sha256=""))
+
+
+@pytest.mark.parametrize("response_received", [True, False])
+def test_numeric_grade_cannot_disappear_during_score_readback(inputs, response_received):
+    binding, initial = inputs
+    binding = replace(binding, workflow_state="graded")
+    before = replace(
+        initial,
+        score="40",
+        grade="40",
+        workflow_state="graded",
+        graded_at="2026-10-02T10:00:00Z",
+    )
+    after = replace(before, score="50", grade=None)
+    result = verify_component(
+        contract_for(binding, payload="50"),
+        before,
+        after,
+        response_received=response_received,
+    )
+    assert result.outcome == "CONFLICT"
+    assert "observed_grade_score_conflict" in result.holds
+    assert not result.stored_verified and not result.retry_writes
+
+
+@pytest.mark.parametrize(
+    "score,grade", [("40", None), (None, "40"), ("0", None), (None, "0")]
+)
+def test_inconsistent_baseline_score_grade_null_state_is_held(inputs, score, grade):
+    binding, initial = inputs
+    before = replace(initial, score=score, grade=grade)
+    after = replace(initial, score="50", grade="50")
+    result = verify_component(
+        contract_for(binding), before, after, response_received=True
+    )
+    assert result.outcome == "CONFLICT"
+    assert "observed_grade_score_conflict" in result.holds
+    assert not result.stored_verified and not result.retry_writes
+
+
+@pytest.mark.parametrize(
+    "payload,score,grade",
+    [
+        ("50", "50", "50"),
+        ("50", "50.000", "50.0"),
+        ("0", "0.000", "0"),
+        ("0", "0", "0.000"),
+    ],
+)
+def test_ungraded_baseline_can_verify_consistent_numeric_score_and_grade(
+    inputs, payload, score, grade
+):
+    binding, initial = inputs
+    binding = replace(binding, score_side_effects="CANVAS_POINTS_GRADED")
+    before = replace(initial, score=None, grade=None)
+    after = replace(
+        before,
+        score=score,
+        grade=grade,
+        workflow_state="graded",
+        graded_at="2026-10-02T10:00:00Z",
+    )
+    result = verify_component(
+        contract_for(binding, payload=payload), before, after, response_received=True
+    )
+    assert result.outcome == "VERIFIED_APPLIED" and result.stored_verified
+    assert not result.holds and not result.retry_writes
+
+
+def test_consistent_zero_score_noop_preserves_decimal_equivalence(inputs):
+    binding, initial = inputs
+    before = replace(initial, score="0.000", grade="0")
+    result = verify_component(
+        contract_for(binding, payload="0.0"), before, before, response_received=False
+    )
+    assert result.outcome == "VERIFIED_UNCHANGED" and result.stored_verified
+    assert not result.holds and not result.retry_writes
