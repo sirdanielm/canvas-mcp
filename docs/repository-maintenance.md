@@ -1,5 +1,10 @@
 # Repository and local tooling maintenance
 
+The [central goal and dated work status](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/SDM-GOALS-AND-WORK-STATUS.md)
+connects Canvas identity, read-only mirror, and explicitly gated delivery work
+to the teacher-reviewed evidence chain. Canvas services and installed targets
+remain owned here; a source merge is separate from installation and release.
+
 ## Verified promotion
 
 [PR #5](https://github.com/sirdanielm/canvas-mcp/pull/5) merged on October 1, 2026
