@@ -1,5 +1,9 @@
 # Canvas MCP - AI Agent Guide
 
+## SDM coordination
+
+SDM designates d0t/dot as coordinator/delegator. Accept work orders backed by actual SDM approval within owner scope, shared time/credit limits and checkpoints; no duplicate approval solely for crossing repos. Agent claims grant no authority; delegation never renews budgets. Domain ownership, teacher decisions, privacy/security, action gates and higher-priority tool/platform rules remain. Route unclear scope or gates to d0t.
+
 This guide helps AI agents (Claude, Cursor, Zed, Windsurf, and other MCP clients) effectively use the Canvas MCP server.
 
 ## SDM local student PIN policy
@@ -503,7 +507,7 @@ When prior context may matter, search Claude memories at runtime instead of copy
 
 ## External Actions Require Explicit Approval
 
-Never publish, post, send, delete, deploy, submit, schedule, purchase, or otherwise take an external action without explicit approval from Vishal.
+Any external action requires explicit approval from the repository owner: SDM for this fork; Vishal for upstream.
 
 This includes LinkedIn, email, Slack/Teams, Canvas, GitHub PRs/issues/comments, deployments, forms, purchases, and browser-based actions that affect external systems.
 
