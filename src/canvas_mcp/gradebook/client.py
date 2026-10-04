@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -37,6 +38,9 @@ class GradebookClient:
         ):
             raise GradebookError("Invalid Canvas origin.")
         self.origin = origin.rstrip("/")
+        from .diagnostics import Diagnostics
+
+        self.diagnostics = Diagnostics()
         self.http = httpx.AsyncClient(
             headers={"Authorization": "Bearer " + token},
             timeout=30,
@@ -48,13 +52,29 @@ class GradebookClient:
         await self.http.aclose()
 
     async def _get(self, url: str, params: Any = None) -> httpx.Response:
+        from .diagnostics import failure_code, http_class
+
         for attempt in range(3):
+            started, status, code = time.monotonic(), None, "none"
             try:
-                response = await self.http.get(url, params=params)
-            except httpx.HTTPError as exc:
-                raise GradebookError(
-                    "Canvas read failed; previous snapshot retained."
-                ) from exc
+                try:
+                    response = await self.http.get(url, params=params)
+                    status = response.status_code
+                except httpx.HTTPError as exc:
+                    code = failure_code(exc)
+                    raise GradebookError(
+                        "Canvas read failed; previous snapshot retained."
+                    ) from exc
+            finally:
+                self.diagnostics.emit(
+                    "http",
+                    component="canvas",
+                    operation="get",
+                    attempt=attempt + 1,
+                    http_class=http_class(status),
+                    failure_code=code,
+                    duration_ms=(time.monotonic() - started) * 1000,
+                )
             if response.status_code == 429 and attempt < 2:
                 await asyncio.sleep(2**attempt)
                 continue

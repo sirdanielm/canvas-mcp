@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .client import GradebookError
+from .diagnostics import Diagnostics, failure_code
 from .model import digest
 from .store import Store
 
@@ -299,6 +300,7 @@ class RefreshWorker:
         store: Store,
         bindings: dict[str, Any],
         instance_id: str,
+        diagnostics: Diagnostics | None = None,
     ) -> None:
         if set(bindings) != {"core", "advanced"} or not UUID.fullmatch(instance_id):
             raise GradebookError(
@@ -310,6 +312,7 @@ class RefreshWorker:
         self.workbook_id = workbook_ids.pop()
         self.google, self.canvas, self.store = google, canvas, store
         self.bindings, self.instance_id = copy.deepcopy(bindings), instance_id
+        self.diagnostics = diagnostics or Diagnostics()
         self.journal = RefreshJournal(store.root, self.workbook_id)
 
     async def _metadata(self) -> dict[str, dict[str, Any]]:
@@ -389,6 +392,7 @@ class RefreshWorker:
             raise GradebookError("Refresh applied marker differs.")
 
     async def step(self) -> dict[str, Any]:
+        self.diagnostics.last_failure_stage = None
         with self.journal.exclusive():
             entries = await self._metadata()
             request_entry = entries.get("request")
@@ -413,8 +417,14 @@ class RefreshWorker:
                 op = self.journal.create(request, request_entry["metadata_id"])
                 try:
                     validate_request(request, self.workbook_id)
-                except GradebookError:
-                    self.journal.update(op["id"], "HELD")
+                except GradebookError as exc:
+                    self.journal.update(
+                        op["id"],
+                        "HELD",
+                        failure_reason=str(exc),
+                        failure_code=failure_code(exc),
+                        failure_stage="claim",
+                    )
                     await self._status(op["id"], "HELD")
                     return {"state": "HELD", "request_id": op["id"], "canvas_writes": 0}
                 claim = {
@@ -426,7 +436,8 @@ class RefreshWorker:
                     "created_at": stamp(),
                 }
                 try:
-                    await self.google.batch([metadata_create("claim", claim)])
+                    with self.diagnostics.stage("claim", op["id"]):
+                        await self.google.batch([metadata_create("claim", claim)])
                 except Exception:
                     # Metadata creation may have succeeded. GET is the only retry.
                     entries = await self._metadata()
@@ -447,7 +458,8 @@ class RefreshWorker:
             if op["status"] == "HELD":
                 return {"state": "HELD", "request_id": op["id"], "canvas_writes": 0}
             try:
-                return await self._prepare_apply(op)
+                with self.diagnostics.stage("poll", op["id"]):
+                    return await self._prepare_apply(op)
             except Exception as exc:
                 latest = self.journal.get(op["id"])
                 assert latest is not None
@@ -465,6 +477,8 @@ class RefreshWorker:
                             if isinstance(exc, GradebookError)
                             else "Unexpected local or transport failure; reconcile the durable operation."
                         ),
+                        failure_code=failure_code(exc),
+                        failure_stage=self.diagnostics.last_failure_stage,
                     )
                     try:
                         await self._status(op["id"], state)
@@ -480,13 +494,19 @@ class RefreshWorker:
 
         validate_request(op["payload"]["request"], self.workbook_id)
         await self._status(op["id"], "CLAIMED")
-        before = await self.google.read_workbook()
-        views = validate_workbook(before, self.bindings)
+        with self.diagnostics.stage("initial_workbook", op["id"]):
+            before = await self.google.read_workbook()
+            views = validate_workbook(before, self.bindings)
         plans = {}
         for course in ("core", "advanced"):
-            plans[course] = await prepare_refresh(
-                self.canvas, self.store, course, self.bindings[course], views[course]
-            )
+            with self.diagnostics.stage("prepare_" + course, op["id"]):
+                plans[course] = await prepare_refresh(
+                    self.canvas,
+                    self.store,
+                    course,
+                    self.bindings[course],
+                    views[course],
+                )
         batch = []
         # Never shrink a sheet merely because the canonical layout is narrower.
         column_counts = {
@@ -528,14 +548,27 @@ class RefreshWorker:
             op["id"], "PREPARED", manifest_id=manifest_id, batch_digest=digest(batch)
         )
         await self._status(op["id"], "PREPARED")
-        fresh = await self.google.read_workbook()
-        validate_workbook(fresh, self.bindings)
+        with self.diagnostics.stage("fresh_workbook", op["id"]):
+            fresh = await self.google.read_workbook()
+            validate_workbook(fresh, self.bindings)
         self._own_markers(queue_metadata(fresh), op)
         if "applied" in queue_metadata(fresh):
             raise GradebookError(
                 "An applied marker already exists; no second batch is permitted."
             )
         if fingerprint(fresh) != manifest["input_fingerprint"]:
+            from .native import difference_categories
+
+            # Diagnostics must not replace the original hold if projection fails.
+            try:
+                categories = difference_categories(before, fresh)
+            except Exception:
+                categories = []
+            self.journal.update(op["id"], "PREPARED", difference_categories=categories)
+            self.diagnostics.last_failure_stage = "fresh_workbook"
+            self.diagnostics.emit(
+                "difference", stage="fresh_workbook", difference_categories=categories
+            )
             raise GradebookError("Workbook changed while preparing; refresh held.")
         if any(not 0 <= age(plan["created_at"]) <= 300 for plan in plans.values()):
             raise GradebookError("Refresh plan expired.")
@@ -543,9 +576,15 @@ class RefreshWorker:
         self.journal.update(op["id"], "SENDING")
         # No await or outbound call between durable SENDING and this one batch.
         try:
-            await self.google.send_preflighted_batch(batch)
-        except Exception:
-            uncertain = self.journal.update(op["id"], "UNCERTAIN")
+            with self.diagnostics.stage("grade_batch", op["id"]):
+                await self.google.send_preflighted_batch(batch)
+        except Exception as exc:
+            uncertain = self.journal.update(
+                op["id"],
+                "UNCERTAIN",
+                failure_code=failure_code(exc),
+                failure_stage="grade_batch",
+            )
             return await self._reconcile(uncertain)
         verifying = self.journal.update(op["id"], "VERIFYING")
         return await self._reconcile(verifying)
@@ -568,7 +607,8 @@ class RefreshWorker:
             return await self._finalize(
                 op, receipt["summary"], op["payload"]["receipt_id"]
             )
-        after = await self.google.read_workbook()
+        with self.diagnostics.stage("readback", op["id"]):
+            after = await self.google.read_workbook()
         entries = queue_metadata(after)
         self._own_markers(entries, op)
         expected_marker = json.loads(
@@ -589,9 +629,14 @@ class RefreshWorker:
         if op["status"] not in {"VERIFYING", "VERIFIED"}:
             op = self.journal.update(op["id"], "VERIFYING")
         try:
-            verify_native_output(
-                manifest["before"], after, manifest["plans"], self.store, self.bindings
-            )
+            with self.diagnostics.stage("verify", op["id"]):
+                verify_native_output(
+                    manifest["before"],
+                    after,
+                    manifest["plans"],
+                    self.store,
+                    self.bindings,
+                )
         except Exception as exc:
             if op["status"] != "VERIFIED":
                 self.journal.update(
@@ -602,6 +647,8 @@ class RefreshWorker:
                         if isinstance(exc, GradebookError)
                         else "Native output verification failed."
                     ),
+                    failure_code=failure_code(exc),
+                    failure_stage="verify",
                 )
             await self._status(op["id"], "UNCERTAIN")
             return {

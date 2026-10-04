@@ -336,6 +336,45 @@ def validate_workbook(
     return result
 
 
+def difference_categories(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """Name changed selected-field categories; never expose positions or values."""
+    first, second = _state(before), _state(after)
+    changed: set[str] = set()
+    if first["spreadsheetId"] != second["spreadsheetId"]:
+        changed.add("workbook_identity")
+    if set(first["sheets"]) != set(second["sheets"]):
+        changed.add("sheet_inventory")
+    fields = {
+        "properties": "sheet_properties",
+        "protectedRanges": "protections",
+        "conditionalFormats": "conditional_formats",
+        "basicFilter": "basic_filter",
+        "rowMetadata": "row_metadata",
+        "columnMetadata": "column_metadata",
+    }
+    cells = {
+        "userEnteredValue": "cell_value",
+        "userEnteredFormat": "cell_format",
+        "note": "cell_note",
+        "dataValidation": "cell_validation",
+    }
+    for sid in set(first["sheets"]) & set(second["sheets"]):
+        left, right = first["sheets"][sid], second["sheets"][sid]
+        changed.update(
+            category
+            for field, category in fields.items()
+            if left[field] != right[field]
+        )
+        for address in set(left["cells"]) | set(right["cells"]):
+            changed.update(
+                category
+                for field, category in cells.items()
+                if left["cells"].get(address, {}).get(field)
+                != right["cells"].get(address, {}).get(field)
+            )
+    return sorted(changed)
+
+
 def fingerprint(raw: dict[str, Any]) -> str:
     """Include all selected native fields; request queue metadata is excluded."""
     return digest(_state(raw))
