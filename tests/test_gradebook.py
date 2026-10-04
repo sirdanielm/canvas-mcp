@@ -312,6 +312,8 @@ async def test_mcp_registry_and_aggregate_only_result(tmp_path, snapshot):
             "prepare_gradebook_push",
             "get_gradebook_push_status",
             "reconcile_gradebook_push",
+            "prepare_gradebook_comment_push",
+            "reconcile_gradebook_comment_push",
         }
         result = await client.call_tool("get_canvas_gradebook", {"course": "core"})
         capture_result = json.loads(result.content[0].text)

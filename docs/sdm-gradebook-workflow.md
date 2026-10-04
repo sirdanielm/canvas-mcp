@@ -376,6 +376,87 @@ full-course preflight. The configured 180-second tool timeout is intended for
 small deliberate batches, not unrestricted bulk publication. Read 429s receive
 bounded backoff; writes never retry automatically.
 
+## Separately reviewed student comments
+
+The comment adapter is maintained source, separate from numeric and `EX` pushes.
+It is disabled by default and is not connected to the central results consumer,
+an academic provider, accepted-pair export, or authenticated academic RELEASE.
+Installing source does not enable delivery. The existing connection template
+does not expose these tools. A reviewed installation would need the read-only
+preview/reconciliation tools allowed by the client; actual delivery additionally
+requires the launcher's separate `--enable-comments`, client access to
+`confirm_gradebook_comment_push`, and approval of the exact private preview.
+`--enable-push` alone never registers comment confirmation.
+
+| Tool | Result |
+| --- | --- |
+| `prepare_gradebook_comment_push` | One exact private proposal preview and ten-minute single-use token; zero Canvas writes |
+| `confirm_gradebook_comment_push` | One comment append with response-linked ID and independent GET readback |
+| `reconcile_gradebook_comment_push` | GET-only recovery, including after restart; never resends |
+
+The retained proposal owner supplies `expected_envelope_sha256`, the canonical
+JSON digest from `canvas_mcp.gradebook.model.digest`, independently of the
+adapter. Put the proposal in the private store's `inbox/` as a JSON file; send
+only its filename and expected digest as tool arguments. Its exact schema is
+shown below with entirely fictional identities and references:
+
+```json
+{
+  "schema_version": 1,
+  "origin": "https://canvas.example.edu",
+  "course_id": "12",
+  "assignment_id": "21",
+  "user_id": "101",
+  "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_revision": "original:2",
+  "decision_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "attempt": 2,
+  "submitted_at": "2026-09-17T19:00:00Z",
+  "category": "FORMATIVE_CORRECTION",
+  "comment": "The required response page is missing. Resubmit that page or see your teacher."
+}
+```
+
+The allowed categories are `CONFIRMED_MISSING`, `WRONG_ASSIGNMENT`,
+`FORMATIVE_CORRECTION`, and `UNIT1_FEEDBACK`. The owner and teacher must verify
+the supporting evidence and exact assignment before proposing feedback. This
+adapter does not determine participation, a 50% floor, misconduct, deadlines, or
+academic acceptance. Ordinary formative participation credit needs no comment.
+Summative bad scans belong in the teacher's rescan queue, not student correction
+comments. Unit 1 feedback should retain the approved item/LI earned and possible
+points, raw deduction, percentage-point loss, explanation and reassessment
+guidance. The source/revision and decision hashes bind the retained proposal;
+the adapter does not authenticate its academic decision or re-read source PDFs.
+
+The adapter holds inactive, unpublished, invisible, excused, closed-period,
+anonymous, moderated, group, multipart, unsupported or incompletely observed
+targets. It supports positive-point assignments with one submission type:
+paper, file upload, text entry, or URL. Uploaded-work comments must match the
+current positive Canvas attempt and submitted timestamp and send
+`comment[attempt]`; paper comments preserve their observed attempt without
+inventing an upload. Confirmed-missing comments require an unsubmitted target
+with null/zero attempt, null submitted timestamp and no existing score; they
+never create a zero. Unknown or absent/unassigned targets remain held.
+
+Confirmation checks the private proposal again, performs fresh course/roster
+and exact-target GETs, and holds every change since preview. Its form contains
+only comment text, `comment[group_comment]=false`, and the uploaded attempt when
+applicable. It sends no grade, excusal, rubric, late/missing-status or posting
+field. Readback protects previous comments and all assignment/submission state
+except the server's comment-related `updated_at` and `posted_at` timestamps.
+Canvas posting policy may make feedback or an existing grade visible; a stored
+comment receipt does not prove student visibility or authorize academic release.
+The single-submission GET includes all comments readable to the current actor
+excluding drafts; incomplete or ambiguous coverage is held.
+
+The existing durable ledger checkpoints the response comment ID before GET
+readback. Only that ID, exact text/author, and unchanged protected state establish
+`verified`. A lost reply can establish only `observed_applied` from a unique new
+matching comment, with no claim that this request authored it. The stable source,
+decision, target and payload identity blocks re-appending a verified, observed
+or uncertain comment even with a fresh preview token. Preserve the ledger and
+receipts; reconcile uncertainty with GET only.
+
 ## Private artifacts and recovery
 
 `local_gradebooks/` is ignored by Git. The root has mode 0700 and files are
