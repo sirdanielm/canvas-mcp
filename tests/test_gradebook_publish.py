@@ -116,6 +116,71 @@ async def prepared_comment(comment_system):
     return await publisher.prepare_comment("12", "comment.json", digest(envelope))
 
 
+@pytest.mark.parametrize("later_lane", ["comment", "numeric"])
+async def test_comment_restart_before_sending_finalizes_unsent_and_unlocks_target(
+    comment_system, later_lane
+):
+    publisher, state, _ = comment_system
+    proposal = await prepared_comment(comment_system)
+    publisher.ledger.claim(proposal["operation_id"], proposal["confirmation_token"])
+    before = publisher.ledger.operation(proposal["operation_id"])
+    assert before["status"] == "running" and before["items"][0]["status"] == "planned"
+    assert_target_locked(publisher, proposal["operation_id"])
+    requests_before_restart = list(state["requests"])
+
+    restarted = Publisher(
+        publisher.client, Store(publisher.store.root), Ledger(publisher.store.root)
+    )
+    result = await restarted.reconcile_comment("12", proposal["operation_id"])
+    assert result["status"] == "stopped" and result["counts"] == {"not_sent": 1}
+    assert state["requests"] == requests_before_restart and state["forms"] == []
+    with pytest.raises(GradebookError, match="already consumed"):
+        await restarted.confirm_comment(
+            "12", proposal["operation_id"], proposal["confirmation_token"]
+        )
+
+    if later_lane == "comment":
+        later = await prepared_comment(comment_system)
+        later_id, later_token = later["operation_id"], later["confirmation_token"]
+    else:
+        later_id, later_token = restarted.ledger.prepare(
+            "fictional-numeric-plan", [before["items"][0]["target"]]
+        )
+    restarted.ledger.claim(later_id, later_token)
+    assert restarted.ledger.operation(later_id)["status"] == "running"
+    assert restarted.ledger.finish(later_id)["counts"] == {"not_sent": 1}
+    assert state["forms"] == [] and state["submission"]["score"] == 10
+
+
+async def test_comment_reconcile_preserves_unclaimed_preview_and_token(comment_system):
+    publisher, state, _ = comment_system
+    proposal = await prepared_comment(comment_system)
+    requests_before = list(state["requests"])
+    result = await publisher.reconcile_comment("12", proposal["operation_id"])
+    assert result["status"] == "prepared" and result["counts"] == {"planned": 1}
+    assert state["requests"] == requests_before and state["forms"] == []
+    result = await publisher.confirm_comment(
+        "12", proposal["operation_id"], proposal["confirmation_token"]
+    )
+    assert result["counts"] == {"verified": 1} and len(state["forms"]) == 1
+
+
+async def test_comment_restart_after_sending_keeps_unknown_outcome_locked(
+    comment_system,
+):
+    publisher, state, _ = comment_system
+    proposal = await prepared_comment(comment_system)
+    publisher.ledger.claim(proposal["operation_id"], proposal["confirmation_token"])
+    publisher.ledger.mark(proposal["operation_id"], 0, "sending")
+    restarted = Publisher(
+        publisher.client, Store(publisher.store.root), Ledger(publisher.store.root)
+    )
+    result = await restarted.reconcile_comment("12", proposal["operation_id"])
+    assert result["status"] == "uncertain" and result["counts"] == {"uncertain": 1}
+    assert_target_locked(restarted, proposal["operation_id"])
+    assert state["forms"] == [] and state["submission"]["score"] == 10
+
+
 async def test_comment_confirmation_exact_form_independent_readback(comment_system):
     publisher, state, envelope = comment_system
     proposal = await prepared_comment(comment_system)

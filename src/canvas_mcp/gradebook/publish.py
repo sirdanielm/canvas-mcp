@@ -912,7 +912,7 @@ class Publisher:
             if operation["status"] == "prepared" or operation["items"][0][
                 "status"
             ] not in ("sending", "uncertain"):
-                return self.ledger.summary(operation_id)
+                return self.ledger.finish(operation_id)
             envelope = plan["envelope"]
             if await self._comment_scope(course_id, envelope) != plan["author"]:
                 raise GradebookError(
