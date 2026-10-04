@@ -214,7 +214,9 @@ class Diagnostics:
             if info.st_uid != os.getuid() or info.st_mode & 0o077:
                 raise OSError
             descriptor = os.open(
-                self.path, os.O_APPEND | os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600
+                self.path,
+                os.O_APPEND | os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                0o600,
             )
             info = os.fstat(descriptor)
             if (
@@ -307,6 +309,23 @@ def _age(value: Any) -> float | None:
         return None
 
 
+def _log_tail(path: Path) -> list[bytes]:
+    """Reject nonregular files on the opened descriptor before any log read."""
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            return []
+        os.lseek(descriptor, max(0, info.st_size - 65_536), os.SEEK_SET)
+        return os.read(descriptor, 65_536).splitlines()
+    except OSError:
+        return []
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
 def inspect_journal(
     state_dir: Path, workbook_id: str, request_id: str | None = None
 ) -> dict[str, Any]:
@@ -324,15 +343,35 @@ def inspect_journal(
     if any(p.is_symlink() for p in (path, root, state_dir)):
         raise ValueError("Diagnostic journal must not be a symlink.")
     if path.exists():
-        if path.with_name(path.name + "-wal").exists():
-            raise ValueError("A WAL journal requires a reviewed consistent snapshot.")
-        db = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=5)
+        sidecars = [
+            path.with_name(path.name + suffix) for suffix in ("-wal", "-journal")
+        ]
+        if any(item.exists() for item in sidecars):
+            raise ValueError("An active journal requires a consistent snapshot.")
+        before = path.stat()
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError("Diagnostic journal must be a regular file.")
+        # Immutable mode cannot create WAL/SHM, including for a closed WAL-mode
+        # database. Reject active sidecars and a changing main file around read.
+        db = sqlite3.connect(
+            path.as_uri() + "?mode=ro&immutable=1", uri=True, timeout=5
+        )
         try:
             db.execute("PRAGMA query_only=ON")
+            query = "SELECT id,status,payload,updated FROM operations WHERE workbook=?"
+            parameters: tuple[str, ...] = (workbook_id,)
+            if request_id:
+                query += " AND id=?"
+                parameters += (request_id,)
+            else:
+                query += " AND status NOT IN ('VERIFIED','RELEASED')"
             rows = db.execute(
-                "SELECT id,status,payload,updated FROM operations WHERE workbook=? ORDER BY updated DESC LIMIT 1000",
-                (workbook_id,),
-            )
+                query + " ORDER BY updated DESC LIMIT 1001", parameters
+            ).fetchall()
+            if len(rows) > 1000:
+                raise ValueError(
+                    "Diagnostic request inventory exceeds its supported bound."
+                )
             for rid, status, payload, updated in rows:
                 if not UUID.fullmatch(rid) or (request_id and request_id != rid):
                     continue
@@ -370,6 +409,14 @@ def inspect_journal(
                 result["requests"].append(item)
         finally:
             db.close()
+        after = path.stat()
+        if any(item.exists() for item in sidecars) or (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+            raise ValueError("Diagnostic journal changed during its read.")
     states = Counter(item["state"] for item in result["requests"])
     result.update(
         unresolved=sum(
@@ -397,9 +444,7 @@ def inspect_journal(
     )
     log = root / "diagnostics.jsonl"
     if log.exists() and not log.is_symlink():
-        with log.open("rb") as stream:
-            stream.seek(max(0, log.stat().st_size - 65_536))
-            lines = stream.read(65_536).splitlines()
+        lines = _log_tail(log)
         found_activity = False
         for line in reversed(lines):
             try:

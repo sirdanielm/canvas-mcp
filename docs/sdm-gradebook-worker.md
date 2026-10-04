@@ -131,6 +131,15 @@ creates directories, or runs launchctl:
 .venv/bin/python scripts/sdm_gradebook_worker.py diagnostics --request-id REQUEST_UUID
 ```
 
+SQLite opens with `mode=ro&immutable=1`, so even a closed WAL-mode database cannot
+create WAL/SHM sidecars. Existing WAL/rollback sidecars or a main database that
+changes during the read produce a hold for a consistent snapshot; diagnostics
+never treats an active WAL's main file as current. Request UUID/unresolved-state
+filters run in SQL before the bounded inventory limit. More than 1,000 matching
+operations is reported as a bound failure, without claiming a complete inventory.
+Log descriptors open nonblocking and are verified as regular files before read
+or append; FIFO/device logs are ignored or counted as dropped telemetry.
+
 It lists unresolved request UUIDs, request/update ages, recognized failure reasons,
 failure codes and stages. Unknown legacy exception text is suppressed. A recent
 local poll establishes recent recorded activity only; `worker_running` remains

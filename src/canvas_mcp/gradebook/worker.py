@@ -446,6 +446,9 @@ class RefreshWorker:
                     entries = await self._metadata()
                     self._own_markers(entries, op)
                 op = self.journal.update(op["id"], "CLAIMED")
+                # A lost claim response has now been resolved by exact readback.
+                # Its earlier diagnostic cannot label a later prepare failure.
+                self.diagnostics.last_failure_stage = None
             else:
                 self.journal.create(request, request_entry["metadata_id"])
                 if op["status"] == "HELD":
