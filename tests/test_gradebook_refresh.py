@@ -68,6 +68,148 @@ def test_refresh_preserves_held_blanks_zeros_excusal(snapshot, value):
     assert len(review["changes"]) == 1
 
 
+def test_refresh_missing_original_excusal_stays_display_only_across_refreshes(snapshot):
+    baseline = copy.deepcopy(snapshot)
+    baseline["cells"].pop("101:21")
+    current = copy.deepcopy(baseline)
+    original_current = copy.deepcopy(current)
+    for _ in range(2):
+        original_baseline = copy.deepcopy(baseline)
+        merged, display, review = merge_refresh(baseline, current, edits(baseline, "EX"))
+        assert "101:21" not in merged["cells"]
+        assert "101:21" not in current["cells"]
+        assert display["cells"]["101:21"]["value"] == "EX"
+        assert "visible" not in display["cells"]["101:21"]
+        assert merged["working_baseline"]["retained_cells"] == ["101:21"]
+        assert merged["working_baseline"]["previous_baseline_id"] == digest(baseline)
+        assert merged["working_baseline"]["canvas_snapshot_id"] == digest(current)
+        assert review["counts"] == {"review_required": 1}
+        change = review["changes"][0]
+        assert change["baseline"] is None and change["current"] is None
+        assert change["proposed"] == "EX"
+        assert change["status"] == "review_required"
+        assert "submission_not_verified" in change["reasons"]
+        assert baseline == original_baseline
+        assert current == original_current
+        baseline = merged
+
+
+def test_refresh_missing_original_excusal_is_not_fulfilled_by_later_canvas_ex(snapshot):
+    baseline = copy.deepcopy(snapshot)
+    baseline["cells"].pop("101:21")
+    current = copy.deepcopy(snapshot)
+    current["cells"]["101:21"].update(value="EX", excused=True)
+    original_current = copy.deepcopy(current)
+    merged, display, review = merge_refresh(baseline, current, edits(baseline, "EX"))
+    assert "101:21" not in merged["cells"]
+    assert display["cells"]["101:21"] == current["cells"]["101:21"]
+    assert review["counts"] == {"review_required": 1}
+    change = review["changes"][0]
+    assert change["baseline"] is None
+    assert change["current"] == change["proposed"] == "EX"
+    assert change["status"] == "review_required"
+    assert "submission_not_verified" in change["reasons"]
+    assert current == original_current
+
+
+@pytest.mark.parametrize("value", [0, 20])
+def test_refresh_missing_original_numeric_proposal_still_holds(snapshot, value):
+    baseline = copy.deepcopy(snapshot)
+    baseline["cells"].pop("101:21")
+    current = copy.deepcopy(baseline)
+    with pytest.raises(GradebookError):
+        merge_refresh(baseline, current, edits(baseline, value))
+
+
+def test_refresh_missing_original_excusal_still_holds_hidden_current(snapshot):
+    baseline = copy.deepcopy(snapshot)
+    baseline["cells"].pop("101:21")
+    current = copy.deepcopy(snapshot)
+    current["cells"]["101:21"]["visible"] = False
+    with pytest.raises(GradebookError):
+        merge_refresh(baseline, current, edits(baseline, "EX"))
+
+
+@pytest.mark.parametrize("change", ["missing", "hidden"])
+def test_refresh_verified_original_excusal_still_holds_unavailable_current(snapshot, change):
+    current = copy.deepcopy(snapshot)
+    if change == "missing":
+        current["cells"].pop("101:21")
+    else:
+        current["cells"]["101:21"]["visible"] = False
+    with pytest.raises(GradebookError):
+        merge_refresh(snapshot, current, edits(snapshot, "EX"))
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["old_assignment", "current_assignment", "old_student", "current_student", "points", "type"],
+)
+def test_refresh_missing_original_excusal_does_not_relax_target_or_schema_holds(snapshot, change):
+    baseline = copy.deepcopy(snapshot)
+    baseline["cells"].pop("101:21")
+    current = copy.deepcopy(baseline)
+    if change == "old_assignment":
+        baseline["assignments"] = []
+    elif change == "current_assignment":
+        current["assignments"] = []
+    elif change == "old_student":
+        baseline["students"] = []
+    elif change == "current_student":
+        current["students"] = []
+    elif change == "points":
+        current["assignments"][0]["points_possible"] = 30
+    else:
+        current["assignments"][0]["grading_type"] = "percent"
+    with pytest.raises(GradebookError):
+        merge_refresh(baseline, current, edits(baseline, "EX"))
+
+
+@pytest.mark.parametrize("value", [20, None, 0, "EX"])
+def test_refresh_new_assignment_preserves_pending_original_cells(snapshot, value):
+    current = copy.deepcopy(snapshot)
+    current["assignments"].insert(0, {
+        **current["assignments"][0], "id": "22", "points_possible": 100,
+    })
+    current["cells"]["101:22"] = {
+        **current["cells"]["101:21"], "assignment_id": "22", "value": None,
+    }
+    current["cells"]["101:21"]["value"] = 18
+    original = copy.deepcopy(current)
+
+    merged, display, review = merge_refresh(snapshot, current, edits(snapshot, value))
+
+    assert merged["cells"]["101:21"] == snapshot["cells"]["101:21"]
+    assert display["cells"]["101:21"]["value"] == value
+    assert merged["cells"]["101:22"] == current["cells"]["101:22"]
+    assert display["cells"]["101:22"] == current["cells"]["101:22"]
+    assert merged["working_baseline"]["retained_cells"] == ["101:21"]
+    assert review["changes"][0]["baseline"] == 10
+    assert "canvas_changed_since_baseline" in review["changes"][0]["reasons"]
+    assert current == original
+
+
+@pytest.mark.parametrize("change", ["remove", "points", "type", "roster", "visibility"])
+def test_refresh_addition_does_not_relax_existing_pending_holds(snapshot, change):
+    current = copy.deepcopy(snapshot)
+    current["assignments"].append({**current["assignments"][0], "id": "22"})
+    current["cells"]["101:22"] = {
+        **current["cells"]["101:21"], "assignment_id": "22", "value": None,
+    }
+    if change == "remove":
+        current["assignments"].pop(0)
+    elif change == "points":
+        current["assignments"][0]["points_possible"] = 30
+    elif change == "type":
+        current["assignments"][0]["grading_type"] = "percent"
+    elif change == "roster":
+        current["students"] = []
+    else:
+        current["cells"]["101:21"]["visible"] = False
+    with pytest.raises(GradebookError):
+        merge_refresh(snapshot, current, edits(snapshot, 20))
+
+
 def test_build_requests_literal_values_and_roundtrip(snapshot):
     snapshot["assignments"][0]["name"] = "=MALICIOUS()"
     binding = {

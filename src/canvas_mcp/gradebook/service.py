@@ -13,7 +13,43 @@ from .client import GradebookClient, GradebookError
 from .model import digest, identifier
 from .refresh import build_requests, merge_refresh, source_digest
 from .store import Store
-from .workbook import edits_from_cells
+from .workbook import column_name, edits_from_cells
+
+
+def _validate_refresh_order(
+    baseline: dict[str, Any], cells: dict[str, dict[str, Any]]
+) -> None:
+    """Refuse rearranged bound grids before moving any physical references."""
+    for role in ("Canvas", "Working"):
+        if any(
+            str(cells[role].get(f"{column_name(index + 3)}5", "")) != item["id"]
+            for index, item in enumerate(baseline["assignments"])
+        ) or any(
+            str(cells[role].get(f"A{index + 6}", "")) != item["id"]
+            for index, item in enumerate(baseline["students"])
+        ):
+            raise GradebookError(
+                "Gradebook row or assignment order changed; refresh held."
+            )
+
+
+def _preserve_refresh_order(
+    baseline: dict[str, Any], current: dict[str, Any]
+) -> dict[str, Any]:
+    """Keep existing rows/columns fixed; append assignments in discovery order."""
+    # Shallow-copy only the containers that change. Fresh records/cells are read
+    # by the planner and merge_refresh copies them before retaining old cells.
+    ordered = dict(current)
+    for key in ("assignments", "students"):
+        old_ids = [item["id"] for item in baseline[key]]
+        by_id = {item["id"]: item for item in current[key]}
+        if key == "students" and set(old_ids) != set(by_id):
+            continue  # The existing pending-roster guard decides admission.
+        known_ids = set(old_ids)
+        ordered[key] = [by_id[uid] for uid in old_ids if uid in by_id] + [
+            item for item in current[key] if item["id"] not in known_ids
+        ]
+    return ordered
 
 
 async def prepare_refresh(
@@ -48,12 +84,14 @@ async def prepare_refresh(
     ):
         raise GradebookError("Baseline does not match this course and origin.")
     edits = edits_from_cells(cells, baseline)
+    _validate_refresh_order(baseline, cells)
     current = await client.snapshot(course_id)
     if (current.get("course_id"), current.get("origin")) != (
         course_id,
         client.origin,
     ):
         raise GradebookError("Fresh snapshot does not match this course and origin.")
+    current = _preserve_refresh_order(baseline, current)
     merged, display, review = merge_refresh(baseline, current, edits)
     current_id, _ = store.save("snapshot", current)
     merged_id, _ = store.save("snapshot", merged)
