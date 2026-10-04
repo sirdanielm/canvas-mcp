@@ -556,3 +556,15 @@ The toolbox remains usable through its clickable Latest Check Status tool
 without Codex. Automatic context hooks require their own reviewed definition and
 Codex trust action; do not edit trust settings or claim a chat already reviewed
 an unseen report.
+
+## SDM work orders and closeout cues
+
+The user-owned local d0t hub coordinates current contracts, named owners and dated receipts. Its documents record authority; opening or refreshing them starts no operation. Use the current user decision and exact reviewed evidence when older dated instructions disagree. A source-only acceptance, passing test or saved proposal is not proof of installation, teacher acceptance or delivery.
+
+- `perform repo closeout` defaults to GrAss, sdmGrAss, LocalGrAss and canvas-mcp. An explicit request for all established repos extends only that invocation to the nine-repo registry. Read current heads, dirty work, ownership and required checks; include only exact reviewed, authorized public artifacts. Keep private, active, unfinished and pinned work held.
+- `perform d0t sync` means a selective local document refresh, preserving user edits, prior history and unresolved holds. It is distinct from Git synchronization and this repository's domain-specific operations.
+- `Perform repo closeout, then perform d0t sync` is serial: complete the closeout disposition and durable receipt before recording its result in d0t. Source closeout can finish after an exact checkout freeze while separately owned live work continues; report that work as active.
+
+Assign files and checkouts before edits. Preserve every unrelated dirty/untracked change and active pin; never reset, stash, clean, force-push or absorb it to simplify closeout. Use isolated branches/checkouts and the established review/PR/CI process for eligible artifacts. Keep source publication, installation/deployment, live execution, academic acceptance and delivery as separate outcomes. Documentation work grants no paid call, source-identity change, protected-source mutation, deployment, scheduler operation, grade write or external message authority. Report exact blockers promptly and use dated progress checkpoints during active authorized work.
+
+For the newest teacher decisions, exact candidate holds and implementation distinctions, read [the October 4 operating contract](docs/SDM-OPERATING-CONTRACT-20261004.md). This dated record supplements existing architecture/operator guides; it does not make proposed source installed or supersede protected-source and teacher-authority rules.
