@@ -1,4 +1,4 @@
-"""Launch the gradebook service; Canvas writes require explicit --enable-push."""
+"""Launch the gradebook service; grade and comment writes have separate opt-ins."""
 
 from __future__ import annotations
 
@@ -30,6 +30,9 @@ def main() -> int:
             "get_gradebook_push_status",
             "reconcile_gradebook_push",
             "confirm_gradebook_push",
+            "prepare_gradebook_comment_push",
+            "reconcile_gradebook_comment_push",
+            "confirm_gradebook_comment_push",
         ],
     )
     parser.add_argument(
@@ -40,6 +43,11 @@ def main() -> int:
         "--enable-push",
         action="store_true",
         help="Register the separately confirmed Canvas write tool",
+    )
+    parser.add_argument(
+        "--enable-comments",
+        action="store_true",
+        help="Register the separately confirmed comment-only tool; does not enable grades",
     )
     args = parser.parse_args()
     # Prevent unrelated .env files from enabling features or logging identities.
@@ -85,7 +93,12 @@ def main() -> int:
                 (ROOT / "config/sdm-gradebook-workbooks.json").read_text()
             )
             server = create_server(
-                client, store, COURSES, bindings, enable_push=args.enable_push
+                client,
+                store,
+                COURSES,
+                bindings,
+                enable_push=args.enable_push,
+                enable_comments=args.enable_comments,
             )
             if args.call:
                 from fastmcp import Client

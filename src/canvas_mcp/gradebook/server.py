@@ -26,6 +26,7 @@ def create_server(
     courses: dict[str, str],
     bindings: dict[str, Any] | None = None,
     enable_push: bool = False,
+    enable_comments: bool = False,
 ) -> FastMCP:
     server = FastMCP("canvas-gradebook")
     publisher = Publisher(client, store, Ledger(store.root))
@@ -288,6 +289,81 @@ def create_server(
                 "error": "Reconciliation unavailable; retain the operation and do not retry writes.",
                 "retry_writes": False,
             }
+
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+    async def prepare_gradebook_comment_push(
+        course: str, comments_filename: str, expected_envelope_sha256: str
+    ) -> dict[str, Any]:
+        """Preview one exact source-bound inbox proposal; no comment is sent.
+
+        The expected digest must come from the retained proposal owner. Open the
+        private artifact for teacher review; hashes do not approve feedback or
+        accept an academic score. No real student payloads belong in tool args.
+        """
+        try:
+            return {
+                **await publisher.prepare_comment(
+                    resolve(course), comments_filename, expected_envelope_sha256
+                ),
+                "publishing_available": enable_comments,
+            }
+        except GradebookError as exc:
+            return {"error": str(exc), "canvas_writes": 0}
+        except Exception:
+            return {
+                "error": "Comment preview failed; nothing sent.",
+                "canvas_writes": 0,
+            }
+
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+    async def reconcile_gradebook_comment_push(
+        course: str, operation_id: str
+    ) -> dict[str, Any]:
+        """GET-only comment reconciliation; retain locks and never repeat an append."""
+        try:
+            return await publisher.reconcile_comment(resolve(course), operation_id)
+        except GradebookError as exc:
+            return {"error": str(exc), "retry_writes": False, "canvas_writes": 0}
+        except Exception:
+            return {
+                "error": "Comment readback unavailable; do not retry.",
+                "retry_writes": False,
+                "canvas_writes": 0,
+            }
+
+    if enable_comments:
+
+        @server.tool(
+            annotations=ToolAnnotations(
+                read_only_hint=False, destructive_hint=True, idempotent_hint=False
+            )
+        )
+        async def confirm_gradebook_comment_push(
+            course: str, operation_id: str, confirmation_token: str
+        ) -> dict[str, Any]:
+            """Append only the exact teacher-reviewed comment using its one-use token.
+
+            Requires separate approval of this operation's private preview.
+            Sends no score, excusal or policy change. Canvas posting policy may
+            make feedback or an existing grade visible. A lost reply never
+            permits another append; inspect status and reconcile with GET only.
+            """
+            try:
+                return await publisher.confirm_comment(
+                    resolve(course), operation_id, confirmation_token
+                )
+            except GradebookError as exc:
+                return {
+                    "error": str(exc),
+                    "operation_id": operation_id,
+                    "retry_writes": False,
+                }
+            except Exception:
+                return {
+                    "error": "Comment stopped; inspect durable status before any action.",
+                    "operation_id": operation_id,
+                    "retry_writes": False,
+                }
 
     if enable_push:
 

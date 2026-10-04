@@ -365,7 +365,10 @@ def _timestamp(value: object) -> bool:
 
 
 def _observation_holds(
-    assignment: dict[str, Any], submission: dict[str, Any]
+    assignment: dict[str, Any],
+    submission: dict[str, Any],
+    *,
+    comment_only: bool = False,
 ) -> list[str]:
     holds = ["teacher_final_authority_not_connected"]
     for name in ("published",):
@@ -377,6 +380,8 @@ def _observation_holds(
         "use_rubric_for_grading",
         "has_sub_assignments",
     ):
+        if comment_only and name == "use_rubric_for_grading":
+            continue
         if assignment.get(name) is not False:
             holds.append("assignment_" + name + "_protected_or_unknown")
     if (
@@ -390,22 +395,30 @@ def _observation_holds(
     if maximum is None or maximum <= 0:
         holds.append("assignment_points_possible_unknown")
     rubric = assignment.get("rubric_settings")
-    if "rubric_settings" not in assignment or (
-        rubric is not None
-        and (type(rubric) is not dict or rubric.get("use_for_grading") is not False)
+    if not comment_only and (
+        "rubric_settings" not in assignment
+        or (
+            rubric is not None
+            and (type(rubric) is not dict or rubric.get("use_for_grading") is not False)
+        )
     ):
         holds.append("assignment_rubric_settings_held")
     for name in ("assignment_visible", "grade_matches_current_submission"):
+        if comment_only and name == "grade_matches_current_submission":
+            continue
         if submission.get(name) is not True:
             holds.append("submission_" + name + "_not_verified")
     for name in ("excused", "late", "in_closed_grading_period"):
+        if comment_only and name == "late":
+            continue
         if submission.get(name) is not False:
             holds.append("submission_" + name + "_protected_or_unknown")
-    if "late_policy_status" not in submission or submission[
-        "late_policy_status"
-    ] not in (None, "none"):
+    if not comment_only and (
+        "late_policy_status" not in submission
+        or submission["late_policy_status"] not in (None, "none")
+    ):
         holds.append("submission_late_policy_status_held")
-    if _numeric(submission.get("points_deducted")) != Decimal(0):
+    if not comment_only and _numeric(submission.get("points_deducted")) != Decimal(0):
         holds.append("submission_points_deducted_held")
     for name in ("attempt", "submitted_at", "workflow_state", "score", "grade"):
         if name not in submission:
@@ -450,6 +463,30 @@ def _observation_holds(
         and Decimal(grade) != numeric_score
     ):
         holds.append("submission_grade_score_inconsistent")
+    if comment_only:
+        # A comment owns no grade or late-policy field. These values remain
+        # protected by exact metadata/readback comparison, including nulls.
+        for name in ("late", "missing"):
+            if type(submission.get(name)) is not bool:
+                holds.append("submission_" + name + "_unknown")
+        if (
+            "grade_matches_current_submission" not in submission
+            or submission["grade_matches_current_submission"] is not None
+            and type(submission["grade_matches_current_submission"]) is not bool
+        ):
+            holds.append(
+                "submission_" + "grade_matches_current_submission" + "_unknown"
+            )
+        if "late_policy_status" not in submission or submission[
+            "late_policy_status"
+        ] not in (None, "none", "late", "missing", "extended"):
+            holds.append("submission_late_policy_status_unknown")
+        if "points_deducted" not in submission or (
+            submission["points_deducted"] is not None
+            and _numeric(submission["points_deducted"]) is None
+        ):
+            holds.append("submission_points_deducted_unknown")
+        holds.append("comment_only_observation")
     return holds
 
 
@@ -492,6 +529,7 @@ def parse_exact_observation(
     *,
     expected_assignment_body_sha256: str,
     expected_submission_body_sha256: str,
+    comment_only: bool = False,
 ) -> ExactObservation:
     """Parse supplied original GET bytes without inventing null/false state.
 
@@ -520,16 +558,30 @@ def parse_exact_observation(
             "ORIGINAL_GET_IDENTITY_MISMATCH",
         )
     _id(submission.get("id"))
+    _need(type(comment_only) is bool, "OBSERVATION_PURPOSE_INVALID")
+    supported = (
+        ("on_paper",),
+        ("online_upload",),
+        ("online_text_entry",),
+        ("online_url",),
+    )
     _need(
         type(assignment.get("submission_types")) is list
-        and assignment["submission_types"] == ["on_paper"],
-        "ROSTER_ON_PAPER_REQUIRED",
+        and (
+            tuple(assignment["submission_types"]) in supported
+            if comment_only
+            else assignment["submission_types"] == ["on_paper"]
+        ),
+        "COMMENT_SUBMISSION_TYPE_UNSUPPORTED"
+        if comment_only
+        else "ROSTER_ON_PAPER_REQUIRED",
     )
-    a_fields, s_fields = _raw_fields(assignment, ASSIGNMENT_FIELDS), _raw_fields(
-        submission, SUBMISSION_FIELDS
+    a_fields, s_fields = (
+        _raw_fields(assignment, ASSIGNMENT_FIELDS),
+        _raw_fields(submission, SUBMISSION_FIELDS),
     )
     comments, coverage = _comments(submission, submission_get.comment_coverage_complete)
-    holds = _observation_holds(assignment, submission)
+    holds = _observation_holds(assignment, submission, comment_only=comment_only)
     if coverage is not True:
         holds.append("comment_coverage_unverified")
     # The complete original non-comment metadata is retained as a digest only.
@@ -619,8 +671,9 @@ def _component(
     channel: str,
     payload: str,
     publisher_author_id: str,
+    comment_attempt: int | None = None,
 ) -> dict[str, Any]:
-    return {
+    value: dict[str, Any] = {
         "schema_version": 1,
         "kind": "UNIT1_CANVAS_COMPONENT",
         "decision_sha256": decision,
@@ -630,14 +683,28 @@ def _component(
         "payload": payload,
         "publisher_author_id": publisher_author_id,
     }
+    if comment_attempt is not None:
+        value["comment_attempt"] = comment_attempt
+    return value
 
 
-def _form_fields(channel: str, payload: str) -> tuple[tuple[str, str], ...]:
-    return (
+def _form_fields(
+    channel: str, payload: str, comment_attempt: int | None = None
+) -> tuple[tuple[str, str], ...]:
+    fields: tuple[tuple[str, str], ...] = (
         (("submission[posted_grade]", payload),)
         if channel == "SCORE"
         else (("comment[text_comment]", payload), ("comment[group_comment]", "false"))
     )
+    if comment_attempt is not None:
+        _need(
+            channel == "COMMENT"
+            and type(comment_attempt) is int
+            and comment_attempt > 0,
+            "COMMENT_ATTEMPT_INVALID",
+        )
+        fields += (("comment[attempt]", str(comment_attempt)),)
+    return fields
 
 
 def build_form_request_spec(
@@ -650,17 +717,33 @@ def build_form_request_spec(
     publisher_author_id: str,
     expected_retained_observation_sha256: str,
     expected_component_sha256: str,
+    comment_attempt: int | None = None,
 ) -> FormRequestSpec:
     """Describe one disabled mutation; no permission flag or send method exists.
 
     Expected observation/component hashes come from independent retained owners.
     Component hashes bind exact target/channel/text and the accepted decision and
     target-binding references. This does not verify acceptance or RELEASE.
-    No authorization header, publication/posting/status setting or attempt field
-    belongs to this narrow ROSTER_ASSIGNMENT protocol.
+    No authorization header or publication/posting/status setting belongs to this
+    narrow protocol. Comment-only upload delivery may bind the observed positive
+    attempt; that does not establish academic source admission.
     """
     _validate_observation(observation)
     _payload(channel, payload)
+    _need(
+        channel == "COMMENT" or "comment_only_observation" not in observation.holds,
+        "COMMENT_OBSERVATION_CANNOT_GRADE",
+    )
+    if comment_attempt is not None:
+        _need(
+            channel == "COMMENT"
+            and type(comment_attempt) is int
+            and comment_attempt > 0
+            and observation.submission_field("attempt")
+            == RawField(True, comment_attempt)
+            and observation.assignment_field("submission_types").value != ("on_paper",),
+            "COMMENT_ATTEMPT_BINDING_MISMATCH",
+        )
     _need(
         type(publisher_author_id) is str
         and _id(publisher_author_id) == publisher_author_id,
@@ -683,6 +766,7 @@ def build_form_request_spec(
             channel,
             payload,
             publisher_author_id,
+            comment_attempt,
         )
     )
     _need(
@@ -712,7 +796,7 @@ def build_form_request_spec(
             ),
             "HIGHER_CANVAS_SCORE_PROTECTED",
         )
-    form = _form_fields(channel, payload)
+    form = _form_fields(channel, payload, comment_attempt)
     return FormRequestSpec(
         observation.target,
         decision_sha256,
@@ -742,6 +826,15 @@ def _validate_spec(spec: FormRequestSpec) -> None:
     )
     _validate_target(spec.target)
     _payload(spec.channel, spec.payload)
+    comment_attempt = None
+    if len(spec.form_fields) == 3:
+        key, value = spec.form_fields[2]
+        _need(
+            key == "comment[attempt]"
+            and re.fullmatch(r"[1-9][0-9]*", value) is not None,
+            "COMMENT_ATTEMPT_INVALID",
+        )
+        comment_attempt = int(value)
     _need(
         type(spec.publisher_author_id) is str
         and _id(spec.publisher_author_id) == spec.publisher_author_id,
@@ -760,11 +853,13 @@ def _validate_spec(spec: FormRequestSpec) -> None:
                 spec.channel,
                 spec.payload,
                 spec.publisher_author_id,
+                comment_attempt,
             )
         )
         and spec.method == "PUT"
         and spec.url == spec.target.origin + _submission_path(spec.target)
-        and spec.form_fields == _form_fields(spec.channel, spec.payload)
+        and spec.form_fields
+        == _form_fields(spec.channel, spec.payload, comment_attempt)
         and spec.encoded_body == urlencode(spec.form_fields).encode("ascii"),
         "SPEC_INTEGRITY_MISMATCH",
     )
@@ -898,7 +993,7 @@ def compare_comment_readback(
     operational_holds = tuple(
         sorted(
             (set(before.holds) | set(after.holds))
-            - {"teacher_final_authority_not_connected"}
+            - {"teacher_final_authority_not_connected", "comment_only_observation"}
         )
     )
     if operational_holds:

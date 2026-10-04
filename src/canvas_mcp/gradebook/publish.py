@@ -2,17 +2,294 @@
 
 from __future__ import annotations
 
+import hashlib
 import html
+import json
 import os
+import re
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
+from canvas_mcp.core.untrusted_content import contains_fence_markers
+
 from .client import GradebookClient, GradebookError
 from .ledger import Ledger
 from .model import compare_edits, digest, grade_value, identifier, submission_cell
 from .store import Store
+from .unit1_canvas_protocol import (
+    CanvasTarget,
+    ExactObservation,
+    FormRequestSpec,
+    OriginalGet,
+    _component,
+    build_form_request_spec,
+    compare_comment_readback,
+    parse_exact_observation,
+)
+
+COMMENT_PLAN = "GRADEBOOK_COMMENT_PUSH_V1"
+
+
+def comment_envelope(value: dict[str, Any], origin: str, course_id: str) -> None:
+    """An exact private proposal, never evidence of teacher acceptance."""
+    fields = {
+        "schema_version",
+        "origin",
+        "course_id",
+        "user_id",
+        "assignment_id",
+        "source_sha256",
+        "source_revision",
+        "decision_sha256",
+        "attempt",
+        "submitted_at",
+        "category",
+        "comment",
+    }
+    if (
+        set(value) != fields
+        or type(value["schema_version"]) is not int
+        or value["schema_version"] != 1
+    ):
+        raise GradebookError("Invalid exact comment proposal schema.")
+    if (value["origin"], value["course_id"]) != (origin, course_id):
+        raise GradebookError(
+            "Comment proposal belongs to a different course or origin."
+        )
+    for name in ("course_id", "user_id", "assignment_id"):
+        if type(value[name]) is not str or identifier(value[name]) != value[name]:
+            raise GradebookError("Comment target identities must be exact text IDs.")
+    for name in ("source_sha256", "decision_sha256"):
+        if (
+            type(value[name]) is not str
+            or re.fullmatch(r"[a-f0-9]{64}", value[name]) is None
+        ):
+            raise GradebookError(
+                "An exact retained source and decision reference is required."
+            )
+    if (
+        type(value["source_revision"]) is not str
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", value["source_revision"])
+        is None
+    ):
+        raise GradebookError("An exact retained source revision is required.")
+    if type(value["category"]) is not str or value["category"] not in {
+        "CONFIRMED_MISSING",
+        "WRONG_ASSIGNMENT",
+        "FORMATIVE_CORRECTION",
+        "UNIT1_FEEDBACK",
+    }:
+        raise GradebookError("Comment category is outside the reviewed scope.")
+    if value["attempt"] is not None and (
+        type(value["attempt"]) is not int or value["attempt"] < 0
+    ):
+        raise GradebookError("Invalid observed Canvas attempt.")
+    body = value["comment"]
+    if (
+        type(body) is not str
+        or not 0 < len(body) <= 6000
+        or body != body.strip()
+        or "\r" in body
+        or contains_fence_markers(body)
+    ):
+        raise GradebookError(
+            "Exact normalized feedback is required; provenance markers are forbidden."
+        )
+
+
+def parse_comment_state(
+    target: CanvasTarget, state: dict[str, Any]
+) -> ExactObservation:
+    """Reuse the original-byte parser; do not rewrite Canvas observations."""
+    a, s = state["assignment"], state["submission"]
+    a_body, s_body = a["body"].encode("utf-8"), s["body"].encode("utf-8")
+    return parse_exact_observation(
+        target,
+        OriginalGet("GET", a["url"], 200, a_body),
+        OriginalGet("GET", s["url"], 200, s_body, s["coverage_complete"]),
+        expected_assignment_body_sha256=hashlib.sha256(a_body).hexdigest(),
+        expected_submission_body_sha256=hashlib.sha256(s_body).hexdigest(),
+        comment_only=True,
+    )
+
+
+async def comment_state(
+    client: GradebookClient, target: CanvasTarget
+) -> dict[str, Any]:
+    root = f"{client.origin}/api/v1/courses/{target.course_id}/assignments/{target.assignment_id}"
+    assignment = await client._get(root)
+    submission = await client._get(
+        root + "/submissions/" + target.user_id,
+        [("include[]", "visibility"), ("include[]", "submission_comments")],
+    )
+    if assignment.links.get("next") or submission.links.get("next"):
+        raise GradebookError(
+            "Exact comment GET was paginated; completeness is unverified."
+        )
+    # Canvas's single-submission serializer includes all readable non-draft
+    # comments for include[]=submission_comments; the parser separately rejects
+    # missing arrays, malformed identities and duplicate IDs. Not global/draft coverage.
+    return {
+        "assignment": {
+            "url": str(assignment.request.url),
+            "body": assignment.content.decode("utf-8"),
+        },
+        "submission": {
+            "url": str(submission.request.url),
+            "body": submission.content.decode("utf-8"),
+            "coverage_complete": True,
+        },
+    }
+
+
+def comment_spec(
+    target: CanvasTarget, state: dict[str, Any], envelope: dict[str, Any], author: str
+) -> tuple[ExactObservation, FormRequestSpec]:
+    observation = parse_comment_state(target, state)
+    holds = set(observation.holds) - {
+        "teacher_final_authority_not_connected",
+        "comment_only_observation",
+    }
+    if holds:
+        raise GradebookError(
+            "Exact comment target is held: " + ", ".join(sorted(holds))
+        )
+    if (
+        observation.submission_field("attempt").value,
+        observation.submission_field("submitted_at").value,
+    ) != (envelope["attempt"], envelope["submitted_at"]):
+        raise GradebookError(
+            "Canvas attempt does not match the retained source proposal."
+        )
+    types = observation.assignment_field("submission_types").value
+    attempt = None
+    if envelope["category"] == "CONFIRMED_MISSING" and (
+        envelope["attempt"] not in (None, 0)
+        or envelope["submitted_at"] is not None
+        or observation.submission_field("workflow_state").value != "unsubmitted"
+        or observation.submission_field("score").value is not None
+    ):
+        raise GradebookError(
+            "Missing-work proposal disagrees with the observed submission."
+        )
+    if types != ("on_paper",):
+        if envelope["category"] != "CONFIRMED_MISSING":
+            if (
+                type(envelope["attempt"]) is not int
+                or envelope["attempt"] < 1
+                or type(envelope["submitted_at"]) is not str
+            ):
+                raise GradebookError(
+                    "An uploaded-work comment needs a source-bound Canvas attempt."
+                )
+            attempt = envelope["attempt"]
+    binding = digest(
+        {
+            "target": asdict(target),
+            "source_sha256": envelope["source_sha256"],
+            "source_revision": envelope["source_revision"],
+            "attempt": envelope["attempt"],
+            "submitted_at": envelope["submitted_at"],
+        }
+    )
+    component = digest(
+        _component(
+            target,
+            envelope["decision_sha256"],
+            binding,
+            "COMMENT",
+            envelope["comment"],
+            author,
+            attempt,
+        )
+    )
+    spec = build_form_request_spec(
+        observation,
+        decision_sha256=envelope["decision_sha256"],
+        target_binding_sha256=binding,
+        channel="COMMENT",
+        payload=envelope["comment"],
+        publisher_author_id=author,
+        expected_retained_observation_sha256=digest(asdict(observation)),
+        expected_component_sha256=component,
+        comment_attempt=attempt,
+    )
+    return observation, spec
+
+
+def comment_review_html(store: Store, plan: dict[str, Any]) -> str:
+    body = plan["envelope"]
+    escaped = html.escape(
+        json.dumps({k: v for k, v in body.items() if k != "comment"}, indent=2)
+    )
+    content = (
+        '<!doctype html><meta charset="utf-8">'
+        "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\">"
+        "<title>Exact Canvas comment review</title><h1>Review one student-visible comment</h1>"
+        "<p>This appends feedback. It sends no grade or status change. Existing Canvas posting policy may make feedback or an existing grade visible. "
+        "Source hashes bind the proposal; they do not establish academic acceptance. Approve this exact target, source, attempt and text separately.</p>"
+        "<pre>"
+        + escaped
+        + "</pre><h2>Exact comment</h2><pre>"
+        + html.escape(body["comment"])
+        + "</pre>"
+    )
+    path = store.root / ("comment-review-" + digest(plan) + ".html")
+    if path.is_symlink():
+        raise GradebookError("Comment review must not be a symlink.")
+    with open(path, "x", opener=lambda p, flags: os.open(p, flags, 0o600)) as stream:
+        stream.write(content)
+    return str(path)
+
+
+async def put_comment_once(
+    client: GradebookClient, spec: FormRequestSpec, before: ExactObservation
+) -> str:
+    """One append through the existing publisher transport; no automatic retry."""
+    try:
+        response = await client.http.put(
+            spec.url,
+            content=spec.encoded_body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+    except httpx.HTTPError as exc:
+        raise WriteUncertain(
+            "Comment transport failed; readback only, no retry."
+        ) from exc
+    if response.status_code in (400, 401, 403, 404, 409, 422, 429):
+        raise WriteRejected(
+            f"Canvas rejected the comment with HTTP {response.status_code}; no retry."
+        )
+    if response.status_code != 200:
+        raise WriteUncertain("Comment outcome is uncertain; readback only.")
+    try:
+        raw = response.json()
+        if (
+            str(raw["assignment_id"]) != spec.target.assignment_id
+            or str(raw["user_id"]) != spec.target.user_id
+        ):
+            raise ValueError
+        old = {c.comment_id for c in before.comments}
+        matches = [
+            c
+            for c in raw["submission_comments"]
+            if str(c.get("id")) not in old
+            and str(c.get("author_id")) == spec.publisher_author_id
+            and c.get("comment") == spec.payload
+        ]
+        if len(matches) != 1:
+            raise ValueError
+        cid = identifier(matches[0]["id"])
+        if str(int(cid)) != cid:
+            raise ValueError
+        return cid
+    except (ValueError, KeyError, TypeError, AttributeError, GradebookError):
+        raise WriteUncertain(
+            "Comment response identity was not verified; readback only."
+        ) from None
 
 
 class WriteUncertain(GradebookError):
@@ -138,7 +415,7 @@ async def put_once(
     )
     url = (
         f"{client.origin}/api/v1/courses/{identifier(course_id)}/assignments/"
-        f'{identifier(change["assignment_id"])}/submissions/{identifier(change["user_id"])}'
+        f"{identifier(change['assignment_id'])}/submissions/{identifier(change['user_id'])}"
     )
     try:
         response = await client.http.put(url, json=payload)
@@ -205,7 +482,8 @@ def matches_proposal(ctx: dict[str, Any], item: dict[str, Any]) -> bool:
         cell["value"] == item["proposed"]
         and cell["excused"] == excusing
         and all(
-            type(cell[field]) is type(expected[field]) and cell[field] == expected[field]
+            type(cell[field]) is type(expected[field])
+            and cell[field] == expected[field]
             for field in unchanged
         )
         and current_grade_matches
@@ -370,6 +648,10 @@ class Publisher:
     ) -> dict[str, Any]:
         operation = self.ledger.operation(operation_id)
         plan = self.store.load("push", operation["plan_id"])
+        if plan.get("kind") == COMMENT_PLAN:
+            raise GradebookError(
+                "Use the separately enabled comment confirmation tool."
+            )
         if (plan["course_id"], plan["origin"]) != (course_id, self.client.origin):
             raise GradebookError(
                 "Push operation belongs to a different course or origin."
@@ -431,6 +713,8 @@ class Publisher:
     async def reconcile(self, course_id: str, operation_id: str) -> dict[str, Any]:
         operation = self.ledger.operation(operation_id)
         plan = self.store.load("push", operation["plan_id"])
+        if plan.get("kind") == COMMENT_PLAN:
+            raise GradebookError("Use comment reconciliation for this operation.")
         if (plan["course_id"], plan["origin"]) != (course_id, self.client.origin):
             raise GradebookError(
                 "Push operation belongs to a different course or origin."
@@ -450,3 +734,230 @@ class Publisher:
                 else:
                     self.ledger.mark(operation_id, item["position"], "uncertain")
             return self.ledger.finish(operation_id)
+
+    async def _comment_scope(self, course_id: str, envelope: dict[str, Any]) -> str:
+        current = await self.client.snapshot(
+            course_id
+        )  # Existing permission/roster boundary.
+        if (
+            (
+                current.get("origin"),
+                current.get("course_id"),
+                current.get("course_workflow_state"),
+            )
+            != (self.client.origin, course_id, "available")
+            or envelope["user_id"] not in {s["id"] for s in current["students"]}
+            or envelope["assignment_id"]
+            not in {a["id"] for a in current["assignments"]}
+        ):
+            raise GradebookError(
+                "Comment target is not active and published in the configured course."
+            )
+        profile = await self.client.get("/users/self/profile")
+        if not isinstance(profile, dict):
+            raise GradebookError("Comment publisher identity is unavailable.")
+        return identifier(profile.get("id"))
+
+    async def prepare_comment(
+        self, course_id: str, filename: str, expected_envelope_sha256: str
+    ) -> dict[str, Any]:
+        """Preview one exact source-bound comment; append nothing, accept no grade."""
+        if not filename.endswith(".json"):
+            raise GradebookError("Use a private JSON comment proposal in the inbox.")
+        envelope = self.store.read_edits(filename)
+        if digest(envelope) != expected_envelope_sha256:
+            raise GradebookError(
+                "Comment source proposal changed; retain the exact owner reference."
+            )
+        comment_envelope(envelope, self.client.origin, course_id)
+        author = await self._comment_scope(course_id, envelope)
+        target = CanvasTarget(
+            self.client.origin,
+            course_id,
+            envelope["assignment_id"],
+            envelope["user_id"],
+        )
+        state = await comment_state(self.client, target)
+        _, spec = comment_spec(target, state, envelope, author)
+        plan = {
+            "kind": COMMENT_PLAN,
+            "schema_version": 1,
+            "origin": self.client.origin,
+            "course_id": course_id,
+            "created_at": datetime.now(UTC).isoformat(),
+            "filename": filename,
+            "envelope_sha256": expected_envelope_sha256,
+            "envelope": envelope,
+            "expected": state,
+            "author": author,
+            "delivery_id": spec.component_sha256,
+        }
+        plan_id, _ = self.store.save("push", plan)
+        display = comment_review_html(self.store, plan)
+        operation_id, token = self.ledger.prepare(
+            plan_id,
+            [target_key(self.client.origin, course_id, envelope)],
+            comment_delivery_ids=[spec.component_sha256],
+        )
+        return {
+            "ready_for_confirmation": True,
+            "operation_id": operation_id,
+            "confirmation_token": token,
+            "expires_in_seconds": 600,
+            "review_file": display,
+            "changes": 1,
+            "canvas_writes": 0,
+            "notice": "Approve this exact student-visible comment separately. A source digest or proposal is not teacher acceptance. Existing Canvas posting policy applies.",
+        }
+
+    def _comment_plan(self, course_id: str, operation_id: str) -> dict[str, Any]:
+        operation = self.ledger.operation(operation_id)
+        plan = self.store.load("push", operation["plan_id"])
+        if plan.get("kind") != COMMENT_PLAN or (plan["course_id"], plan["origin"]) != (
+            course_id,
+            self.client.origin,
+        ):
+            raise GradebookError("Operation is not this course's exact comment plan.")
+        return plan
+
+    async def confirm_comment(
+        self, course_id: str, operation_id: str, token: str
+    ) -> dict[str, Any]:
+        """One explicit confirmation uses the existing durable ledger, no retries."""
+        plan = self._comment_plan(course_id, operation_id)
+        envelope = plan["envelope"]
+        target = CanvasTarget(
+            self.client.origin,
+            course_id,
+            envelope["assignment_id"],
+            envelope["user_id"],
+        )
+        with self.ledger.exclusive(operation_id):
+            self.ledger.claim(operation_id, token)
+            try:
+                if (
+                    digest(self.store.read_edits(plan["filename"]))
+                    != plan["envelope_sha256"]
+                ):
+                    raise GradebookError(
+                        "Source comment proposal changed after preview; nothing sent."
+                    )
+                if await self._comment_scope(course_id, envelope) != plan["author"]:
+                    raise GradebookError(
+                        "Publisher identity changed after preview; nothing sent."
+                    )
+                fresh = await comment_state(self.client, target)
+                before, spec = comment_spec(target, fresh, envelope, plan["author"])
+                if (
+                    fresh != plan["expected"]
+                    or spec.component_sha256 != plan["delivery_id"]
+                ):
+                    raise GradebookError(
+                        "Canvas comment target changed after preview; nothing sent."
+                    )
+                self.ledger.mark(operation_id, 0, "sending")
+                try:
+                    cid = await put_comment_once(self.client, spec, before)
+                except WriteRejected:
+                    self.ledger.mark(operation_id, 0, "rejected")
+                    return self.ledger.finish(operation_id)
+                except WriteUncertain:
+                    self.ledger.mark(operation_id, 0, "uncertain")
+                    return self.ledger.finish(operation_id)
+                self.ledger.save_comment_response(operation_id, 0, cid)
+                after_state = await comment_state(self.client, target)
+                result = compare_comment_readback(
+                    spec,
+                    before,
+                    parse_comment_state(target, after_state),
+                    publisher_author_id=plan["author"],
+                    response_received=True,
+                    response_comment_id=cid,
+                )
+                receipt_id, _ = self.store.save(
+                    "receipt",
+                    {
+                        "kind": "GRADEBOOK_COMMENT_READBACK_V1",
+                        "operation_id": operation_id,
+                        "delivery_id": spec.component_sha256,
+                        "source_envelope_sha256": plan["envelope_sha256"],
+                        "response_comment_id": cid,
+                        "before": plan["expected"],
+                        "after": after_state,
+                        "comparison": asdict(result),
+                        "at": datetime.now(UTC).isoformat(),
+                    },
+                )
+                self.ledger.mark(
+                    operation_id,
+                    0,
+                    "verified" if result.stored_verified else "uncertain",
+                )
+                return {
+                    **self.ledger.finish(operation_id),
+                    "readback_receipt_id": receipt_id,
+                }
+            except BaseException:
+                # Cancellation/crash after sending retains the existing uncertain lock.
+                self.ledger.finish(operation_id)
+                raise
+
+    async def reconcile_comment(
+        self, course_id: str, operation_id: str
+    ) -> dict[str, Any]:
+        """GET only, including after process restart; never append again."""
+        plan = self._comment_plan(course_id, operation_id)
+        with self.ledger.exclusive(operation_id):
+            operation = self.ledger.operation(operation_id)
+            if operation["status"] == "prepared" or operation["items"][0][
+                "status"
+            ] not in ("sending", "uncertain"):
+                return self.ledger.summary(operation_id)
+            envelope = plan["envelope"]
+            if await self._comment_scope(course_id, envelope) != plan["author"]:
+                raise GradebookError(
+                    "Publisher identity changed; comment reconciliation remains held."
+                )
+            target = CanvasTarget(
+                self.client.origin,
+                course_id,
+                envelope["assignment_id"],
+                envelope["user_id"],
+            )
+            before, spec = comment_spec(
+                target, plan["expected"], envelope, plan["author"]
+            )
+            after_state = await comment_state(self.client, target)
+            cid = operation["items"][0]["response_comment_id"]
+            result = compare_comment_readback(
+                spec,
+                before,
+                parse_comment_state(target, after_state),
+                publisher_author_id=plan["author"],
+                response_received=cid is not None,
+                response_comment_id=cid,
+            )
+            receipt_id, _ = self.store.save(
+                "receipt",
+                {
+                    "kind": "GRADEBOOK_COMMENT_RECONCILIATION_V1",
+                    "operation_id": operation_id,
+                    "delivery_id": spec.component_sha256,
+                    "response_comment_id": cid,
+                    "after": after_state,
+                    "comparison": asdict(result),
+                    "at": datetime.now(UTC).isoformat(),
+                },
+            )
+            state = (
+                "verified"
+                if result.stored_verified
+                else "observed_applied"
+                if result.outcome == "OBSERVED_APPLIED"
+                else "uncertain"
+            )
+            self.ledger.mark(operation_id, 0, state)
+            return {
+                **self.ledger.finish(operation_id),
+                "readback_receipt_id": receipt_id,
+            }

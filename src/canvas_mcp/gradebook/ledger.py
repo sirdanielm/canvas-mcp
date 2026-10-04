@@ -46,6 +46,13 @@ class Ledger:
                 CREATE TABLE IF NOT EXISTS target_locks (
                     target TEXT PRIMARY KEY, operation_id TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS comment_items (
+                    operation_id TEXT NOT NULL, position INTEGER NOT NULL,
+                    delivery_id TEXT NOT NULL, response_comment_id TEXT,
+                    PRIMARY KEY(operation_id, position)
+                );
+                CREATE INDEX IF NOT EXISTS comment_delivery_lookup
+                    ON comment_items(delivery_id);
             """)
 
     @contextmanager
@@ -79,9 +86,24 @@ class Ledger:
         finally:
             db.close()
 
-    def prepare(self, plan_id: str, targets: list[str]) -> tuple[str, str]:
+    def prepare(
+        self,
+        plan_id: str,
+        targets: list[str],
+        *,
+        comment_delivery_ids: list[str] | None = None,
+    ) -> tuple[str, str]:
         if not targets or len(targets) > 25 or len(set(targets)) != len(targets):
             raise GradebookError("Push requires 1–25 distinct reviewed targets.")
+        if comment_delivery_ids is not None and (
+            len(comment_delivery_ids) != len(targets)
+            or len(set(comment_delivery_ids)) != len(targets)
+            or any(
+                type(v) is not str or re.fullmatch(r"[a-f0-9]{64}", v) is None
+                for v in comment_delivery_ids
+            )
+        ):
+            raise GradebookError("Invalid reviewed comment delivery identities.")
         operation_id = secrets.token_hex(16)
         token = secrets.token_urlsafe(32)
         now = time.time()
@@ -104,6 +126,11 @@ class Ledger:
                     for i, target in enumerate(targets)
                 ],
             )
+            if comment_delivery_ids is not None:
+                db.executemany(
+                    "INSERT INTO comment_items VALUES(?,?,?,NULL)",
+                    [(operation_id, i, v) for i, v in enumerate(comment_delivery_ids)],
+                )
         return operation_id, token
 
     def operation(self, operation_id: str) -> dict[str, Any]:
@@ -119,7 +146,19 @@ class Ledger:
                 "SELECT position,target,status FROM items WHERE operation_id=? ORDER BY position",
                 (operation_id,),
             ).fetchall()
-        return {**dict(row), "items": [dict(item) for item in items]}
+            comments = {
+                item["position"]: dict(item)
+                for item in db.execute(
+                    "SELECT position,delivery_id,response_comment_id FROM comment_items WHERE operation_id=?",
+                    (operation_id,),
+                )
+            }
+        return {
+            **dict(row),
+            "items": [
+                {**dict(item), **comments.get(item["position"], {})} for item in items
+            ],
+        }
 
     def claim(self, operation_id: str, token: str) -> str:
         # BEGIN IMMEDIATE serializes token consumption across server processes.
@@ -140,6 +179,17 @@ class Ledger:
                 raise GradebookError(
                     "Push confirmation expired; prepare a fresh review."
                 )
+            if db.execute(
+                """SELECT 1 FROM comment_items pending
+                JOIN comment_items prior ON prior.delivery_id=pending.delivery_id
+                JOIN items sent ON sent.operation_id=prior.operation_id AND sent.position=prior.position
+                WHERE pending.operation_id=?
+                AND sent.status IN ('sending','uncertain','verified','observed_applied')""",
+                (operation_id,),
+            ).fetchone():
+                raise GradebookError(
+                    "This exact comment was sent or may have been sent; readback only."
+                )
             targets = db.execute(
                 "SELECT target FROM items WHERE operation_id=?", (operation_id,)
             ).fetchall()
@@ -157,6 +207,33 @@ class Ledger:
                 "UPDATE operations SET status='running' WHERE id=?", (operation_id,)
             )
         return str(row["plan_id"])
+
+    def save_comment_response(
+        self, operation_id: str, position: int, comment_id: str
+    ) -> None:
+        """Retain the response-linked ID before GET readback; never replace it."""
+        if (
+            type(comment_id) is not str
+            or re.fullmatch(r"[1-9][0-9]*", comment_id) is None
+        ):
+            raise GradebookError("Invalid response comment identity.")
+        with self.connect() as db:
+            row = db.execute(
+                """SELECT c.response_comment_id,i.status FROM comment_items c
+                JOIN items i ON i.operation_id=c.operation_id AND i.position=c.position
+                WHERE c.operation_id=? AND c.position=?""",
+                (operation_id, position),
+            ).fetchone()
+            if (
+                row is None
+                or row["status"] != "sending"
+                or row["response_comment_id"] is not None
+            ):
+                raise GradebookError("Comment response checkpoint is unavailable.")
+            db.execute(
+                "UPDATE comment_items SET response_comment_id=? WHERE operation_id=? AND position=?",
+                (comment_id, operation_id, position),
+            )
 
     def mark(self, operation_id: str, position: int, status: str) -> None:
         allowed = {
