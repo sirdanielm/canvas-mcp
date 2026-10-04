@@ -80,3 +80,35 @@ reports belong outside that upload tree and outside GitHub.
 ## Continuing development
 
 The [Canvas capture port](grass-capture-contract.md) and LocalGrAss durable receipt intake, authenticated local teacher drafts, and authoritative fake-only release bridge now have controlled integration tests. Real academic-policy/source adapters, evidence review and Canvas score/comment publication remain held. Start subsequent work from current maintained main with bounded validation and owner review. Git synchronization does not restart MCP services or clear classroom gates.
+
+## October 4 reviewed source closeout
+
+The reviewed gradebook diagnostics source adds bounded private redacted JSONL,
+read-only exact-request inspection and startup/runtime identity reporting.
+The source includes the nonblocking no-follow descriptor repair, regular-file
+checks, immutable SQLite reads, active-sidecar/change holds and exact bounded
+request inventory. Refresh/publish authorization, retry behavior and uncertain
+request handling retain their existing boundaries. See
+[worker diagnostics](sdm-gradebook-worker.md).
+
+The separately frozen seven-file [course repository export](course-mirror.md)
+change adds private archival course layout and referenced asset verification.
+Only its code, fictional tests and public documentation are included. Private
+exports, teaching content, credentials and per-course receipts remain outside
+Git. An archival copy is not a publisher or a live-source replacement.
+
+The integration starts from maintained main
+`4783049127ac7c76ef979b8ad1b2e052f9991591` and includes exact reviewed
+diagnostics head `7f4f41be8eb145450dc4e8decf14efe0e454bb08` plus the frozen
+course code. The combined Python suite passed **2,643 tests, 21 skipped**.
+Hosted candidate and post-merge checks are verified separately in the closeout
+receipt and [Actions](https://github.com/sirdanielm/canvas-mcp/actions).
+
+The primary checkout's edit and the operational authoring checkout's six-file
+installed diagnostics overlay remain preserved in place. This source closeout
+does not install, synchronize a dirty operational checkout, restart a service,
+refresh a workbook, publish a package, deploy a site or write to Canvas.
+The observed baseline's unrelated Claude maintenance workflow failed because
+its GitHub App was not installed; applicable code/security checks succeeded.
+No workflow, permission, protection or scheduler setting is changed to address
+that installation gap.

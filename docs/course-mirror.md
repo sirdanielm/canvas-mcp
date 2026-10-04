@@ -7,9 +7,12 @@ separate capabilities; using this CLI does not enable or call their writers.
 
 ## Scope and authority
 
-The fixed allowlist contains Chemistry, Advanced Chemistry, and Advisory at the
-configured FCPS Canvas origin. Each course must return `workflow_state=available`
-before its content is captured. Unpublished assignments inside those published
+The active capture allowlist contains current Chemistry and Advanced Chemistry,
+plus the specifically authorized Chemistry FALL24 and Chemistry SPR25 source
+courses, at the configured FCPS Canvas origin. Current courses must return
+`workflow_state=available`; only the two exact historical IDs may also be
+unpublished or completed. Advisory is excluded from fresh captures; its old
+snapshots remain verifiable for historical evidence. Unpublished assignments inside those published
 courses are retained as context and labeled by their actual publication state.
 The unrelated public-webpage course is outside scope.
 
@@ -56,14 +59,15 @@ Use `--output` with `diff`, `audit`, or `verify` to retain a report, and choose 
 filename each time. `links` requires `--output`; it saves the full private link map
 there and prints only summary counts.
 
-`get --courses core advanced` narrows a run. Default is all three approved courses.
+`get` defaults to `core advanced`. Historical captures require explicit
+`--courses historical_311463 historical_311462`; Advisory is not a capture choice.
 `get` and `status` accept `--root` to select a different local snapshot directory;
 their default is `local_gradebooks/course_mirror/` under the repository root.
 The Keychain connection is the same one used by the installed Canvas launcher;
 the Canvas API token never enters command arguments, snapshot JSON, or reports.
 Raw Canvas responses can contain signed resource URLs, so keep snapshots and link
-maps private. Only `get` reads credentials or reaches Canvas. All other commands
-work offline.
+maps private. Only `get` and `files-get` read the existing Keychain credential or reach Canvas.
+All other commands work offline.
 
 Every GET run creates a new timestamped directory. It saves each completed endpoint
 and updates a durable manifest; a failed or interrupted run remains `INCOMPLETE`.
@@ -88,7 +92,7 @@ assignment descriptions and section-date summaries, assignment groups, modules a
 all their items, pages and page bodies, rubrics and details, file metadata, Classic
 Quizzes/questions, and announcements. Exact scope and exclusions are in each manifest.
 
-This first CLI does not refresh Google exports, file bytes, New Quizzes/item banks,
+The base content snapshot does not refresh Google exports, file bytes, New Quizzes/item banks,
 submission/grade data, exact override endpoint records, or histories. Existing Google
 exports stay in the earlier private archive. `resources-check` verifies their hashes
 and sizes; it is not a Google freshness or permission check. Use the Drive connector
@@ -175,3 +179,66 @@ unexpected endpoints, duplicates, incomplete capture retention, module-count rac
 unpublished course rejection, tampering, meaningful deltas, proposal conflicts, and
 resource path escape. A live GET plus saved-file verification proves connectivity and
 capture integrity; it does not prove grading quality or student permissions.
+
+## Private editable workspace (offline candidate)
+
+A verified current-format snapshot can be materialized into a separate private
+workspace. This retains the original manifest and endpoint JSON byte for byte in
+`source/`. Every captured object has an editable `working/.../object.json`, with
+HTML derivatives for assignment descriptions, syllabus, page bodies and
+announcements. The index binds each derivative to its origin, course ID, endpoint,
+object identity and baseline object hash. It never initializes Git; a deny-all
+`.gitignore` helps keep private data out of commits.
+
+```bash
+.venv/bin/python scripts/course_mirror.py repo-create SNAPSHOT PRIVATE_DESTINATION
+.venv/bin/python scripts/course_mirror.py repo-diff PRIVATE_DESTINATION --output PRIVATE_DRAFT_DIFF.json
+```
+
+This is `PARTIAL_CONTENT_ONLY`, because materializing cannot fill missing export
+surfaces or refresh remote content. It does not download file bytes or linked
+resources. The whole captured object remains available as JSON so unsupported
+fields are preserved; editing a field outside the editorial draft allowlist
+produces a review hold. IDs cannot be changed. Missing and extra files are holds,
+never implicit deletions or creations. If HTML and JSON representations change
+in different ways, the diff reports a conflict instead of choosing one.
+
+`repo-diff` saves the exact before/proposed objects privately and prints aggregate
+counts only. It emits `DRAFT_NOT_AUTHORIZED` even for a clean comparison. No apply,
+push, export-job creation or Canvas writer is added. Any future reviewed publisher
+must fetch fresh exact targets, verify the baseline, check approved protected
+fields, apply only the specifically approved changes and verify readback. Source
+captures observe an interval and cannot establish an atomic or lossless server
+backup. Do not execute untrusted captured HTML in an unrestricted browser.
+
+## Canvas file bytes (candidate)
+
+`files-get SNAPSHOT PRIVATE_DESTINATION` retrieves exactly the Canvas file
+inventory in that verified snapshot. It does not follow curriculum hyperlinks or
+launch LTI. IDs determine local paths; uploader-controlled names remain in private
+metadata. Raw bytes are retained as `content.bin` alongside their original file
+metadata and MIME type. Each file has size, SHA-256, capture time and response ETag
+when provided.
+
+The FCPS download path is fixed to the selected file ID. HTTPS storage redirects
+are admitted only through the exact observed FCPS account/cluster hostname bound
+to that file ID, then the exact observed storage gateway, then its exact CDN
+host. The gateway cannot skip the file-bound host, and the CDN cannot skip the
+gateway. Every external request omits the Canvas bearer header; no S3/CDN domain
+wildcard is admitted. The collector stops on access errors, unexpected hosts, more than six
+GET hops, or a size mismatch. Each file is bounded to 100 MiB and each batch to
+250 MiB; a larger batch requires a reviewed plan. Incomplete attempts retain a
+durable receipt and cannot pass verification.
+
+`assets-verify PRIVATE_DESTINATION SNAPSHOT` is offline and requires the separately
+pinned, verified source snapshot. It compares the complete identity set, metadata
+hashes, course scope, paths, sizes and captured byte hashes. A self-consistent
+receipt cannot hide a missing or substituted inventory object. This is transport
+and local integrity evidence, not proof of server-side atomicity or external-link
+completeness. A top-level completeness receipt must bind the content snapshot,
+file-assets manifest and editable derivative, and retain remaining gaps.
+
+The historical sources remain separate from current curriculum authority. Review
+slides and study guides may be reused through an explicit teacher choice; the
+current year's rewritten learning intentions are authoritative. Neither a clean
+diff nor a complete file inventory substitutes for that choice.

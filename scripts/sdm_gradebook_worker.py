@@ -23,6 +23,13 @@ COURSES = {"core": "363308", "advanced": "374070"}
 ORIGIN = "https://fcps.instructure.com"
 
 from canvas_mcp.gradebook.client import GradebookClient, GradebookError  # noqa: E402
+from canvas_mcp.gradebook.diagnostics import (  # noqa: E402
+    REASONS,
+    Diagnostics,
+    failure_code,
+    inspect_journal,
+    runtime_pin,
+)
 from canvas_mcp.gradebook.google import GoogleSheets  # noqa: E402
 from canvas_mcp.gradebook.google_authorize import (  # noqa: E402
     authorize,
@@ -197,6 +204,7 @@ def local_status(
             operation
             and operation["status"] in {"HELD", "UNCERTAIN"}
             and isinstance(operation.get("payload", {}).get("failure_reason"), str)
+            and operation["payload"]["failure_reason"] in REASONS
         ):
             result["failure_reason"] = operation["payload"]["failure_reason"]
         return result
@@ -233,11 +241,19 @@ def _request_id(value: str) -> None:
 
 async def run_loop(worker: Any, poll_seconds: int) -> None:
     failures, previous = 0, None
+    diagnostics = getattr(worker, "diagnostics", Diagnostics())
     while True:
         try:
-            result = await worker.step()
+            with diagnostics.stage("poll"):
+                result = await worker.step()
             if result.get("state") == "IDLE":
                 await worker.heartbeat()
+            diagnostics.emit(
+                "loop",
+                state=result.get("state"),
+                request_id=result.get("request_id"),
+                dropped=diagnostics.dropped,
+            )
             message = json.dumps(result, sort_keys=True)
             if message != previous:
                 print(message, flush=True)
@@ -245,13 +261,21 @@ async def run_loop(worker: Any, poll_seconds: int) -> None:
             failures = 0
             delay = poll_seconds
         except GradebookError as exc:
+            diagnostics.emit("loop", state="HELD", failure_code=failure_code(exc))
             print(
-                json.dumps({"state": "HELD", "error": str(exc), "canvas_writes": 0}),
+                json.dumps(
+                    {
+                        "state": "HELD",
+                        "failure_code": failure_code(exc),
+                        "canvas_writes": 0,
+                    }
+                ),
                 flush=True,
             )
             delay = min(300, poll_seconds * 2 ** min(failures, 4))
             failures += 1
         except Exception:
+            diagnostics.emit("loop", state="HELD", failure_code="unknown")
             print(
                 json.dumps(
                     {
@@ -314,6 +338,12 @@ async def execute(args: argparse.Namespace) -> dict[str, Any]:
             config["profile"],
         )
     bound = bindings()
+    if args.command == "diagnostics":
+        if args.request_id:
+            _request_id(args.request_id)
+        return inspect_journal(
+            Path(config["state_dir"]), bound["core"]["spreadsheet_id"], args.request_id
+        )
     if args.command == "status":
         return local_status(config, bound, args.request_id)
     if args.command in {"reconcile", "release-held"}:
@@ -321,17 +351,29 @@ async def execute(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "release-held" and not args.confirm:
         raise GradebookError("Releasing a held queue request requires --confirm.")
     google = google_client(config, bound)
+    diagnostics = (
+        Diagnostics(Path(config["state_dir"]) / "refresh-worker/diagnostics.jsonl")
+        if args.command in {"once", "run"}
+        else Diagnostics()
+    )
+    google.diagnostics = diagnostics
+    if diagnostics.path is not None:
+        diagnostics.emit("startup", **runtime_pin(ROOT))
     canvas = None
     try:
         store = Store(Path(config["state_dir"]))
         if args.command in {"doctor", "launch-agent", "once", "run"}:
-            ready = await doctor(google, store, bound)
+            with diagnostics.stage("startup"):
+                ready = await doctor(google, store, bound)
             if args.command == "doctor":
                 return ready
             if args.command == "launch-agent":
                 return launch_agent(args.output.expanduser().absolute(), path, config)
         canvas = canvas_client() if args.command in {"once", "run"} else None
+        if canvas is not None:
+            canvas.diagnostics = diagnostics
         worker = RefreshWorker(google, canvas, store, bound, config["instance_id"])
+        worker.diagnostics = diagnostics
         if args.command == "once":
             result = await worker.step()
             if result.get("state") == "IDLE":
@@ -373,6 +415,11 @@ def parser() -> argparse.ArgumentParser:
     )
     status = commands.add_parser("status", help="Read aggregate local journal state")
     status.add_argument("--request-id")
+    diagnostic = commands.add_parser(
+        "diagnostics",
+        help="Read local journal/telemetry only; no network, credentials, state or permission writes",
+    )
+    diagnostic.add_argument("--request-id")
     reconcile = commands.add_parser(
         "reconcile",
         help="Read back an existing uncertain operation; never resend grade data",
@@ -400,7 +447,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except GradebookError as exc:
         print(
-            json.dumps({"state": "HELD", "error": str(exc), "canvas_writes": 0}),
+            json.dumps(
+                {"state": "HELD", "failure_code": failure_code(exc), "canvas_writes": 0}
+            ),
             file=sys.stderr,
         )
         return 1

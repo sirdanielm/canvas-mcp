@@ -22,7 +22,16 @@ from urllib.parse import parse_qs, urljoin, urlsplit
 import httpx
 
 ORIGIN = "https://fcps.instructure.com"
-COURSES = {"core": "363308", "advanced": "374070", "advisory": "375577"}
+COURSES = {
+    "core": "363308",
+    "advanced": "374070",
+    "advisory": "375577",  # Retained for verification of earlier snapshots.
+    "historical_311463": "311463",
+    "historical_311462": "311462",
+}
+DEFAULT_CAPTURE_SCOPE = ["core", "advanced"]
+HISTORICAL_COURSES = {"historical_311463", "historical_311462"}
+CAPTURE_COURSES = {key: value for key, value in COURSES.items() if key != "advisory"}
 SCHEMA = 1
 # Object lists are fetched in full: Canvas does not offer a universal content
 # delta feed. Deltas below are deterministic local comparisons of complete reads.
@@ -62,6 +71,13 @@ VOLATILE = {
 
 class MirrorError(Exception):
     """Safe error code: never carries Canvas payloads, URLs, or credentials."""
+
+
+def course_state_allowed(label: str, state: Any) -> bool:
+    """The specifically authorized historical sources may be unpublished/concluded."""
+    return state == "available" or (
+        label in HISTORICAL_COURSES and state in {"unpublished", "completed"}
+    )
 
 
 def now() -> str:
@@ -136,7 +152,7 @@ class GetClient:
     async def read(
         self, label: str, suffix: str, many: bool, params: Any = None
     ) -> Any:
-        if label not in COURSES or not (
+        if label not in CAPTURE_COURSES or not (
             suffix in FIXED_SUFFIXES or DYNAMIC_SUFFIX.fullmatch(suffix)
         ):
             raise MirrorError("ENDPOINT_NOT_ALLOWED")
@@ -202,7 +218,7 @@ async def capture(root: Path, client: GetClient, labels: list[str]) -> Path:
     if (
         not labels
         or len(set(labels)) != len(labels)
-        or any(x not in COURSES for x in labels)
+        or any(x not in CAPTURE_COURSES for x in labels)
     ):
         raise MirrorError("INVALID_COURSE_SCOPE")
     snapshot_id = (
@@ -220,7 +236,7 @@ async def capture(root: Path, client: GetClient, labels: list[str]) -> Path:
         "status": "INCOMPLETE",
         "canvas_writes": 0,
         "entries": [],
-        "scope": "Content of selected published courses; drafts retained as context",
+        "scope": "Authorized current/historical course content; actual publication states retained",
         "exclusions": [
             "student rosters",
             "grades",
@@ -267,11 +283,15 @@ async def capture(root: Path, client: GetClient, labels: list[str]) -> Path:
         checkpoint()
         for label in labels:
             course = await collect(
-                label, "course", "", False, {"include[]": "syllabus_body"}
+                label,
+                "course",
+                "",
+                False,
+                [("include[]", "syllabus_body"), ("include[]", "term")],
             )
             if str(course.get("id")) != COURSES[label]:
                 raise MirrorError("COURSE_IDENTITY_MISMATCH")
-            if course.get("workflow_state") != "available":
+            if not course_state_allowed(label, course.get("workflow_state")):
                 raise MirrorError("COURSE_NOT_PUBLISHED")
             objects = {}
             for key, suffix, many in SPECS:
@@ -394,7 +414,9 @@ def verify(snapshot: Path) -> dict[str, Any]:
                     or str(value.get("id")) != COURSES[label]
                 ):
                     raise MirrorError("COURSE_IDENTITY_MISMATCH")
-                if not legacy and value.get("workflow_state") != "available":
+                if not legacy and not course_state_allowed(
+                    label, value.get("workflow_state")
+                ):
                     raise MirrorError("COURSE_NOT_PUBLISHED")
         except (OSError, ValueError, MirrorError, AttributeError) as exc:
             errors.append(

@@ -73,6 +73,21 @@ async def test_status_is_local_and_does_not_open_google(configured, monkeypatch)
     assert result["state"] == "NO_LOCAL_HOLDS"
 
 
+async def test_diagnostics_does_not_open_clients_or_initialize_state(
+    configured, monkeypatch
+):
+    def forbidden(*_):
+        pytest.fail("diagnostics must only read existing local files")
+
+    for name in ("google_client", "canvas_client", "Store", "RefreshJournal"):
+        monkeypatch.setattr(cli, name, forbidden)
+    state = Path(cli.load_config(configured)["state_dir"])
+    assert not state.exists()
+    result = await cli.execute(args(configured, "diagnostics"))
+    assert result["unresolved"] == 0 and result["ready"] is False
+    assert not state.exists()
+
+
 @pytest.mark.parametrize(
     "phases,expected",
     [

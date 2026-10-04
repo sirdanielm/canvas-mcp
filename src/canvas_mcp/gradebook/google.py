@@ -23,6 +23,7 @@ from typing import Any, TypeGuard
 import httpx
 
 from .client import GradebookError
+from .diagnostics import Diagnostics, failure_code, http_class
 from .workbook import column_name
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -160,6 +161,7 @@ class GoogleSheets:
         ):
             raise GradebookError("Google sheet limits are invalid.")
         self.workbook_id = workbook_id
+        self.diagnostics = Diagnostics()
         self.url = f"https://sheets.googleapis.com/v4/spreadsheets/{workbook_id}"
         self._credential = _credential(Path(credential_path), profile)
         self.max_grade_rows = max_grade_rows
@@ -225,13 +227,28 @@ class GoogleSheets:
         if (method, url) not in allowed:
             raise GradebookError("Google request target is not allowed.")
         limit = byte_limit if byte_limit is not None else self.max_response_bytes
+        operation = (
+            "oauth_refresh"
+            if url == TOKEN_URL
+            else (
+                "oauth_inspect"
+                if url == TOKEN_INFO_URL
+                else (
+                    "sheets_batch"
+                    if method == "POST"
+                    else "workbook_read" if read_budget is not None else "metadata_read"
+                )
+            )
+        )
         for attempt in range(3 if retry else 1):
+            started, status, code = time.monotonic(), None, "none"
             try:
                 if method == "GET" and url == self.url:
                     await self._pace_read()
                 async with self.http.stream(
                     method, url, headers=headers, params=params, data=data, json=payload
                 ) as response:
+                    status = response.status_code
                     length = response.headers.get("content-length")
                     if length and (not length.isdecimal() or int(length) > limit):
                         raise GradebookError("Google response exceeded its size limit.")
@@ -269,13 +286,27 @@ class GoogleSheets:
                             "Google returned an unexpected response shape."
                         )
                     return status, result
-            except httpx.HTTPError:
+            except httpx.HTTPError as exc:
+                code = failure_code(exc)
                 if retry and attempt < 2:
                     await asyncio.sleep(2**attempt)
                     continue
                 raise GradebookError(
                     "Google transport failed; no automatic write retry."
                 ) from None
+            except GradebookError as exc:
+                code = failure_code(exc)
+                raise
+            finally:
+                self.diagnostics.emit(
+                    "http",
+                    component="google",
+                    operation=operation,
+                    attempt=attempt + 1,
+                    http_class=http_class(status),
+                    failure_code=code,
+                    duration_ms=(time.monotonic() - started) * 1000,
+                )
         raise GradebookError("Google read retry limit was reached.")
 
     @staticmethod

@@ -226,6 +226,34 @@ async def test_changed_native_input_holds_before_grade_write(setup):
     assert worker.journal.get(req["id"])["status"] == "HELD"
 
 
+async def test_changed_input_records_safe_reason_and_stage_without_send(setup):
+    worker, google, req, _ = setup
+    google.changed_preflight = True
+    with pytest.raises(GradebookError):
+        await worker.step()
+    payload = worker.journal.get(req["id"])["payload"]
+    assert (
+        payload["failure_reason"] == "Workbook changed while preparing; refresh held."
+    )
+    assert payload["failure_code"] == "workbook_changed"
+    assert payload["failure_stage"] == "fresh_workbook"
+    assert google.grade_calls == 0
+
+
+async def test_expired_request_reason_is_retained_without_canvas_or_grade_send(setup):
+    worker, google, req, _ = setup
+    req["created_at"] = (datetime.now(UTC) - timedelta(minutes=11)).isoformat()
+    google.raw["developerMetadata"][0]["metadataValue"] = json.dumps(req)
+    assert (await worker.step())["state"] == "HELD"
+    payload = worker.journal.get(req["id"])["payload"]
+    assert payload["failure_code"] == "request_expired"
+    assert (
+        payload["failure_reason"]
+        == "Refresh request expired; no grade data was replaced."
+    )
+    assert google.reads == 0 and google.grade_calls == 0
+
+
 @pytest.mark.asyncio
 async def test_lost_response_after_commit_reconciles_without_resend(setup):
     worker, google, _, _ = setup

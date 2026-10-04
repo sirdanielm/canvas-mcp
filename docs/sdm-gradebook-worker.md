@@ -119,6 +119,57 @@ unverified possible write, and `HELD` for a recorded hold. Its `worker_running`
 field remains `unverified`; journal progress alone does not prove liveness.
 Check the menu's current heartbeat and queue state as well.
 
+### Local diagnostics without network or state changes
+
+The `diagnostics` command reads existing SQLite evidence in read-only mode and
+a bounded tail of private worker telemetry. It never constructs the store or
+journal writer, contacts Google/Canvas, reads credentials, changes permissions,
+creates directories, or runs launchctl:
+
+```sh
+.venv/bin/python scripts/sdm_gradebook_worker.py diagnostics
+.venv/bin/python scripts/sdm_gradebook_worker.py diagnostics --request-id REQUEST_UUID
+```
+
+SQLite opens with `mode=ro&immutable=1`, so even a closed WAL-mode database cannot
+create WAL/SHM sidecars. Existing WAL/rollback sidecars or a main database that
+changes during the read produce a hold for a consistent snapshot; diagnostics
+never treats an active WAL's main file as current. Request UUID/unresolved-state
+filters run in SQL before the bounded inventory limit. More than 1,000 matching
+operations is reported as a bound failure, without claiming a complete inventory.
+Log descriptors open nonblocking and are verified as regular files before read
+or append; FIFO/device logs are ignored or counted as dropped telemetry.
+
+It lists unresolved request UUIDs, request/update ages, recognized failure reasons,
+failure codes and stages. Unknown legacy exception text is suppressed. A recent
+local poll establishes recent recorded activity only; `worker_running` remains
+`unverified`, and this local command cannot attest remote READY. A live HELD
+worker remains blocked. The existing remote heartbeat is still published only
+on IDLE; HELD therefore has no continuing remote READY heartbeat.
+
+On explicitly started `run`/`once`, the worker adds owner-only
+`refresh-worker/diagnostics.jsonl`. Its fixed allowlist admits timestamps,
+request correlation UUIDs, stage names, duration, HTTP outcome classes and
+attempt numbers. Startup pins include the source revision, a digest of the
+worker/gradebook source files, Python version and interpreter digest; no paths
+are emitted. A source digest records files at startup and is not proof of an
+older running process's loaded code. Diagnostics reports a startup pin only
+when retained in its bounded log tail. Source/runtime changes still require
+reviewed maintenance and restart.
+
+Telemetry contains no tokens, URLs, headers, request/response bodies, student
+IDs, scores, feedback, cell addresses, sheet titles or raw exception text.
+Future fingerprint holds retain only changed-field categories, such as
+`cell_value`, `cell_format`, `cell_note`, `protections` or `sheet_properties`.
+These categories do not identify a changed cell or explain who changed it.
+Expired-request holds now retain their recognized reason. Logging failures and
+the 5 MB log cap drop telemetry without permitting a retry or changing the
+refresh outcome; the loop reports the accumulated drop count where possible.
+
+The transport retry counts, state transitions and single Sheets grade-data
+batch remain unchanged. This patch does not install, restart, refresh, release
+a request or publish grades. Read diagnostics before proposing recovery.
+
 Before a routine stop, coordinate with other workbook editors: no new refresh
 clicks, no queued request, and local status must report `NO_LOCAL_HOLDS` with zero
 unresolved operations. Let active work finish; resolve any hold or uncertainty
@@ -268,6 +319,11 @@ workbook against the saved operation. If the marker is missing or the readback
 differs, the hold remains; absence does not authorize replay. Do not delete a
 journal, edit its status, replace a request UUID, or clear remote metadata to get
 past an uncertain write.
+
+`reconcile` accepts SENDING, VERIFYING, UNCERTAIN and VERIFIED; it refuses HELD.
+A pre-send HELD request requires investigation and an explicitly authorized
+`release-held` decision. Do not follow reconciliation guidance as permission
+to clear a hold, queue a replacement or resend a batch.
 
 Only after reviewing a **pre-SENDING** hold can the operator retire its queue
 records and request a fresh plan:
