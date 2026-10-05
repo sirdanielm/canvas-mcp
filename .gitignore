@@ -120,6 +120,8 @@ internal/*
 !internal/research-appservice-mcp-entra.md
 !internal/dev-reference.md
 !internal/project-history.md
+# Reviewed repository operator reference outside the website upload root; tracked, not private.
+!internal/SDM-OPERATING-CONTRACT-20261004.md
 # Daily triage briefs stay tracked: the routine reads the newest prior brief to
 # compute its cutoff, so untracking them breaks continuity. They must not name
 # external collaborators' institutional affiliations or evaluation status.
