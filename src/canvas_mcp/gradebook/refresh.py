@@ -72,6 +72,8 @@ def merge_refresh(
     Rebasing a pending cell onto fresh Canvas would erase evidence of a
     conflict. The new working baseline therefore has explicit provenance and
     retains the old cell for pending edits; all untouched cells use fresh data.
+    A missing original cell may retain an EX draft for review, while its absence
+    remains evidence in the baseline and only the edit display gets the draft.
     """
     review = compare_edits(baseline, current, edits)
     changes = review["changes"]
@@ -86,17 +88,35 @@ def merge_refresh(
             a["id"]: (a["points_possible"], a["grading_type"])
             for a in current["assignments"]
         }
-        if old_ids != new_ids or old_schema != new_schema:
+        # New published assignments may be appended without rebasing any old
+        # proposal. Removing an old target or changing its grading identity
+        # still requires explicit review before a refresh can replace the grid.
+        old_grading_unchanged = old_schema.keys() <= new_schema.keys() and all(
+            new_schema[aid] == grading for aid, grading in old_schema.items()
+        )
+        if old_ids != new_ids or not old_grading_unchanged:
             raise GradebookError(
                 "Roster or assignment schema changed while edits are pending. "
                 "Review or archive those edits before refreshing; nothing was replaced."
             )
-        if any(
-            "submission_not_verified" in c["reasons"]
-            or "target_not_in_both_snapshots" in c["reasons"]
-            for c in changes
-        ):
-            raise GradebookError("A pending edit target is unavailable; refresh held.")
+        for change in changes:
+            if (
+                "submission_not_verified" in change["reasons"]
+                or "target_not_in_both_snapshots" in change["reasons"]
+            ):
+                key = f"{change['user_id']}:{change['assignment_id']}"
+                # Preserve an unavailable EX intent without creating trusted
+                # submission evidence or making it eligible for publication.
+                if (
+                    change["proposed"] == "EX"
+                    and key not in baseline["cells"]
+                    and change["reasons"] == ["submission_not_verified"]
+                    and current["cells"].get(key, {}).get("visible") is not False
+                ):
+                    continue
+                raise GradebookError(
+                    "A pending edit target is unavailable; refresh held."
+                )
     merged = copy.deepcopy(current)
     display = copy.deepcopy(current)
     if changes:
@@ -107,9 +127,14 @@ def merge_refresh(
         }
         for change in changes:
             key = f"{change['user_id']}:{change['assignment_id']}"
-            merged["cells"][key] = copy.deepcopy(baseline["cells"][key])
+            if key in baseline["cells"]:
+                merged["cells"][key] = copy.deepcopy(baseline["cells"][key])
+            else:
+                # Keep the original absence even if Canvas later reports EX;
+                # that fresh value cannot supply the missing original evidence.
+                merged["cells"].pop(key, None)
             merged["working_baseline"]["retained_cells"].append(key)
-            display["cells"][key]["value"] = change["proposed"]
+            display["cells"].setdefault(key, {})["value"] = change["proposed"]
     return merged, display, review
 
 

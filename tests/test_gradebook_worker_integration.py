@@ -370,6 +370,172 @@ async def test_second_refresh_retains_first_original_baseline_and_conflict(scena
     assert review["changes"][0]["baseline"] == 10
 
 
+def prepare_assignment_append(scenario):
+    worker, google, source, request, old = scenario
+    set_literal(google.raw, 6, 6, 3, "EX")
+    reference = next(
+        sheet for sheet in google.raw["sheets"] if sheet["properties"]["sheetId"] == 4
+    )
+    reference["properties"]["sheetType"] = "GRID"
+    reference["properties"]["gridProperties"]["columnCount"] = 12
+    reference["protectedRanges"] = [{"protectedRangeId": 104, "range": {"sheetId": 4}}]
+    reference_cell = reference["data"][0]["rowData"][0]["values"][0]
+    reference_cell["userEnteredValue"] = {"formulaValue": "=H2"}
+    reference_cell["dataValidation"] = {
+        "condition": {
+            "type": "NUMBER_GREATER_EQ",
+            "values": [{"userEnteredValue": "0"}],
+        },
+        "strict": True,
+        "inputMessage": "Fictional protected reference rule",
+    }
+    reference["data"][0]["rowData"][0]["values"].append(
+        {"userEnteredValue": {"formulaValue": "=L2"}, "note": "Second reference"}
+    )
+    reference["data"][0]["rowData"].append({"values": [{} for _ in range(12)]})
+    for column, value in ((7, 7), (11, 9)):
+        reference["data"][0]["rowData"][1]["values"][column] = {
+            "userEnteredValue": {"numberValue": value}
+        }
+    reference_before = copy.deepcopy(_state(google.raw)["sheets"][4])
+    for cid, added_id, score in (("12", 22, 7), ("13", 32, 8)):
+        records = source.records[cid]
+        added = copy.deepcopy(records["assignments"][0])
+        added.update(id=added_id, name="A newly published activity", position=0)
+        records["assignments"].insert(0, added)
+        records["submissions"].append(
+            {
+                **records["submissions"][0],
+                "assignment_id": added_id,
+                "score": score,
+                "grade": str(score),
+            }
+        )
+        # The observed source order would put the new assignment before old C.
+        assert fixture_snapshot(records)["assignments"][0]["id"] == str(added_id)
+    return worker, google, source, request, old, reference_before
+
+
+async def test_two_course_assignment_append_preserves_coordinates_and_repeat(scenario):
+    worker, google, source, _, old, reference = prepare_assignment_append(scenario)
+    for refresh_number, core_score, advanced_score in ((1, 18, 16), (2, 19, 17)):
+        if refresh_number == 2:
+            source.records["12"]["submissions"][0].update(score=19, grade="19")
+            source.records["13"]["submissions"][0].update(score=17, grade="17")
+            google.enqueue()
+        result = await worker.step()
+        assert result["state"] == "VERIFIED"
+        assert result["canvas_writes"] == 0
+        assert result["summary"] == {
+            "core": {"students": 1, "assignments": 2, "pending_edits": 1},
+            "advanced": {"students": 1, "assignments": 2, "pending_edits": 1},
+        }
+        assert len(google.grade_batches) == refresh_number
+        assert {
+            item["updateCells"]["start"]["sheetId"]
+            for item in google.grade_batches[-1]
+            if "updateCells" in item
+        } == {1, 2, 3, 5, 6, 7}
+        for sid, uid, old_id, new_id, new_score in (
+            (1, "101", "21", "22", 7),
+            (2, "101", "21", "22", 7),
+            (5, "201", "31", "32", 8),
+            (6, "201", "31", "32", 8),
+        ):
+            assert literal(google.raw, sid, 6, 1) == uid
+            assert literal(google.raw, sid, 5, 3) == old_id
+            assert literal(google.raw, sid, 5, 4) == new_id
+            assert literal(google.raw, sid, 6, 4) == new_score
+        assert literal(google.raw, 1, 6, 3) == core_score
+        assert literal(google.raw, 2, 6, 3) == 20
+        assert literal(google.raw, 5, 6, 3) == advanced_score
+        assert literal(google.raw, 6, 6, 3) == "Excused"
+        state = _state(google.raw)
+        assert state["sheets"][4] == reference
+        operation = worker.journal.get(result["request_id"])
+        manifest = worker.store.load("refresh", operation["payload"]["manifest_id"])
+        for course, sync_id, target in (
+            ("core", 3, "101:21"),
+            ("advanced", 7, "201:31"),
+        ):
+            baseline = worker.store.load("snapshot", literal(google.raw, sync_id, 2, 2))
+            current = worker.store.load("snapshot", literal(google.raw, sync_id, 9, 2))
+            assert baseline["cells"][target] == old[course]["cells"][target]
+            assert baseline["working_baseline"]["retained_cells"] == [target]
+            assert [item["id"] for item in baseline["assignments"]] == (
+                ["21", "22"] if course == "core" else ["31", "32"]
+            )
+            assert current["cells"][target]["value"] == (
+                core_score if course == "core" else advanced_score
+            )
+            review = worker.store.load("review", manifest["plans"][course]["review_id"])
+            assert len(review["changes"]) == 1
+            assert review["changes"][0]["baseline"] == (10 if course == "core" else 12)
+            assert review["changes"][0]["proposed"] == (
+                20 if course == "core" else "EX"
+            )
+            assert "canvas_changed_since_baseline" in review["changes"][0]["reasons"]
+        for sid, protection_id in ((2, 102), (6, 106)):
+            sheet = state["sheets"][sid]
+            protection = next(
+                p
+                for p in sheet["protectedRanges"]
+                if p["protectedRangeId"] == protection_id
+            )
+            assert protection["unprotectedRanges"] == [
+                {
+                    "sheetId": sid,
+                    "startRowIndex": 5,
+                    "endRowIndex": 6,
+                    "startColumnIndex": 2,
+                    "endColumnIndex": 4,
+                }
+            ]
+            assert sheet["conditionalFormats"][0]["ranges"][0]["endColumnIndex"] == 4
+            for column, address in ((2, "C6"), (3, "D6")):
+                rule = sheet["cells"][f"5:{column}"]["dataValidation"]
+                assert rule["condition"]["values"] == [
+                    {"userEnteredValue": observed_google_validation_formula(address)}
+                ]
+                assert rule["strict"] is True
+                assert rule["inputMessage"] == (
+                    "Enter literal points, EX, or blank. Preview before pushing; blank never clears Canvas."
+                )
+        assert all(request.method == "GET" for request in source.requests)
+        assert (await worker.step())["state"] == "IDLE"
+        assert len(google.grade_batches) == refresh_number
+
+
+async def test_second_course_old_grading_change_blocks_both_assignment_appends(
+    scenario,
+):
+    worker, google, source, request, _, _ = prepare_assignment_append(scenario)
+    next(item for item in source.records["13"]["assignments"] if item["id"] == 31)[
+        "points_possible"
+    ] = 25
+    before = _state(google.raw)
+    with pytest.raises(GradebookError):
+        await worker.step()
+    assert google.grade_batches == []
+    assert _state(google.raw) == before
+    assert literal(google.raw, 1, 5, 3) == "21"
+    assert literal(google.raw, 5, 5, 3) == "31"
+    assert literal(google.raw, 1, 6, 3) == 10
+    assert literal(google.raw, 5, 6, 3) == 12
+    assert literal(google.raw, 2, 6, 3) == 20
+    assert literal(google.raw, 6, 6, 3) == "EX"
+    operation = worker.journal.get(request["id"])
+    assert operation["status"] == "HELD"
+    assert operation["payload"]["failure_reason"] == (
+        "Roster or assignment schema changed while edits are pending. "
+        "Review or archive those edits before refreshing; nothing was replaced."
+    )
+    assert any(r.url.path.startswith("/api/v1/courses/13/") for r in source.requests)
+    assert all(r.method == "GET" for r in source.requests)
+    assert (await worker.step())["state"] == "HELD"
+    assert google.grade_batches == []
+
+
 async def test_real_worker_lost_response_after_commit_reconciles_without_repeat(
     scenario,
 ):
