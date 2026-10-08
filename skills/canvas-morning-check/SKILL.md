@@ -111,7 +111,7 @@ If the user selects a messaging option, call `send_conversation` without a token
 | `list_assignments` | Find recent and upcoming assignments |
 | `get_assignment_analytics` | Submission rates and score statistics |
 | `list_submissions` | Per-student submission records |
-| `get_student_analytics` | Detailed per-student performance data |
+| `get_student_analytics` | Course-wide ranked engagement table; no individual student filter |
 | `send_conversation` | Message students through Canvas inbox |
 
 ## Example
