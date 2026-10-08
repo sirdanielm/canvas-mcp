@@ -28,6 +28,8 @@ keywords = ["canvas", "lms", "mcp", "claude", "education", "api"]
 dependencies = [
     "fastmcp>=4,<5",
     "mcp>=2,<3",
+    # Security floor for FastMCP/Authlib's transitive JOSE implementation.
+    "joserfc>=1.7.5,<2",
     "httpx>=0.28.1,<1",
     "python-dotenv>=1.2.2,<2",
     "pydantic>=2.13.1,<3",

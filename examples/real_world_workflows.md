@@ -1,5 +1,10 @@
 # Real-World Workflows
 
+
+Code execution is off by default and requires its feature/write gates. Each
+`execute_typescript` run has privileged Canvas access and can bypass MCP previews
+and content fencing. Follow the [execution prerequisites](bulk_grading_example.md#execution-and-approval-requirements)
+and existing scope authorization; an unavailable tool is an operator boundary.
 Practical examples showing how to combine Canvas MCP features for common teaching and learning scenarios.
 
 ## For Students

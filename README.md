@@ -309,7 +309,9 @@ You: /canvas-week-plan
 Claude: [Shows prioritized weekly assignment plan]
 ```
 
-Claude Code skills are located in `.claude/skills/` and can be customized for your workflow.
+The eight canonical workflows are in `skills/*/SKILL.md`. Install them into your
+client's supported skill location; this repository does not include a
+`.claude/skills/` copy.
 
 **Want a custom skill?** [Submit a request](https://github.com/vishalsachdev/canvas-mcp/issues/new?labels=skill-request&title=[Skill%20Request]) describing your repetitive workflow!
 
@@ -638,7 +640,8 @@ await bulkGrade({
 
 | Mode | Config | What It Does |
 |------|--------|-------------|
-| Local sandbox (default) | None needed | Timeout 120s, memory 512MB, filtered environment, best-effort network controls |
+| Automatic selection (default) | `TS_SANDBOX_MODE=auto` | Uses an available Docker/Podman container; stdio may fall back to best-effort local controls. HTTP refuses local fallback |
+| Local sandbox | `TS_SANDBOX_MODE=local` | Stdio only: timeout 120s, memory 512MB, filtered environment, best-effort network controls |
 | Container sandbox | `TS_SANDBOX_MODE=container` | Container filesystem isolation via Docker/Podman; egress guarantees depend on deployment configuration |
 | No sandbox | `ENABLE_TS_SANDBOX=false` | Full local access (not recommended) |
 
@@ -689,7 +692,7 @@ Runtime security and privacy controls:
 | Layer | Default |
 |-------|---------|
 | PII sanitization in logs | `LOG_REDACT_PII=true` |
-| Token validation on startup | Always on |
+| Token validation on startup | Stdio checks and warns on failure; HTTP uses each request's token |
 | Structured audit logging | Opt-in: `LOG_ACCESS_EVENTS=true` |
 | Code execution guardrails | `ENABLE_TS_SANDBOX=true` (best-effort in local mode) |
 

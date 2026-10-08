@@ -29,7 +29,7 @@ Use the `list_courses` MCP tool if you need to look up available courses.
 
 For each target course:
 
-1. Call `list_assignments` to find assignments with a due date in the **past 7 days**.
+1. Call `list_assignments` to find assignments with a due date in the **past 14 days**.
 2. For each recent assignment, call `get_assignment_analytics` to collect:
    - Submission rate (submitted / enrolled)
    - Average, high, and low scores
@@ -45,7 +45,11 @@ Call `list_submissions` to retrieve student submission records, then flag studen
 | **Needs attention** | Missing 2 assignments, or average grade 60--70%, or 3+ late submissions |
 | **On track** | All submissions current, grade above 70% |
 
-Use `get_student_analytics` for deeper per-student analysis when the user requests it.
+Apply two-week thresholds only after collecting the full 14-day window. Course
+late counts are aggregate evidence: `list_submissions` does not expose per-student
+late/missing flags. Require independently verified counts before assigning those
+labels. `get_student_analytics` returns a course-wide ranked engagement table,
+without an individual student filter.
 
 ### 4. Check Upcoming Deadlines
 
@@ -107,7 +111,7 @@ If the user selects a messaging option, call `send_conversation` without a token
 | `list_assignments` | Find recent and upcoming assignments |
 | `get_assignment_analytics` | Submission rates and score statistics |
 | `list_submissions` | Per-student submission records |
-| `get_student_analytics` | Detailed per-student performance data |
+| `get_student_analytics` | Course-wide ranked engagement table; no individual student filter |
 | `send_conversation` | Message students through Canvas inbox |
 
 ## Example

@@ -34,6 +34,23 @@ def args(path, *arguments):
     return cli.parser().parse_args(["--config", str(path), *arguments])
 
 
+def test_worker_factory_limits_only_the_named_reference(monkeypatch, tmp_path):
+    captured = {}
+
+    def client(workbook, credential_path, **kwargs):
+        captured.update(workbook=workbook, credential_path=credential_path, **kwargs)
+        return captured
+
+    monkeypatch.setattr(cli, "GoogleSheets", client)
+    config = {"credential_path": str(tmp_path / "fictional.json"), "profile": "gradebook"}
+    result = cli.google_client(config, {"core": {"spreadsheet_id": "fictional_workbook"}})
+    assert result["workbook"] == "fictional_workbook"
+    assert result["credential_path"] == tmp_path / "fictional.json"
+    assert result["profile"] == "gradebook"
+    assert result["sheet_cell_limits"] == {"Unit1 LI Records": 58_000}
+    assert set(result) == {"workbook", "credential_path", "profile", "sheet_cell_limits"}
+
+
 def test_configure_stable_id_private_modes_and_no_start(configured):
     before = configured.read_bytes()
     result = cli.configure(configured)

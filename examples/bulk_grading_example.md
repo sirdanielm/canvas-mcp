@@ -24,6 +24,8 @@ instructor approval before applying. A `graded` count during dry run means
 would-be results, not saved grades. Use `grade` for a direct score or
 `rubricAssessment` for rubric scoring; top-level `points` is deprecated and ignored.
 
+For rubric scoring, use the assignment-associated rubric, verify `use_rubric_for_grading=true`, and use every real criterion ID, including criteria awarded zero points. A partial assessment may be dispatched before the result is reported unconfirmed; inspect Canvas before retrying. Single-criterion examples below assume that criterion is the complete assignment rubric.
+
 `analyzeNotebook` and related helpers below are illustrative placeholders, not supplied library functions. Do not execute untrusted submitted code without a separately reviewed isolation plan.
 
 ## Scenario
@@ -145,13 +147,13 @@ Bulk grading complete:
   Skipped: 2
   Failed: 1
 
-First 5 results:
-  - User 12345: ✓ Success
-  - User 12346: ✓ Success
-  - User 12347: Skipped
-  - User 12348: ✓ Success
-  - User 12349: ✗ Failed
+Failed submissions:
+  User 12349: Network timeout
 ```
+
+The returned object contains aggregate totals and `failedResults`, not a list of
+every successful or skipped item. During dry run, `graded` counts would-be grades.
+Produce exact per-item previews explicitly in a side-effect-free callback when needed.
 
 ### Why This Is Efficient
 

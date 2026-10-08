@@ -5,6 +5,38 @@ connects Canvas identity, read-only mirror, and explicitly gated delivery work
 to the teacher-reviewed evidence chain. Canvas services and installed targets
 remain owned here; a source merge is separate from installation and release.
 
+## October 8 repository closeout
+
+Fresh fork reads verified `main` at
+`a46b2528d376d15711bb7e151616f805d339a3d3` and installation-compatible
+`feature/sdm-authoring` at `4783049127ac7c76ef979b8ad1b2e052f9991591`.
+The main revision's applicable hosted testing/security checks passed. An isolated
+offline check of that exact source passed **2,724 Python tests, 21 skipped**,
+Ruff and mypy. GitHub now reports fork main as protected; older unprotected
+observations remain dated history, not current workflow guidance.
+
+The canonical and operational checkouts remain at `921554d`. Their existing
+dirty files were preserved: one tracked edit in the canonical checkout, and
+eight tracked edits plus one untracked diagnostics module in the operational
+checkout. The operational overlay contains two source differences from current
+main, including a sheet-specific native-read limit. The clean `f141640` score
+review checkout is already ancestral to current main and remains retained.
+Preservation hashes and patches stay in the private closeout receipt, outside
+Git and the website tree. No lock, transport or running service was removed.
+
+Do not absorb those files to make a fast-forward succeed. Next, the runtime owner
+must review the two remaining overlay differences and coordinate an idle
+maintenance window under the [worker runbook](sdm-gradebook-worker.md). Preserve
+the exact files and reconcile their intended behavior on an isolated current-base
+branch before synchronizing either existing checkout. A Git pull is not a runtime
+reload or permission to release a refresh hold.
+
+Public upstream was fetched at `1d07eb3`; against the reviewed fork base it has
+145 upstream-only commits and 80 fork-only commits. Those substantial code and
+dependency changes need a separate reviewed compatibility candidate, not an
+automatic closeout merge. This documentation closeout resumes repository work
+only; grading, publication, runtime changes and classroom delivery remain paused.
+
 ## Verified promotion
 
 [PR #5](https://github.com/sirdanielm/canvas-mcp/pull/5) merged on October 1, 2026

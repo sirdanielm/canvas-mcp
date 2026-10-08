@@ -250,6 +250,45 @@ async def test_configured_sheet_limit_applies(credentials):
 
 
 @pytest.mark.parametrize(
+    "name,rows,columns,limits,total,grade_rows,error",
+    [
+        ("Unit1 LI Records", 1000, 58, {"Unit1 LI Records": 58_000}, 1_000_000, 1000, None),
+        ("Unit1 LI Records", 58_001, 1, {"Unit1 LI Records": 58_000}, 1_000_000, 1000, "reference sheet"),
+        ("Other Reference", 50_001, 1, {"Unit1 LI Records": 58_000}, 1_000_000, 1000, "reference sheet"),
+        ("Other Reference", 50_000, 1, {"Unit1 LI Records": 58_000}, 1_000_000, 1000, None),
+        ("Unit1 LI Records", 50_001, 1, {}, 1_000_000, 1000, "reference sheet"),
+        ("Unit1 LI Records", 101, 1, {"Unit1 LI Records": 100}, 1_000_000, 1000, "reference sheet"),
+        ("Unit1 LI Records", 1000, 58, {"Unit1 LI Records": 58_000}, 57_999, 1000, "total cell limit"),
+        ("Core GET", 1001, 1, {"Core GET": 58_000}, 1_000_000, 1000, "configured dimensions"),
+    ],
+)
+async def test_reference_override_is_exact_and_keeps_other_bounds(
+    credentials, name, rows, columns, limits, total, grade_rows, error
+):
+    fixture = GoogleFixture()
+    fixture.metadata["sheets"] = [sheet(1, name, rows, columns)]
+    client = GoogleSheets(
+        WORKBOOK,
+        credentials,
+        transport=httpx.MockTransport(fixture.handle),
+        read_interval_seconds=0,
+        sheet_cell_limits=limits,
+        max_total_cells=total,
+        max_grade_rows=grade_rows,
+    )
+    try:
+        if error:
+            with pytest.raises(GradebookError, match=error):
+                await client.metadata()
+        else:
+            assert await client.metadata() == fixture.metadata
+    finally:
+        await client.close()
+    assert not any(r.url.params.get("includeGridData") for r in fixture.requests)
+    assert not any(r.url.path.endswith(":batchUpdate") for r in fixture.requests)
+
+
+@pytest.mark.parametrize(
     "mutation",
     [
         lambda w: w["sheets"][0]["properties"].update(title="Renamed"),

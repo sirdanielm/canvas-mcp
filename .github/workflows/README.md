@@ -1,13 +1,15 @@
 # GitHub Actions workflows
 
 Checked against the workflow files and the SDM fork's GitHub workflow inventory
-on 2026-10-01. Workflow definitions describe triggers and effects; they do not
+on 2026-10-08. Workflow definitions describe triggers and effects; they do not
 prove that a fork has the secrets, publication rights or deployment targets
 needed to complete a run.
 
-The fork's `main` is unprotected in GitHub. Reviewed PRs and green applicable CI
-remain the project workflow policy. Upstream `main` is protected; do not assume
-its rulesets are installed here. See [development guidance](../../CLAUDE.md).
+GitHub now reports the fork's `main` as protected; its October 1 unprotected
+status is historical. Reviewed PRs and green applicable CI remain the project
+workflow policy. Inspect the exact active rules before claiming enforced checks;
+an upstream ruleset is not evidence of the fork's rules. See
+[development guidance](../../CLAUDE.md).
 
 ## Validation
 

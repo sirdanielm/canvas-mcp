@@ -34,6 +34,8 @@ get_rubric(course_identifier, rubric_id=rubric_id)
 
 Record the **criterion IDs** (often prefixed with underscore, e.g., `_8027`) and **rating IDs** from the rubric response. These are required for rubric-based grading.
 
+Use the assignment-associated rubric, verify `use_rubric_for_grading=true`, and use every real criterion ID, including criteria awarded zero points. A partial assessment may be dispatched before the result is reported unconfirmed; inspect Canvas before retrying. Single-criterion examples below assume that criterion is the complete assignment rubric.
+
 ### Step 2: List Submissions
 
 Retrieve all student submissions to determine how many need grading:
@@ -42,7 +44,9 @@ Retrieve all student submissions to determine how many need grading:
 list_submissions(course_identifier, assignment_id)
 ```
 
-Note the `user_id` for each submission and the `workflow_state` (submitted, graded, pending_review). Count the submissions that need grading to determine which strategy to use.
+Record the user ID, submitted time, score and grade returned by `list_submissions`.
+It does not expose `workflow_state`; do not classify `pending_review` from this
+output. Hold uncertain eligibility until separately verified.
 
 ### Step 3: Choose a Grading Strategy
 
@@ -182,7 +186,7 @@ The key insight: as submission count grows, sending grading logic to the server 
 ## Safety Rules
 
 1. **Always dry run first.** For `bulk_grade_submissions`, set `dry_run: true` before the real run. Review the output for correctness.
-2. **Verify the rubric before grading.** Confirm criterion IDs, point ranges, and rating IDs match the assignment rubric. Mismatched IDs cause silent failures or incorrect grades.
+2. **Verify the rubric before grading.** Confirm criterion IDs, point ranges, and rating IDs match the assignment rubric. Use every criterion, including zero scores. Partial assessments can be written and then reported unconfirmed; inspect Canvas before retrying.
 3. **Spot-check before bulk.** For Strategy B and C, grade 1-2 submissions manually with `grade_with_rubric` first. Verify in Canvas that the grade and rubric feedback appear correctly.
 4. **Respect rate limits.** Use `max_concurrent: 5` and `rate_limit_delay: 1.0` (1 second between batches). Canvas rate limits are approximately 700 requests per 10 minutes.
 5. **Do not grade without explicit instructor confirmation.** Always present the grading plan (rubric mapping, point values, number of students affected) and wait for approval before submitting grades.

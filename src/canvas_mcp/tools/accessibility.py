@@ -230,11 +230,11 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
         course_identifier: str | int,
         content_types: str = "pages,assignments"
     ) -> str:
-        """Scan Canvas course content for basic accessibility issues.
+        """Check page and assignment HTML for selected basic accessibility patterns.
 
         Args:
             course_identifier: Course code or Canvas ID
-            content_types: Comma-separated types to scan: pages, assignments, discussions, syllabus
+            content_types: Comma-separated supported types: pages, assignments
         """
         course_id = await get_course_id(course_identifier)
         types = [t.strip() for t in content_types.split(",")]

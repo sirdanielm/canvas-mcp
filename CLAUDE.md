@@ -2,7 +2,7 @@
 
 Guidance for developing the Canvas MCP server. Agents *using* the server: see [AGENTS.md](./AGENTS.md).
 Design: [internal/architecture.md](internal/architecture.md). Long-form rules and the reasons behind them: [internal/dev-reference.md](internal/dev-reference.md). Completed work: [internal/project-history.md](internal/project-history.md), `CHANGELOG.md`.
-Codex reads `AGENTS.md`, not this file; its "Developing this server" section points here, so keep development rules in this file only. Engineering workflow and release guidance checked on 2026-10-01. Issue numbers and dated session entries below refer to upstream `vishalsachdev/canvas-mcp` unless explicitly identified as this SDM fork; historical issue/advisory status is not a fresh operational check.
+Codex reads `AGENTS.md`, not this file; its "Developing this server" section points here, so keep development rules in this file only. Engineering workflow and release guidance checked on 2026-10-08. Issue numbers and dated session entries below refer to upstream `vishalsachdev/canvas-mcp` unless explicitly identified as this SDM fork; historical issue/advisory status is not a fresh operational check.
 
 ## Commands
 - Install `uv pip install -e .`; run `canvas-mcp-server` (`--test`, `--config`); `.env` holds `CANVAS_API_TOKEN` and `CANVAS_API_URL`.
@@ -12,7 +12,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Use a reviewed branch and PR for changes to this SDM fork, including documentation. Follow an already authorized workflow without asking again; otherwise clarify only consequential scope or target ambiguity. Prefixes: `feature/`, `fix/`, `docs/`, `refactor/`.
 - `main` is the maintained SDM branch; keep the installation-compatible `feature/sdm-authoring` synchronized after reviewed promotion. The primary checkout retains the shared Git directory, and the operational authoring checkout must remain available to installed services. See [repository maintenance](docs/repository-maintenance.md).
 - Keep concurrent changes isolated in suitable worktrees. Before retiring a completed review checkout, inspect ancestry and actual files, preserve unique changes and ignored evidence, and verify recovery. Archive managed worktrees through Codex; do not automatically delete branches or operational checkouts.
-- As checked on 2026-10-01, this fork's `main` is **not protected by GitHub**; upstream `main` is protected. PR review and green applicable CI remain the SDM workflow policy, not an enforced setting. Do not bypass failed checks or change repository protection as part of ordinary development.
+- As checked on 2026-10-08, GitHub reports this fork's `main` as **protected**. The October 1 unprotected observation is historical. PR review and green applicable CI remain the SDM workflow policy; inspect the exact active rules before claiming which checks GitHub enforces. Do not bypass failed checks or change repository protection during ordinary development.
 - Integrate current base changes without overwriting another session's work, then rerun the relevant validation. Before a release, test the exact merged candidate in an isolated environment; never borrow live credentials merely to make tests pass.
 - Run `./scripts/install-hooks.sh` once per clone. `fixes|closes|resolves #N` mid-sentence in a commit or PR body closes the issue on merge: rephrase (`closed [issue 172]`) or set `ALLOW_CLOSING_KEYWORD=1`. A trailer that opens a line (`Closes #173`) is allowed.
 - Release steps and publish-race fixes: [internal/release-checklist.md](internal/release-checklist.md). Breaking changes need a minor bump. A merged SDM change is not a package release or deployment.
@@ -55,6 +55,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 
 ## Current SDM focus
 - The SDM worker, private archive exporter and archive preflight are merged to `main`; the urllib3 2.8.0 hosted-dependency lock repair is also merged. These are unreleased fork changes; see the [release checklist](internal/release-checklist.md).
+- Main also includes bounded read-only diagnostics, private course exports, a separately gated comment lane, unsent-comment recovery and draft-preserving refresh across new assignments. Dirty installed overlays remain preserved; this closeout neither updates their runtime nor resumes grading/publication.
 - Shared GrAss implementation continues in LocalGrAss; Canvas services and installed targets remain owned here. Receipt-bound capture, authenticated durable local teacher review and an authoritative fake-only release bridge are implemented; real policy/source/publisher activation remains held. See [repository maintenance](docs/repository-maintenance.md).
 
 - Unit 1 pair previews, fictional channel contracts, and the disabled exact-GET/form protocol are maintained source only, with no MCP/CLI registration or live send. The real academic provider, paper-source admission, accepted-pair exporter and authenticated RELEASE remain unconnected; see [the Unit 1 contract](docs/unit1-pair-preview-contract.md).

@@ -460,7 +460,7 @@ class GoogleSheets:
                     raise GradebookError(
                         "Google grade sheet exceeds configured dimensions."
                     )
-            elif cells > self.max_reference_cells:
+            elif cells > self.sheet_cell_limits.get(name, self.max_reference_cells):
                 raise GradebookError("Google reference sheet exceeds its cell limit.")
             if cells > self.sheet_cell_limits.get(name, self.max_total_cells):
                 raise GradebookError("Google sheet exceeds its configured cell limit.")

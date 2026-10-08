@@ -124,7 +124,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `delete_assignment_with_confirmation` | Delete an assignment (two-step: preview, then confirm with the token) |
 | `create_content_migration` | Preview target occupancy, then request a full course-copy migration after explicit confirmation |
 | `get_content_migration_status` | Poll one migration once and review terminal migration issues |
-| `get_student_analytics` | Individual student performance |
+| `get_student_analytics` | Course-wide ranked student engagement table; no individual student filter |
 | `check_enrollment` | Is a given campus login ID (NetID / uniqname / email-style login — not a display name) enrolled in a course? Returns yes/no only, never the roster. `role` defaults to `student`; pass `role="any"` to ask "in this course at all?". Needs roster-admin rights; without them the answer is INDETERMINATE, never "no". For your OWN enrollment use `get_my_enrollments` |
 | `list_rubrics` | List rubrics in a course |
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
@@ -198,7 +198,7 @@ Course design, quality assurance, and WCAG-oriented accessibility review.
 | Tool | Purpose |
 |------|---------|
 | `get_course_structure` | Full module→items tree as JSON (one call) |
-| `scan_course_content_accessibility` | Scan for WCAG violations |
+| `scan_course_content_accessibility` | Selected accessibility patterns in page/assignment HTML |
 | `fetch_ufixit_report` | Retrieve UFIXIT accessibility report |
 | `parse_ufixit_violations` | Extract structured violations from report |
 | `format_accessibility_summary` | Format violations into readable report |
@@ -272,7 +272,7 @@ Is it a simple query?
    → get_assignment_analytics(course_id, assignment_id)
 
 3. "Send reminders to missing students"
-   → send_conversation(course_id, recipients, subject, body) previews only.
+   → send_conversation(course_identifier, recipient_ids, subject, body) previews only.
    Show the exact preview and obtain approval before repeating with its token.
 ```
 

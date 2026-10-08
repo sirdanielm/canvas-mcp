@@ -186,9 +186,9 @@ canvas-mcp-server --config</code></pre>
                         </ol>
 
                         <h3>De-Anonymization Mapping</h3>
-                        <p>The system creates local mapping files for you to correlate anonymous IDs with real students:</p>
+                        <p>Response anonymization does not create a mapping file. When separately authorized and allowed by the write policy, the local stdio tool <code>create_student_anonymization_map</code> creates:</p>
                         <pre><code>local_maps/
-└── course_BADM_350_mapping.csv</code></pre>
+└── anonymization_map_&lt;course&gt;.csv</code></pre>
                         <p>This CSV maps anonymous IDs back to real names - <strong>keep it secure and never commit to version control</strong>.</p>
 
                         <h3>Privacy Best Practices</h3>
@@ -371,6 +371,7 @@ This will:
 5. Generate a report</code></pre>
 
                         <h3>Bulk Grading (Code Execution API)</h3>
+                        <p><code>execute_typescript</code> is off by default and requires feature/write gates. Every run has privileged Canvas access and can bypass MCP previews and content fencing. Follow the <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/examples/bulk_grading_example.md#execution-and-approval-requirements">execution prerequisites</a> and existing scope authorization; a missing tool is an operator boundary.</p>
                         <p>For large-scale grading operations with custom logic, use the <a href="bulk-grading.html">Code Execution API</a> to keep per-submission processing out of the model's context:</p>
                         <pre><code><span class="code-keyword">await</span> bulkGrade({
   dryRun: <span class="code-keyword">true</span>, <span class="code-comment">// Preview only; explicit approval is required to apply</span>
@@ -405,7 +406,7 @@ This will:
                         <ul>
                             <li>Set <code>ENABLE_DATA_ANONYMIZATION=true</code> in <code>.env</code></li>
                             <li>Restart Canvas MCP server</li>
-                            <li>Check <code>local_maps/</code> folder is created</li>
+                            <li>Inspect supported response fields; a mapping folder is not required for response anonymization</li>
                         </ul>
 
                         <h3>Need More Help?</h3>

@@ -152,14 +152,12 @@ await bulkGrade({
 
     if (hasErrors) {
       return {
-        points: 0,
         rubricAssessment: { "_8027": { points: 0 } },
         comment: "Notebook has errors"
       };
     }
 
     return {
-      points: 100,
       rubricAssessment: { "_8027": { points: 100 } },
       comment: "Perfect!"
     };
@@ -183,7 +181,9 @@ await bulkGrade({
 
 ### ✅ Input Validation
 
-- Rubric assessments validated before submission
+- Nonnegative rubric points are validated before submission. Use the exact IDs
+  and every criterion from an enabled-for-grading rubric. An incomplete assessment
+  can be written before its outcome is reported unconfirmed; inspect Canvas before retrying.
 - Points must be non-negative numbers
 - Clear error messages for invalid data
 
@@ -331,7 +331,9 @@ form instead — see [Common Issues](../../../examples/common_issues.md#cannot-c
 
 **Problem**: Rubric criterion ID is incorrect
 
-**Solution**: Use `search_canvas_tools("rubric", "full")` to find correct IDs
+**Solution**: Use `get_rubric(course_identifier, assignment_id=...)` to read the
+assignment's actual rubric and criterion IDs. `search_canvas_tools` discovers
+tool/API catalog entries rather than course-specific rubric data.
 
 ### Rate Limit Errors
 
@@ -380,7 +382,7 @@ Supported operations can use concurrent processing (`maxConcurrent: 5`). Runtime
 
 Additional control:
 
-- **Rate limiting**: Prevents Canvas API throttling
+- **Rate limiting**: Reduces request pressure; Canvas can still throttle requests
 
 ## Contributing
 
