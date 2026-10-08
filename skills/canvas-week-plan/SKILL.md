@@ -23,18 +23,15 @@ Call the MCP tool `get_my_upcoming_assignments` with `days=7` to retrieve all as
 - Assignment name
 - Course name or code
 - Due date and time
-- Point value
-- Assignment type (quiz, essay, discussion, etc.)
+- Point value and assignment type only after reading assignment details; the upcoming list omits them
 
 ### 2. Check Submission Status
 
 Call the MCP tool `get_my_submission_status` to determine what has been submitted and what has not.
 
-**Categorize each assignment as one of:**
-- **Submitted** -- already turned in
-- **Not submitted** -- still needs to be done
-- **Late** -- past due but late submissions still accepted
-- **Missing** -- past due, no late submissions accepted
+Use the submission tool's actual status labels. `OVERDUE` follows Canvas's missing
+flag and does not establish whether late work is accepted. External-tool uncertainty
+requires separate verification; do not turn it into an inferred missing submission.
 
 ### 3. Get Current Grades
 
@@ -50,9 +47,8 @@ Call the MCP tool `get_my_peer_reviews_todo` to find any pending peer reviews.
 
 **Collect per pending review:**
 - Which assignment needs peer review
-- How many reviews are required
-- Deadline for completing reviews
-- Reviews completed vs. remaining
+- Pending review count
+- Deadline only when separately verified: this tool omits deadlines and completed-review totals
 
 ### 5. Generate the Weekly Plan
 

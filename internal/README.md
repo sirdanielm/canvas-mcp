@@ -20,6 +20,7 @@ Contents:
 - `project-history.md` — completed Current Focus / Roadmap / Backlog items as of 2026-09-30.
 - `architecture.md` — design reference.
 - `release-checklist.md` — version bump and publish steps.
+- `SDM-OPERATING-CONTRACT-20261004.md` — dated teacher decisions and owner checkpoints; current source and live authority need separate verification.
 - `issue-triage/` — daily triage briefs (tracked; see the privacy rule in `CLAUDE.md`).
 - `best-practices.md` — internal working notes.
 - `research-appservice-mcp-entra.md` — Azure App Service + Entra research notes.

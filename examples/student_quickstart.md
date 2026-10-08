@@ -49,7 +49,7 @@ What peer reviews do I need to complete?
 
 Your AI assistant will:
 - List all pending peer review assignments
-- Show deadlines
+- Show deadlines only when independently verified; the pending-review tool omits them
 - Tell you how many reviews you need to do for each
 
 ### Course-Specific Questions

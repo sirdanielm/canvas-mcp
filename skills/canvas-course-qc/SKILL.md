@@ -54,7 +54,10 @@ Call `list_assignments(course_identifier)` and check each assignment:
 | Date sequencing | Warning | Due dates that don't follow module order |
 | Rubric coverage | Suggestion | Graded assignments without an associated rubric |
 
-For pages, check if any pages in modules have empty body content using `get_page_content` for pages flagged in the structure.
+`list_assignments` supplies IDs, names, due dates and points; fetch
+`get_assignment_details` for descriptions/settings and `get_rubric` with the
+assignment ID for rubric coverage. Structure metadata cannot flag empty page
+bodies: use `get_page_content` for the pages in scope.
 
 ### 5. Run Publishing Checks
 
@@ -66,7 +69,8 @@ Using the structure data:
 | Unpublished modules | Warning | Modules that may need publishing before semester |
 | No front page | Warning | Course has no front page set |
 
-Check for front page by calling `list_pages(course_identifier)` and looking for `front_page: true`.
+`list_pages` renders a `(Front Page)` text marker. Use `get_front_page` to verify
+the current front page rather than expecting a `front_page` Boolean in that output.
 
 ### 6. Run Completeness Checks
 

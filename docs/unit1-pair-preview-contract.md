@@ -182,7 +182,7 @@ live Canvas test or classroom readiness claim.
 
 ### Exact comment text and timestamp side effects
 
-The isolated repair candidate rejects surrounding characters removed by Canvas's
+The maintained parser rejects surrounding characters removed by Canvas's
 Ruby `String#strip`, including ASCII whitespace and NUL. It preserves accepted
 text verbatim rather than trimming it after approval; interior line breaks and
 Unicode whitespace that Canvas preserves remain unchanged.
@@ -209,9 +209,14 @@ was performed to validate these offline checks.
 The existing `preview_gradebook_changes` service reads live Canvas; this prototype
 calls deterministic comparison only with supplied observations. Existing
 `Publisher.prepare/confirm/reconcile` supports score/excusal and durable
-uncertainty, but sends **no feedback**. `publish.context` and
-`matches_proposal` do not verify a comment. There is no current combined pair
-readback CLI to invoke or claim as deployed.
+uncertainty and sends no feedback through that score lane. The separate
+`prepare_comment/confirm_comment/reconcile_comment` lane now has a real exact
+GET/form transport and durable response-linked readback; it requires its own
+`--enable-comments` capability and exact preview approval. See the
+[comment workflow](sdm-gradebook-workflow.md#separately-reviewed-student-comments).
+It does not connect this accepted-pair prototype, authenticate academic RELEASE,
+or make a combined pair readback CLI available. `publish.context` and
+`matches_proposal` alone do not verify a comment.
 
 The existing receipt/PIN capture port in [grass-capture-contract.md](grass-capture-contract.md)
 is the canonical identity path: Canvas ID → exact email → Student Info text PIN,

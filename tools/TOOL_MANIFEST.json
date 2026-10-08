@@ -414,25 +414,47 @@
     {
       "name": "get_student_analytics",
       "category": "educator",
-      "description": "Multi-dimensional student performance analysis",
+      "description": "Course-wide ranked student engagement analytics",
       "parameters": [
         {
           "name": "course_identifier",
-          "type": "string | integer",
+          "type": "string",
           "required": true,
           "description": "Course code or Canvas ID"
         },
         {
-          "name": "student_id",
-          "type": "string | integer",
+          "name": "include_participation",
+          "type": "boolean",
           "required": false,
-          "description": "Specific student ID (optional, all students if not provided)"
+          "default": true,
+          "description": "Include participation counts"
+        },
+        {
+          "name": "include_assignment_stats",
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Include on-time, late and missing assignment counts"
+        },
+        {
+          "name": "include_access_stats",
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Include page view counts"
+        },
+        {
+          "name": "sort_by",
+          "type": "string",
+          "required": false,
+          "default": "engagement_score",
+          "description": "engagement_score (ascending), page_views, participations, or name"
         }
       ],
-      "returns": "Assignment completion, grade trends, risk indicators",
+      "returns": "Ranked course-wide table with engagement scores and the selected counts",
       "examples": [
-        "Show me student performance in BADM 350",
-        "Analyze Student_abc123's progress"
+        "Show student engagement in BADM 350",
+        "Rank students by engagement in BADM 350"
       ]
     },
     {
@@ -533,7 +555,7 @@
           "description": "Course code or Canvas ID"
         },
         {
-          "name": "recipients",
+          "name": "recipient_ids",
           "type": "array",
           "required": true,
           "description": "Array of user IDs to message"
@@ -2522,7 +2544,7 @@
           "type": "string",
           "required": false,
           "default": "pages,assignments",
-          "description": "Comma-separated types to scan: pages, assignments, discussions, syllabus"
+          "description": "Comma-separated supported types: pages, assignments; discussion and syllabus content are not scanned"
         }
       ],
       "returns": "Accessibility issues found, grouped by page/item, with auto-fixable flags",
@@ -3658,13 +3680,13 @@
       "recommendation": "Use max_concurrent=5 and rate_limit_delay=1.0 (seconds) for bulk ops"
     },
     "permissions": {
-      "student": "Own data only via /self endpoints",
+      "student": "Personal academic tools use self endpoints; shared content remains subject to Canvas permissions",
       "ta": "Students in assigned sections",
       "instructor": "All students in their courses"
     },
     "cannot_do": [
       "Create or delete courses",
-      "Modify course settings",
+      "Modify course settings other than the supported syllabus body",
       "Access data outside user permissions",
       "Bypass Canvas API rate limits"
     ]

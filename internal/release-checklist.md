@@ -1,6 +1,6 @@
 # Release Checklist
 
-> Workflow behavior and fork/upstream release state checked 2026-10-01. Upstream latest release: v1.13.0 (2026-09-27 EDT / 2026-09-28 UTC). The SDM fork has no published latest release; its merged main includes additional unreleased work.
+> Workflow behavior and fork/upstream release state checked 2026-10-08. Upstream latest release: v1.13.0 (2026-09-27 EDT / 2026-09-28 UTC). The SDM fork has no published latest release; its merged main includes additional unreleased work.
 
 Select the repository, package ownership and exact candidate before any release.
 Tag pushes, workflow dispatches, package publication and website deployment
@@ -23,6 +23,7 @@ When bumping the version in `pyproject.toml`, also update:
 ## Pending for the next release
 
 - SDM `main` includes the gradebook worker, integrity-checked private PIN exporter and publication-free archive preflight; these are merged source features, not claims about the upstream v1.13.0 package. Use [repository maintenance](../docs/repository-maintenance.md) for ownership and integration boundaries.
+- Later fork changes include bounded diagnostics, private course exports, independently gated comments, unsent-comment recovery and refresh preservation across newly published assignments. Verify the exact release candidate and installed runtime; a source merge does not enable comments or publish grades.
 - The urllib3 lock entry was upgraded from 2.7.0 to 2.8.0 in fork PR5, addressing CVE-2026-97687, CVE-2026-97688 and CVE-2026-97689 in the optional hosted dependency chain. The frozen local audit and fresh hosted CI passed without adding vulnerability ignores. Include this in the next relevant release notes.
 - A lockfile repair validates the locked environment; the package publisher installs from project dependency constraints. Verify the built/published artifact and deployment dependency resolution separately before claiming the repair is shipped.
 

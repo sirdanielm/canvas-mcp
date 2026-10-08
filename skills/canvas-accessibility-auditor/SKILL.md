@@ -60,7 +60,7 @@ Present issues sorted by priority:
 ### Summary
 - Content scanned: 20 pages, 15 assignments
 - Total issues: 12
-- Auto-fixable: 8 | Manual review needed: 4
+- These 12 example findings need guided/manual remediation; report auto-fixability from the actual scanner flags
 
 ### Level A Violations (must fix)
 1. **Missing alt text** -- 5 images across 3 pages
@@ -82,14 +82,17 @@ Present issues sorted by priority:
    - Page "Midterm Review": 1 empty h2
 
 ### Manual Review Required
-- Color contrast: Cannot be checked automatically (requires visual inspection)
+- Contrast: the scanner recognizes white text on `#ff5f05`; other combinations need separate review
 - Video captions: Cannot be verified via API (check in Canvas media player)
 - PDF accessibility: Cannot be parsed via API (use Adobe Acrobat checker)
 ```
 
 ### 4. Guided Remediation
 
-For each auto-fixable issue, walk the user through the fix:
+For each guided/manual issue, walk the user through the fix. The automatic fixer
+supports only `th_scope`, `low_contrast`, `legacy_designplus` and
+`redundant_alt_prefix`; it does not infer missing alt text, heading order, table
+captions or meaningful link wording:
 
 **For missing alt text:**
 1. Call `get_page_content(course_identifier, page_url)` to retrieve the HTML
@@ -117,9 +120,10 @@ For each auto-fixable issue, walk the user through the fix:
 
 Always ask for user confirmation before modifying any page.
 
-### 5. Re-scan Modified Pages
+### 5. Verify Remediation
 
-After remediation, re-run the scan on modified pages only:
+After remediation, the scanner rescans all content in selected supported types.
+It has no page-ID filter; spot-check changed bodies with `get_page_content`:
 
 ```
 scan_course_content_accessibility(course_identifier, "pages")
@@ -156,7 +160,7 @@ Produce a final summary suitable for stakeholder reporting:
 - PDF accessibility check (uploaded PDFs)
 
 ### Recommendation
-Course content meets automated WCAG 2.1 Level A criteria after remediation.
+The supported HTML checks were repeated; this does not establish WCAG conformance.
 Manual review of color contrast and multimedia is recommended before publishing.
 ```
 
@@ -176,7 +180,7 @@ Manual review of color contrast and multimedia is recommended before publishing.
 
 **User:** "Run accessibility audit for CS 101"
 
-**Agent:** Scans all content, generates the prioritized report.
+**Agent:** Checks supported page and assignment HTML patterns and generates the prioritized report.
 
 **User:** "Fix the missing alt text issues"
 
@@ -184,10 +188,10 @@ Manual review of color contrast and multimedia is recommended before publishing.
 
 ## Limitations
 
-- **Cannot check:** Color contrast, video captions, PDF accessibility, audio descriptions, keyboard navigation
+- **Requires separate review:** Contrast outside the supported white-on-orange pattern, video captions, PDF accessibility, audio descriptions, keyboard navigation
 - **These are flagged** as "manual review required" in every report
 - **Remediation is per-page:** Each fix requires a full page content read and write cycle
-- **No undo:** Page edits via the API do not create Canvas revision history -- back up pages before bulk fixes
+- **Recovery:** This MCP workflow exposes no dedicated undo tool; retain the approved page content before edits for separately reviewed restoration
 
 ## Notes
 

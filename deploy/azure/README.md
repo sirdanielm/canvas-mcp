@@ -40,7 +40,8 @@ The hosted deployment's three defining design decisions:
    API/bearer mode validates the Entra ID (Azure AD) token before the container is reached, and
    injects a trusted `X-MS-CLIENT-PRINCIPAL-ID`. The app authorizes and audits that identity.
 3. **The Canvas API URL is server-pinned.** A client-supplied `X-Canvas-URL` is ignored and logged.
-   This removes the SSRF surface entirely: the server can only ever talk to one Canvas host.
+   This prevents callers from choosing the Canvas API base URL. Course-file download
+   URLs and redirects remain a separate egress surface to review in the deployment.
 
 ---
 
@@ -352,12 +353,12 @@ Three non-obvious requirements:
 | No shared Canvas credential | Startup guard: `CANVAS_API_TOKEN` set in HTTP mode → refuse to start |
 | Fail-closed by omission | HTTP mode with no `MCP_ACCESS_KEYS` refuses to start unless `MCP_ALLOW_UNAUTHENTICATED=true` is set *deliberately*; you cannot fail open by forgetting something |
 | Entra requires opt-in pairing | `ENTRA_AUTH_ENABLED=true` without `MCP_ALLOW_UNAUTHENTICATED=true` refuses to start |
-| SSRF elimination | `CANVAS_API_URL` server-pinned; `X-Canvas-URL` ignored |
+| Canvas API base restriction | `CANVAS_API_URL` server-pinned; `X-Canvas-URL` ignored; file-download URLs and redirects require separate egress review |
 | Per-identity authorization | `MCP_ENTRA_ALLOWED_OIDS` (+ optional approval overlay) |
-| PII-safe logging | `LOG_REDACT_PII=true`; UPN/email claim never logged; log sanitizer applied to all log paths |
+| Structured-context log redaction | `LOG_REDACT_PII=true` masks selected identity keys; free-form messages and exceptions still require call-site review |
 | Transport | `httpsOnly=true`, TLS terminated at Azure |
 | Container | non-root user; no code-execution tool |
-| Least data at rest | Server is stateless (`stateless_http=True`); no Canvas data persisted |
+| HTTP session state | `stateless_http=True`; optional audit logging retains endpoint/status/error metadata and needs private storage |
 
 ### 5.2 Code execution must stay disabled
 
@@ -378,9 +379,9 @@ issue #157.
    TLS and typically lives in a client config file on the user's workstation. The server never
    stores it (per-request `ContextVar`, cleared in `finally`), but workstation hygiene is a real
    dependency. Prefer short token lifetimes.
-2. **Authorization is Canvas's, not ours.** The server does not re-implement Canvas permissions; a
-   caller can do through MCP exactly what they can do in Canvas. That is intentional and is the
-   right answer, but reviewers sometimes expect a second permission layer.
+2. **Canvas permissions are the remote ceiling.** Supported tools and configured role,
+   feature and `ALLOWED_WRITE_TOOLS` gates further narrow MCP capability. HTTP defaults
+   to read-only registration when that write allowlist is unset.
 3. **Egress to the model provider is a client-side property.** See §8.
 4. **Bypassing the ingress defeats the identity model.** §3.3.
 5. **Registry admin credentials** as CI secrets until `AcrPull` is granted (§4.7).
@@ -435,8 +436,9 @@ and is worth planning for up front.
 | `TS_SANDBOX_*` | secure defaults | n/a | Irrelevant while code exec is off |
 | `PORT` / `WEBSITES_PORT` | `8819` fallback | platform-injected | |
 
-Stdio-only variables (`MCP_BIND_HOST`, `MCP_BIND_PORT`, `MCP_CLIENT_AUTH_*`) are explicitly rejected
-with an explanatory message rather than silently ignored.
+`MCP_BIND_HOST`, `MCP_BIND_PORT`, and `MCP_CLIENT_AUTH_*` are unsupported legacy
+variables. Stdio configuration validation warns and continues; HTTP startup skips
+that validation. Use the supported CLI `--host` and `--port` options for binding.
 
 ---
 

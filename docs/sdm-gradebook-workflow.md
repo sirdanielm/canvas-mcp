@@ -240,8 +240,12 @@ through repeated refreshes. When Canvas already matches a proposal (including
 after a successful push), that edit is fulfilled and clears without another
 write. `_Sync!B9` points to the actual current Canvas
 snapshot; `_Sync!B2` points to the working baseline, which may retain older
-observations for pending cells. If roster or assignment grading schema changes
-while edits are pending, refresh stops and preserves the existing workbook.
+observations for pending cells. Newly published assignments can be added while
+preserving each existing draft and its original baseline. A changed roster,
+removed assignment, changed existing grading schema, or unavailable pending
+target holds the refresh and preserves the existing workbook. An `EX` draft
+whose original submission cell was absent stays visible for review without
+creating trusted submission evidence or becoming eligible for publication.
 
 The workbook refresh layout supports 1–995 students and 1–256 published graded
 assignments. The live snapshot transport has a stricter cap of **100 published
@@ -454,8 +458,11 @@ readback. Only that ID, exact text/author, and unchanged protected state establi
 `verified`. A lost reply can establish only `observed_applied` from a unique new
 matching comment, with no claim that this request authored it. The stable source,
 decision, target and payload identity blocks re-appending a verified, observed
-or uncertain comment even with a fresh preview token. Preserve the ledger and
-receipts; reconcile uncertainty with GET only.
+or uncertain comment even with a fresh preview token. Preserve the ledger and receipts;
+reconcile uncertain sends without repeating an append. If an interrupted operation
+was claimed but its item never reached `sending`, recovery finalizes it as
+`not_sent`, preserves the consumed token and releases that target's lock without
+a Canvas request. This terminal unsent outcome is distinct from an uncertain send.
 
 ## Private artifacts and recovery
 

@@ -1,5 +1,10 @@
 # Educator Quick Start Guide
 
+
+Code execution is off by default and requires its feature/write gates. Each
+`execute_typescript` run has privileged Canvas access and can bypass MCP previews
+and content fencing. Follow the [execution prerequisites](bulk_grading_example.md#execution-and-approval-requirements)
+and existing scope authorization; an unavailable tool is an operator boundary.
 This guide shows the most common tasks educators use Canvas MCP for.
 
 ## Setup

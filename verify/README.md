@@ -130,11 +130,15 @@ To replay against the original code without replacing this checkout:
 
 ```sh
 git worktree add --detach /tmp/canvas-confirmation-before 710aa3a
-python -m pytest tests/security/test_confirmation_state_machine.py \
+git show c786c02:tests/security/test_confirmation_state_machine.py \
+  > /tmp/canvas-confirmation-before/test_confirmation_replay.py
+python -m pytest /tmp/canvas-confirmation-before/test_confirmation_replay.py \
   -o pythonpath=/tmp/canvas-confirmation-before/src -q
 ```
 
-Expected: **3 failed, 5 passed**. On repaired code: **8 passed**.
+This pins the eight-test historical harness; the current test module imports
+later outcome-handling code that the original baseline does not contain.
+Expected for that pinned harness: **3 failed, 5 passed**. On its repaired code: **8 passed**.
 The existing 18 guard tests also pass. Local full-suite result and exact proof,
 TLC, and before/after outputs are in `evidence/`.
 

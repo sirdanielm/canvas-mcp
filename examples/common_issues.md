@@ -1,5 +1,10 @@
 # Common Issues and Solutions
 
+
+Code execution is off by default and requires its feature/write gates. Each
+`execute_typescript` run has privileged Canvas access and can bypass MCP previews
+and content fencing. Follow the [execution prerequisites](bulk_grading_example.md#execution-and-approval-requirements)
+and existing scope authorization; an unavailable tool is an operator boundary.
 Quick fixes for the most common problems with Canvas MCP.
 
 ## Installation Issues
@@ -61,10 +66,8 @@ Your Canvas API URL should look like:
 CANVAS_API_URL=https://your-institution.instructure.com/api/v1
 ```
 
-**NOT**:
-- ❌ `https://your-institution.instructure.com/` (missing /api/v1)
-- ❌ `your-institution.instructure.com/api/v1` (must include https://)
-- ❌ `https://your-institution.instructure.com/api/v1/` (no trailing slash)
+HTTPS bare-host and trailing-slash URLs are normalized to `/api/v1`; explicit
+API versions are preserved. Include `https://`; a missing scheme is invalid.
 
 Test with:
 ```bash
@@ -168,15 +171,10 @@ Most institutions will enable this for legitimate educational purposes.
 **Problem**: Seeing old information.
 
 **Solution**:
-Canvas MCP caches some data for performance. The cache TTL is set in your `.env`:
-
-```bash
-CACHE_TTL=300  # 5 minutes (default)
-```
-
-To see fresh data immediately:
-- Restart the MCP server (restart your MCP client)
-- Or wait for cache to expire (default: 5 minutes)
+Course-ID mappings remain in the process cache; `CACHE_TTL` does not currently
+expire those mappings. Assignment reads fetch Canvas directly. Waiting five minutes
+is not a supported freshness remedy. Inspect the exact response and configured
+course identity before considering an authorized, idle service restart.
 
 ## Data Issues
 
@@ -296,11 +294,9 @@ Show me all students and all their submissions
 
 ## Getting More Help
 
-1. **Enable debug mode** in your `.env`:
-   ```bash
-   DEBUG=true
-   LOG_API_REQUESTS=true
-   ```
+1. **Read supported stderr warnings/errors.** `DEBUG` and `LOG_API_REQUESTS` are
+   parsed but do not enable request logging in the current implementation: its
+   logger is INFO and request messages are DEBUG. Redact output before sharing.
 
 2. **Test the connection**:
    ```bash
@@ -326,6 +322,6 @@ Run through this list:
 - [ ] `canvas-mcp-server --test` succeeds
 - [ ] Claude Desktop config includes canvas-mcp
 - [ ] Restarted Claude Desktop after config changes
-- [ ] Canvas API URL doesn't have trailing slash or /api/v1
+- [ ] Canvas API URL includes HTTPS and identifies the intended institution
 
 If all these pass and it still doesn't work, [open an issue](https://github.com/vishalsachdev/canvas-mcp/issues)!

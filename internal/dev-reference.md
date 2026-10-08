@@ -3,10 +3,11 @@
 Long-form guidance that used to load in every session. CLAUDE.md keeps the one-line
 rule for each section; this file keeps the reasoning, examples and incident detail.
 Historical incident and adoption sections remain dated snapshots. The Git workflow
-below was refreshed for the SDM fork on 2026-10-01.
+below was refreshed for the SDM fork on 2026-10-08.
 
-Verified 2026-10-01: GitHub reports `sirdanielm/canvas-mcp` main as unprotected and
-`vishalsachdev/canvas-mcp` main as protected. Do not transfer upstream ruleset
+Verified 2026-10-08: GitHub reports `sirdanielm/canvas-mcp` main as protected.
+The October 1 unprotected observation is historical; inspect current active rules
+before claiming which checks are enforced. Do not transfer upstream ruleset
 claims to the fork. The checked-in production workflow triggers only on `v*`
 tags and manual dispatch; workflow presence does not prove deployment credentials
 or a running SDM hosted service. Adoption figures were not re-pulled.
@@ -14,8 +15,8 @@ or a running SDM hosted service. Adoption figures were not re-pulled.
 ## Git workflow
 
 Use reviewed branches and PRs, including documentation changes. PR review and
-green applicable CI are the SDM workflow policy even though GitHub does not
-enforce branch protection here. An existing user authorization covers ordinary
+green applicable CI are the SDM workflow policy, alongside the fork's current
+GitHub rules. An existing user authorization covers ordinary
 branch/worktree choices; clarify only unresolved consequential scope or target
 ambiguity. Branch prefixes are `feature/`, `fix/`, `docs/`, and `refactor/`.
 

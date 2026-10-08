@@ -717,7 +717,7 @@ View the rubric assessment submitted for a student's submission.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
-- `student_id`: Student user ID
+- `user_id`: Student user ID
 
 ---
 
@@ -801,19 +801,23 @@ Grade multiple submissions concurrently.
 ### Student Analytics
 
 #### `get_student_analytics`
-Multi-dimensional student performance analysis.
+Course-wide ranked student engagement analytics.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `student_id` (optional): Specific student or all students
+- `include_participation` (optional): Include participation counts (default: `true`)
+- `include_assignment_stats` (optional): Include on-time, late and missing counts (default: `true`)
+- `include_access_stats` (optional): Include page views (default: `true`)
+- `sort_by` (optional): `engagement_score` (default, ascending), `page_views`, `participations`, or `name`
 
 **Example:**
 ```
 "Show me student performance in BADM 350"
-"Analyze Student_abc123's progress"
+"Rank students by engagement in BADM 350"
 ```
 
-**Returns:** Assignment completion, grade trends, participation, and risk indicators.
+**Returns:** A ranked table of the course's students with engagement scores and
+the selected counts. There is no individual `student_id` filter.
 
 ---
 
@@ -1071,7 +1075,7 @@ the operator lists it in `ALLOWED_WRITE_TOOLS`.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `recipients`: User IDs (array)
+- `recipient_ids`: User IDs (array)
 - `subject`: Message subject
 - `body`: Message content
 - `confirmation_token` (optional): Token from the preview call
@@ -1364,7 +1368,7 @@ Scan course content for basic accessibility issues.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `content_types` (optional): Comma-separated types to scan: `pages`, `assignments`, `discussions`, `syllabus` (default: "pages,assignments")
+- `content_types` (optional): Comma-separated supported types: `pages`, `assignments` (default: "pages,assignments"). Discussion and syllabus content are not scanned.
 
 **Example:**
 ```
@@ -2141,7 +2145,7 @@ reports the message plus `mcp_tools_searched` instead of empty result sections.
 - Use empty query (`""`) to list all available tools
 - Use `"signatures"` detail level for most tasks (default)
 - Use `"names"` when you just need a quick overview
-- Use `"full"` only when you need to see complete implementation details
+- Use `"full"` for catalog details and bounded code excerpts (up to 2,000 characters per code API entry)
 
 **Example Direct Usage:**
 ```typescript
@@ -2154,7 +2158,7 @@ search_canvas_tools("grading", "signatures")
 // List all available tools (names only)
 search_canvas_tools("", "names")
 
-// Get full implementation details for bulk operations
+// Get catalog details and bounded code excerpts for bulk operations
 search_canvas_tools("bulk", "full")
 ```
 
@@ -2221,6 +2225,9 @@ would-be results, not saved grades. Use `grade` for a direct score or
 ```
 
 **Example Code:**
+This fictional assessment assumes its one criterion is the complete assignment
+rubric. Fetch the actual rubric and include every criterion before applying.
+
 ```typescript
 import { bulkGrade } from './canvas/grading/bulkGrade.js';
 
@@ -2237,7 +2244,6 @@ await bulkGrade({
     if (!notebook) return null;
 
     return {
-      points: 100,
       rubricAssessment: { "_8027": { points: 100 } },
       comment: "Great work!"
     };

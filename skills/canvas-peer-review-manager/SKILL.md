@@ -66,7 +66,7 @@ This reveals what students actually wrote in their reviews.
 
 Call `analyze_peer_review_quality` to generate quality metrics across all reviews. The analysis includes:
 
-- **Average quality score** (1-5 scale)
+- **Average quality score** (0-5 scale)
 - **Word count statistics** (mean, median, range)
 - **Constructiveness analysis** (constructive feedback vs. generic comments vs. specific suggestions)
 - **Sentiment distribution** (positive, neutral, negative)
@@ -91,8 +91,8 @@ Call `get_peer_review_followup_list` to get a prioritized list of students requi
 
 - `priority_filter="urgent"` -- students with zero reviews completed
 - `priority_filter="medium"` -- students with partial completion
-- `priority_filter="all"` -- everyone who needs follow-up
-- `days_threshold=3` -- adjusts urgency calculation based on days since assignment
+- `priority_filter="all"` -- all categories, including completed/no-action students
+- `days_threshold=3` is copied into `days_since_assigned`; it is not measured age or an urgency cutoff. Urgency currently uses completion status.
 
 ### 8. Send Reminders
 
@@ -125,7 +125,7 @@ For an automated pipeline, call `send_peer_review_followup_campaign` with the co
 Call `extract_peer_review_dataset` to export all peer review data for external analysis:
 
 - `output_format="csv"` or `output_format="json"`
-- `include_analytics=true` -- appends quality metrics to the export
+- `include_analytics=true` adds quality analytics to JSON; CSV retains its fixed comment-data columns
 - `anonymize_data=true` -- recommended for sharing or archival
 - `save_locally=true` -- saves to a local file; set to `false` to return data inline
 

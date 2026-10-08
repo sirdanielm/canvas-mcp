@@ -252,17 +252,12 @@ Bulk grading complete:
       codeQuality: <span class="code-function">analyzeCodeQuality</span>(notebook)
     };
 
-    <span class="code-comment">// Complex grading rubric</span>
+    <span class="code-comment">// Score-only grading; no rubric assessment is submitted</span>
     <span class="code-keyword">let</span> points = <span class="code-number">0</span>;
-    <span class="code-keyword">const</span> rubricComments = {};
 
     <span class="code-comment">// Criterion 1: Functionality (50 points)</span>
     <span class="code-keyword">if</span> (analysis.passesTests) {
       points += <span class="code-number">50</span>;
-      rubricComments[<span class="code-string">"_8027"</span>] = {
-        points: <span class="code-number">50</span>,
-        comments: <span class="code-string">"All tests pass!"</span>
-      };
     }
 
     <span class="code-comment">// Criterion 2: Documentation (30 points)</span>
@@ -273,7 +268,7 @@ Bulk grading complete:
     <span class="code-keyword">const</span> qualityPoints = Math.min(<span class="code-number">20</span>, analysis.codeQuality * <span class="code-number">20</span>);
     points += qualityPoints;
 
-    <span class="code-keyword">return</span> { points, rubricAssessment: rubricComments };
+    <span class="code-keyword">return</span> { grade: points };
   }
 });</code></pre>
                     </section>
@@ -328,7 +323,7 @@ Bulk grading complete:
 <span class="code-comment">// List all available tools</span>
 <span class="code-function">search_canvas_tools</span>(<span class="code-string">""</span>, <span class="code-string">"names"</span>)
 
-<span class="code-comment">// Get full implementation details</span>
+<span class="code-comment">// Get catalog details and bounded code excerpts</span>
 <span class="code-function">search_canvas_tools</span>(<span class="code-string">"bulk"</span>, <span class="code-string">"full"</span>)</code></pre>
 
                         <h3>Natural Language Discovery</h3>
@@ -341,7 +336,7 @@ Bulk grading complete:
 
                         <h3>Code API File Structure</h3>
                         <pre><code>src/canvas_mcp/code_api/
-├── client.ts              <span class="code-comment"># Base MCP client bridge</span>
+├── client.ts              <span class="code-comment"># Authenticated Canvas HTTP client</span>
 ├── index.ts               <span class="code-comment"># Main entry point</span>
 └── canvas/
     ├── assignments/       <span class="code-comment"># Assignment operations</span>

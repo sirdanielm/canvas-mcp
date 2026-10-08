@@ -16,7 +16,7 @@ Quinn and local AI remain optional future adapters.
 
 | Repository | Responsibility |
 | --- | --- |
-| Canvas MCP SDM profile | Authenticated Canvas reads, local gradebook mirror and permanent PIN source; separately gated score-only publisher |
+| Canvas MCP SDM profile | Authenticated Canvas reads, local gradebook mirror and permanent PIN source; independently gated score/excusal and comment publisher lanes |
 | sdmGrAss | Grader runtime, lifecycle controls, desktop imports and diagnostic QC |
 | GrAss | Native academic policy, verified paper/question evidence, saved results and proposal exports |
 | LocalGrAss | Local review dashboard, durable drafts, immutable revisions and authenticated final pair decisions |
@@ -26,7 +26,18 @@ Its captured snapshot and identity bindings must be verified before admission;
 snapshot hashes do not establish live Canvas freshness. Originals, private
 crosswalks, credentials and detailed student records remain outside Git.
 
-## Current implementation boundary — October 1, 2026
+## Current Canvas delivery boundary — October 8, 2026
+
+Fork main `a46b252` includes the separately confirmed comment lane and the
+pending-draft refresh repair. The [gradebook workflow](sdm-gradebook-workflow.md)
+documents its exact proposal, capability gates, durable uncertainty and independent
+GET readback. A score match does not verify feedback. The standalone comment lane
+is not connected to the LocalGrAss accepted-pair exporter or authenticated academic
+RELEASE; the Unit 1 pair-preview and fictional release bridge remain distinct.
+Repository closeout resumes source/documentation work only. Grading, publication,
+runtime restarts and classroom delivery remain paused for this closeout.
+
+## Connection checkpoint — October 1, 2026
 
 The [October 1 connection slice](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PILOT_CONNECTIONS_2026-10-01.md)
 adds durable original-byte/catalog evidence associations, a Canvas-owned
