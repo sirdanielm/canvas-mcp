@@ -152,6 +152,7 @@ def google_client(config: dict[str, Any], bound: dict[str, Any]) -> GoogleSheets
         bound["core"]["spreadsheet_id"],
         Path(config["credential_path"]),
         profile=config["profile"],
+        sheet_cell_limits={"Unit1 LI Records": 58_000},
     )
 
 
