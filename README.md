@@ -21,6 +21,14 @@ the task; the standard MCP server installation below does not configure all thre
 | Refresh gradebook workbooks and prepare reviewed score changes | Separate `canvas-gradebook` MCP server; Canvas reads by default, publishing requires explicit enablement and approval | [Gradebook workflow](docs/sdm-gradebook-workflow.md) |
 | Author assignments, embedded rubrics, and modules | `canvas-authoring` MCP connection with a client tool allowlist | [Authoring workflow](docs/sdm-canvas-authoring-workflow.md) |
 
+The current grading objective is one useful teacher-reviewed score-plus-feedback
+outcome per bounded cycle. Canvas owns source reads and scoped publishing, while
+grading policy and source judgments remain with their domain owners. The on-demand
+local Unit 2 helper exists outside this repository; numeric policy is **UNSEALED**
+and Canvas delivery remains separate and closed. See the central
+[Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/a677ce40a25c8a5c26da46bb289e247b2cd7648d/docs/UNIT2_TEST_GRADING.md)
+for current policy, implementation limits and next decisions.
+
 The course mirror currently uses a CLI and JSON reports; it has no spreadsheet
 control sheet or dashboard. Its snapshots do not include student grades or
 submissions. Private snapshots and gradebook artifacts stay in ignored
@@ -53,131 +61,14 @@ npx skills add vishalsachdev/canvas-mcp
 
 See [Agent Skills](#-agent-skills) for the list. If your agent is Claude Code, the same recipes are also available as slash commands.
 
-## For AI Agents
+## Tool discovery and agent guidance
 
-<!--
-  INLINE AGENT GUIDE: Intentionally duplicates AGENTS.md content.
-  WHY: Agents often can't fetch raw.githubusercontent.com or GitHub blob pages.
-  MAINTENANCE: When updating tools, also update AGENTS.md (source of truth).
-  See CLAUDE.md "Documentation Maintenance" for full guidelines.
--->
-
-Canvas MCP provides **up to 103 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 103. Tools are organized by user type:
-
-<details>
-<summary><strong>Student Tools</strong> (click to expand)</summary>
-
-| Tool | Purpose | Example Prompt |
-|------|---------|----------------|
-| `get_my_upcoming_assignments` | Due dates for next N days | "What's due this week?" |
-| `get_my_todo_items` | Canvas TODO list | "Show my TODO list" |
-| `get_my_submission_status` | Submitted vs missing | "Have I submitted everything?" |
-| `get_my_course_grades` | Current grades | "What are my grades?" |
-| `get_my_peer_reviews_todo` | Pending peer reviews | "What peer reviews do I need to do?" |
-
-</details>
-
-<details>
-<summary><strong>Educator Tools</strong> (click to expand)</summary>
-
-| Tool | Purpose | Example Prompt |
-|------|---------|----------------|
-| `list_assignments` | All assignments in course | "Show assignments in BADM 350" |
-| `create_assignment` | Create new assignment | "Create an assignment due Jan 26 with online text submission" |
-| `update_assignment` | Update existing assignment | "Change the due date for Assignment 3 to Feb 15" |
-| `list_submissions` | Student submissions | "Who submitted Assignment 3?" |
-| `bulk_grade_submissions` | Grade multiple at once | "Grade these 10 students" |
-| `get_assignment_analytics` | Performance stats | "Show analytics for Quiz 2" |
-| `send_conversation` | Message students | "Message students who haven't submitted" |
-| `create_announcement` | Post announcements | "Announce the exam date change" |
-| **Module Management** | | |
-| `create_module` | Create course module | "Create a module for Week 5" |
-| `update_module` | Update module settings | "Rename the midterm module" |
-| `add_module_item` | Add content to module | "Add the syllabus page to Week 1" |
-| `delete_module` | Remove a module | "Delete the empty test module" |
-| **Page & Content** | | |
-| `create_page` | Create course page | "Create a page for office hours" |
-| `edit_page_content` | Update page content | "Update the syllabus page" |
-| `update_page_settings` | Publish/unpublish pages | "Publish all Week 3 pages" |
-| `bulk_update_pages` | Batch page operations | "Unpublish all draft pages" |
-| **File Management** | | |
-| `upload_course_file` | Upload local file to Canvas | "Upload syllabus.pdf to the course" |
-
-</details>
-
-<details>
-<summary><strong>Shared Tools</strong> (click to expand)</summary>
-
-| Tool | Purpose |
-|------|---------|
-| `list_courses` | All enrolled courses |
-| `get_course_details` | Course info + syllabus |
-| `list_pages` | Course pages |
-| `get_page_content` | Read page content |
-| `list_modules` | List course modules |
-| `list_module_items` | Items within a module |
-| `list_discussion_topics` | Discussion forums |
-| `list_discussion_entries` | Posts in a discussion |
-| `post_discussion_entry` | Add a discussion post |
-| `reply_to_discussion_entry` | Reply to a post |
-
-</details>
-
-<details>
-<summary><strong>Learning Designer Tools</strong> (course design & QC)</summary>
-
-| Tool | Purpose | Example Prompt |
-|------|---------|----------------|
-| `get_course_structure` | Full module→items tree as JSON | "Show me the structure of CS 101" |
-| `scan_course_content_accessibility` | WCAG violation scanner (20 checks: headings, tables, links, contrast, alt text, captions, DesignPLUS) | "Audit accessibility for BADM 350" |
-| `fetch_ufixit_report` | Institutional accessibility report | "Pull the UFIXIT report for this course" |
-| `parse_ufixit_violations` | Extract structured violations | "Parse the UFIXIT violations" |
-| `format_accessibility_summary` | Readable violation report | "Summarize the accessibility issues" |
-
-**Skills:** `canvas-course-qc` (pre-semester audit), `canvas-accessibility-auditor` (WCAG-oriented review), `canvas-course-builder` (scaffold courses from specs/templates).
-
-</details>
-
-<details>
-<summary><strong>Developer Tools</strong> (for bulk operations)</summary>
-
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `search_canvas_tools` | Discover MCP tools and code API operations | Finding available tools and bulk ops |
-| `execute_typescript` | Run TypeScript locally | 30+ items, custom logic, local per-item processing |
-
-**Decision tree:** Simple query → MCP tools. Batch grading (10+) → `bulk_grade_submissions` with a dry run first. Complex bulk (30+) → `execute_typescript` only when enabled and explicitly authorized.
-
-`execute_typescript` is off by default and disabled in the supplied hosted deployment
-configuration. Enabling it requires separately reviewed operator configuration.
-It requires `EXECUTE_TYPESCRIPT_ENABLED=true`; when `ALLOWED_WRITE_TOOLS` is set,
-name `execute_typescript` explicitly (`all` does not include it). Treat every run
-as fully privileged Canvas access: code can bypass MCP confirmation tokens and
-content fencing. Run only within explicit user authorization for the intended scope and effects;
-existing authorization remains valid. A missing tool is an operator boundary, not a reason to bypass it.
-
-The helper and captured execution output can include per-student identifiers,
-including during dry runs. Keep that output private and report only aggregate
-results to the conversation; do not assume local processing anonymizes stdout.
-
-</details>
-
-### Quick Reference
-
-**Course identifiers:** Canvas ID (`12345`), course code (`badm_350_120251_246794`), or SIS ID
-
-**Limits:** Cannot create/delete courses or bypass Canvas permissions. The syllabus
-body can be updated; other course settings are outside the supported write tools.
-Students can access their own records; educators can access student records only
-within their Canvas permissions.
-
-**Rate limits:** ~700 requests/10 min. Use `max_concurrent=5` for bulk operations.
-
-**Full documentation:** [AGENTS.md](AGENTS.md) | [tools/TOOL_MANIFEST.json](tools/TOOL_MANIFEST.json) | [tools/README.md](tools/README.md)
-
-## Overview
-
-The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
+Read [AGENTS.md](AGENTS.md) for authorization, confirmation, untrusted-content and
+operator-write rules. Use [tools/README.md](tools/README.md) for tool contracts and
+[tools/TOOL_MANIFEST.json](tools/TOOL_MANIFEST.json) for the machine catalog.
+`search_canvas_tools` discovers registered MCP tools and code API operations;
+its response uses `schema_version: 2` with separate `mcp_tools` and
+`code_execution_api` sections. A disabled tool is an operator boundary.
 
 ## Latest Release: v1.13.0
 
@@ -193,49 +84,8 @@ A security release: tools that change anything now exist only if the operator al
 
 Also new: **`update_rubric`** for guarded edits of existing rubrics ([#386](https://github.com/vishalsachdev/canvas-mcp/pull/386)) and **`update_syllabus`**, which previews before replacing existing content. Fixed: external-tool assignments such as Gradescope are no longer reported missing ([#390](https://github.com/vishalsachdev/canvas-mcp/pull/390), thanks [@EastArctica](https://github.com/EastArctica)), TypeScript pagination follows `Link` headers within a page budget ([#403](https://github.com/vishalsachdev/canvas-mcp/pull/403)), and confirmation and grading workflows were hardened ([#394](https://github.com/vishalsachdev/canvas-mcp/pull/394) to [#408](https://github.com/vishalsachdev/canvas-mcp/pull/408)). The `execute_typescript` sandbox now runs as a non-root user with a read-only root filesystem ([#317](https://github.com/vishalsachdev/canvas-mcp/pull/317), [#339](https://github.com/vishalsachdev/canvas-mcp/pull/339)). Built on FastMCP 4 and MCP SDK 2 ([#354](https://github.com/vishalsachdev/canvas-mcp/pull/354)).
 
-<details>
-<summary>Previous releases</summary>
-
-**v1.12.0** — A safety release: every delete tool asks first. Breaking: `delete_announcement` removed, `dry_run` removed from the announcement delete tools, `confirmation_token` required on all seven delete tools ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318)), and Python 3.10 dropped ([#315](https://github.com/vishalsachdev/canvas-mcp/issues/315)). Also new: `delete_assignment_with_confirmation`, `ACCESSIBILITY_CHECKERS` ([#325](https://github.com/vishalsachdev/canvas-mcp/issues/325)), and the content migration tools ([#309](https://github.com/vishalsachdev/canvas-mcp/issues/309)).
-
-**v1.11.0** — A protocol-correctness release. Breaking: `send_peer_review_reminders` is now `send_peer_review_inbox_messages` ([#303](https://github.com/vishalsachdev/canvas-mcp/issues/303)); tool failures set MCP `isError: true` ([#270](https://github.com/vishalsachdev/canvas-mcp/issues/270)); string-returning tools no longer duplicate their payload into `structuredContent.result` ([#271](https://github.com/vishalsachdev/canvas-mcp/issues/271)); FastMCP floor 3.4.7 ([#293](https://github.com/vishalsachdev/canvas-mcp/issues/293)). Thanks [@jonespm](https://github.com/jonespm)
-
-**v1.10.0** — A community bug-fix release driven by live reporter testing — thanks [@khagyard](https://github.com/khagyard), [@zqian](https://github.com/zqian), [@jonespm](https://github.com/jonespm), [@bruchris](https://github.com/bruchris), and [@SHIL0018](https://github.com/SHIL0018) (our second outside code contribution). Included a breaking `search_canvas_tools` response-shape change.
-
-- **Breaking: `search_canvas_tools` response shape v2** ([#281](https://github.com/vishalsachdev/canvas-mcp/issues/281)). The tool now actually searches the ~99 registered MCP tools alongside the TypeScript code-API files (it previously searched only the latter, so "peer review" found nothing despite ~10 peer-review tools existing). Responses carry `schema_version: 2` with labeled `mcp_tools` / `code_execution_api` sections; the old flat `tools` key is gone. Full-detail code-API content is now also capped at 2,000 characters ([#287](https://github.com/vishalsachdev/canvas-mcp/issues/287))
-- **Students can find their peer reviews** ([#275](https://github.com/vishalsachdev/canvas-mcp/issues/275)): `get_my_peer_reviews_todo` gained a direct per-assignment lookup and a Planner-feed discovery path — the same data source Canvas's own student UI uses — validated against a real production payload from the reporter
-- **`create_announcement` fails safely on student tokens** ([#283](https://github.com/vishalsachdev/canvas-mcp/issues/283)): Canvas silently downgrades the create to a regular discussion topic; the tool now pre-checks course permissions and refuses before creating anything, auto-deletes the unintended topic if a downgrade still slips through, and steers AI clients away from posting the content via discussion tools as a fallback
-- **Security:** stricter URL validation (code-scanning fix), Docker base bumped to `python:3.14-slim`, CI actions updated
-
-**v1.9.0** — Prompt-injection hardening ([#239](https://github.com/vishalsachdev/canvas-mcp/issues/239)): Canvas-authored text arrives provenance-fenced as data-not-instructions; multi-recipient sends became two-step preview→confirm (breaking); write tools refuse fence markers; OSSF Scorecard published, CI actions SHA-pinned, `.mcpb` ships SLSA provenance; npm wizard retired ([#249](https://github.com/vishalsachdev/canvas-mcp/issues/249)). Eleven adversarial review rounds pre-merge
-
-**v1.8.0** — Security-scan remediation: 11 of 12 findings fixed, three breaking (HTTPS-only Canvas URLs, stdio-only file transfer tools, no-overwrite downloads), a measured submissions authorization bypass closed centrally, CSV formula-injection protection, code execution fails closed, dependency floors raised (PR #251, #255)
-
-**v1.7.0** — Correctness release from instructor bug reports: writes no longer report success when Canvas quietly did less than asked ([#219](https://github.com/vishalsachdev/canvas-mcp/issues/219)–[#221](https://github.com/vishalsachdev/canvas-mcp/issues/221)), Planner-API upcoming assignments ([#222](https://github.com/vishalsachdev/canvas-mcp/issues/222)), `check_enrollment` AMBIGUOUS answers ([#199](https://github.com/vishalsachdev/canvas-mcp/issues/199)), wire-format fixes for pages/inbox ([#207](https://github.com/vishalsachdev/canvas-mcp/issues/207), [#208](https://github.com/vishalsachdev/canvas-mcp/issues/208)), MCP-spec tool annotations ([#204](https://github.com/vishalsachdev/canvas-mcp/issues/204)), CSV rubric format fix ([#190](https://github.com/vishalsachdev/canvas-mcp/issues/190)), anonymization consolidated to the client layer ([#179](https://github.com/vishalsachdev/canvas-mcp/issues/179)). Thanks [@khagyard](https://github.com/khagyard) and [@zqian](https://github.com/zqian)
-
-**v1.6.0** — Tier 1 student write tools behind an explicit allowlist ([#170](https://github.com/vishalsachdev/canvas-mcp/issues/170)), `get_my_enrollments` / `get_my_profile` ([#171](https://github.com/vishalsachdev/canvas-mcp/issues/171)), three-tier anonymization ([#166](https://github.com/vishalsachdev/canvas-mcp/issues/166), [#179](https://github.com/vishalsachdev/canvas-mcp/issues/179)), rubric association fixes ([#180](https://github.com/vishalsachdev/canvas-mcp/issues/180), [#181](https://github.com/vishalsachdev/canvas-mcp/issues/181)), `execute_typescript` became opt-in ([#178](https://github.com/vishalsachdev/canvas-mcp/issues/178)), ruff gating CI ([@w3lld1](https://github.com/w3lld1), PR #186)
-
-**v1.5.0** — `get_syllabus` ([#134](https://github.com/vishalsachdev/canvas-mcp/issues/134)), `create_rubric_from_csv` ([#119](https://github.com/vishalsachdev/canvas-mcp/issues/119)), `update_discussion_topic` ([#154](https://github.com/vishalsachdev/canvas-mcp/issues/154)), fastmcp 2.x migration ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145)), dependency advisories cleared 33 → 0 with a gating CI scan (PR #156)
-
-**v1.4.0** — `check_enrollment` (PR #126), Claude Desktop Extension `.mcpb`, Entra ID authenticated institutional hosting ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115), PR #125), HTTP fails closed without auth gate (PR #123)
-
-**v1.3.0** — `create_rubric` (PR #100), `read_course_file` ([@DomBarker99](https://github.com/DomBarker99), PR #90), event-loop fix for user-scoped tools (PR #99), bulk-delete safety cap (PR #96), dependency pruning (PR #93)
-
-**v1.2.0** — Role-Based Tool Filtering ([@Promithius-DR](https://github.com/Promithius-DR), PR #84), Accessibility Remediation (`fix_accessibility_issues`, scanner expanded 4→20 checks), Security Hardening (path traversal/symlink protections), Windows Support for `execute_typescript` (PR #85), CI consolidation (11→8 checks)
-
-**v1.1.0** — Hosted Server (`mcp.illinihunt.org`), Learning Designer tools + 3 skills, Agent Skills on skills.sh, File Management ([@Metzpapa](https://github.com/Metzpapa), PR #75), Token Optimization, Generic Distribution
-
-**v1.0.8** — Security Hardening (PII sanitization, audit logging, sandbox-by-default), Ruff linting, 235+ tests
-
-**v1.0.7** — Assignment Update Tool (`update_assignment`), complete CRUD, 9 tests
-
-**v1.0.6** — Module Management (7 tools), Page Settings (2 tools), 235+ tests
-
-**v1.0.5** — Claude Code Skills, GitHub Pages site
-
-**v1.0.4** — Code Execution API for token-efficient bulk operations, MCP 2.14 compliance
-
-</details>
+Earlier release history and migration details are retained in the
+[CHANGELOG](CHANGELOG.md).
 
 ### For Students 👨‍🎓
 Get AI-powered assistance with:
@@ -574,37 +424,21 @@ canvas-mcp-server
 
 ## Available Tools
 
-The Canvas MCP Server provides a set of tools for interacting with the Canvas LMS API. These tools are organized into logical categories for better discoverability and maintainability.
-
-### Tool Categories
-
-**Student Tools** (New!)
-- Personal assignment tracking and deadline management
-- Grade monitoring across all courses
-- TODO list and peer review management
-- Submission status tracking
-
-**Shared Tools** (Both Students & Educators)
-1. **Course Tools** - List and manage courses, get detailed information, generate summaries with syllabus content
-2. **Discussion & Announcement Tools** - Manage discussions, announcements, and replies
-3. **Page & Content Tools** - Access pages, modules, and course content
-
-**Educator Tools**
-4. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-5. **Rubric Tools** - Create, safely update, and list rubrics; associate them with assignments; and grade submissions (including `bulk_grade_submissions` for efficient batch grading). `update_rubric` is a guarded full replacement: it preserves existing criterion/rating IDs, requires a preview and confirmation, and verifies the result. See [rubric API behavior and grading caveats](docs/rubric-api-behavior.md).
-6. **User & Enrollment Tools** - Manage enrollments, users, and groups
-7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
-8. **Messaging Tools** - Send messages and announcements to students
-
-**Developer Tools**
-9. **Discovery Tools** - Search registered MCP tools and code execution API operations with `search_canvas_tools`; list code execution modules with `list_code_api_modules`
-10. **Code Execution Tools** - Execute TypeScript code with `execute_typescript` so bulk item processing can stay out of the model's context
-
-📖 [View Full Tool Documentation](tools/README.md) for detailed information about the available tools.
+Student, shared, educator, learning-designer and developer tool references live in
+[tools/README.md](tools/README.md). Tool availability depends on the role profile,
+Canvas permissions and operator allowlists. See [rubric API behavior](docs/rubric-api-behavior.md)
+for guarded rubric replacement and grading caveats.
 
 ## Code Execution API
 
-For bulk operations (30+ items), Canvas MCP supports **TypeScript code execution**. Process bulk operations locally without loading every item into the model’s context.
+Canvas MCP supports opt-in **TypeScript code execution** for custom bulk processing.
+It is disabled by default (`EXECUTE_TYPESCRIPT_ENABLED=false`). When enabled, it
+holds Canvas credentials and can bypass confirmation tokens and content fences;
+each run requires authorization for its intended scope and effects. Sandbox or
+dry-run settings do not establish authorization. When `ALLOWED_WRITE_TOOLS` is set,
+`execute_typescript` must be named explicitly; `all` excludes it. Captured output
+can contain student identifiers even in dry runs: keep it private and report only
+aggregates. See the [code API guide](src/canvas_mcp/code_api/README.md).
 
 | Approach | Best For | Context Behavior |
 |----------|----------|------------------|
@@ -700,7 +534,12 @@ Optional anonymization for FERPA-conscious educator workflows: `ENABLE_DATA_ANON
 
 ## Publishing
 
-Published to [PyPI](https://pypi.org/project/canvas-mcp/), [MCP Registry](https://registry.modelcontextprotocol.io/), and [skills.sh](https://skills.sh) (agent skills). Releases are automated via GitHub Actions — tag a version (`git tag vX.Y.Z && git push origin vX.Y.Z`) and CI handles the rest.
+Upstream distribution uses [PyPI](https://pypi.org/project/canvas-mcp/),
+[MCP Registry](https://registry.modelcontextprotocol.io/) and [skills.sh](https://skills.sh).
+The SDM fork includes unreleased source changes. Tags, package releases, workflow
+dispatches and deployments require separate authorization; a source merge does
+not deploy production. Follow the [release checklist](internal/release-checklist.md)
+for exact candidate, artifact and deployment verification.
 
 ## Contributing
 
