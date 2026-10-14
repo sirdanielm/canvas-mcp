@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import tempfile
@@ -11,6 +12,105 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+GET_CONTROLS = [
+    "request_gradebook_get_refresh",
+    "get_gradebook_get_refresh_status",
+    "review_gradebook_edits",
+    "select_gradebook_review_batch",
+]
+LEGACY_DEFAULT_TOOLS = [
+    "get_canvas_gradebook",
+    "preview_gradebook_changes",
+    "prepare_gradebook_refresh",
+    "verify_gradebook_refresh",
+    "prepare_gradebook_push",
+    "get_gradebook_push_status",
+    "reconcile_gradebook_push",
+]
+
+
+def add_get_controls(config_path: Path) -> str:
+    """Add only protected GET control names; preserve custom push/comment gates."""
+    if config_path.is_symlink():
+        raise ValueError("Refusing to replace a symlinked configuration.")
+    original = config_path.read_bytes()
+    before = tomllib.loads(original.decode())
+    entry = before.get("mcp_servers", {}).get("canvas-gradebook")
+    if not isinstance(entry, dict):
+        raise ValueError("Existing gradebook connection is required.")
+    template = tomllib.loads((ROOT / "config/sdm-gradebook.toml.example").read_text())[
+        "mcp_servers"
+    ]["canvas-gradebook"]
+    if (
+        entry.get("command") != template["command"]
+        or entry.get("cwd") != template["cwd"]
+    ):
+        raise ValueError("Gradebook launcher binding differs; no settings changed.")
+    args = entry.get("args")
+    if args not in [template["args"], [*template["args"], "--enable-push"]]:
+        raise ValueError("Gradebook launcher arguments differ; no settings changed.")
+    enabled = entry.get("enabled_tools")
+    if (
+        not isinstance(enabled, list)
+        or any(not isinstance(x, str) for x in enabled)
+        or len(set(enabled)) != len(enabled)
+    ):
+        raise ValueError("Gradebook tool allowlist is invalid.")
+    added = [x for x in GET_CONTROLS if x not in enabled]
+    if not added:
+        return "Protected GET controls already enabled; no settings changed."
+    new_tools = [*enabled, *added]
+    table = re.search(
+        r"(?ms)^\[mcp_servers\.canvas-gradebook\]\n.*?(?=^\[|\Z)", original.decode()
+    )
+    if table is None:
+        raise ValueError("Cannot locate exact gradebook table.")
+    changed, count = re.subn(
+        r"(?ms)^enabled_tools\s*=\s*\[[^\]]*\]",
+        lambda _: "enabled_tools = " + json.dumps(new_tools),
+        table.group(),
+        count=1,
+    )
+    if count != 1:
+        raise ValueError("Cannot locate gradebook tool allowlist.")
+    replacement = (
+        original.decode()[: table.start()] + changed + original.decode()[table.end() :]
+    ).encode()
+    after = tomllib.loads(replacement.decode())
+    after["mcp_servers"]["canvas-gradebook"]["enabled_tools"] = enabled
+    if after != before:
+        raise ValueError("Unrelated settings changed; installation refused.")
+    backup = config_path.with_name(
+        "config.before-get-controls-"
+        + hashlib.sha256(original).hexdigest()[:12]
+        + ".toml"
+    )
+    if not backup.exists():
+        with open(
+            backup, "xb", opener=lambda p, flags: os.open(p, flags, 0o600)
+        ) as stream:
+            stream.write(original)
+    fd, name = tempfile.mkstemp(
+        dir=config_path.parent, prefix=".gradebook-get-controls-"
+    )
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(replacement)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if config_path.read_bytes() != original:
+            raise ValueError(
+                "Configuration changed during installation; no replacement."
+            )
+        os.replace(name, config_path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+    check = tomllib.loads(config_path.read_text())
+    assert check["mcp_servers"]["canvas-gradebook"]["enabled_tools"] == new_tools
+    check["mcp_servers"]["canvas-gradebook"]["enabled_tools"] = enabled
+    if check != before:
+        raise ValueError("Configuration readback differs.")
+    return "Added protected GET controls; all existing push, comment and connection settings preserved."
 
 
 def install(config_path: Path, upgrade: bool = False) -> str:
@@ -24,11 +124,16 @@ def install(config_path: Path, upgrade: bool = False) -> str:
     if existing is not None:
         if existing == desired:
             return "Connection already matches; no settings changed."
-        expected_previous = {
-            **desired,
-            "enabled_tools": ["get_canvas_gradebook", "preview_gradebook_changes"],
-        }
-        if not upgrade or existing != expected_previous:
+        recognized_previous = [
+            {**desired, "enabled_tools": tools, "tool_timeout_sec": timeout}
+            for tools in (
+                ["get_canvas_gradebook", "preview_gradebook_changes"],
+                LEGACY_DEFAULT_TOOLS,
+                desired["enabled_tools"],
+            )
+            for timeout in (180, desired["tool_timeout_sec"])
+        ]
+        if not upgrade or existing not in recognized_previous:
             raise ValueError(
                 "An existing canvas-gradebook connection differs; no settings changed."
             )
@@ -75,7 +180,7 @@ def install(config_path: Path, upgrade: bool = False) -> str:
         != desired
     ):
         raise ValueError("Configuration readback did not match.")
-    return "Installed canvas-gradebook with seven read-only Canvas tools; existing connections preserved."
+    return "Installed protected GET and private EDIT review controls; Canvas publication remains disabled and existing connections preserved."
 
 
 if __name__ == "__main__":
@@ -86,7 +191,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--upgrade",
         action="store_true",
-        help="Upgrade the recognized initial two-tool entry only",
+        help="Upgrade a recognized earlier read-only entry; customized write gates are preserved by refusal",
+    )
+    parser.add_argument(
+        "--add-get-controls",
+        action="store_true",
+        help="Add only GET-only queue/status tools to the existing connection",
     )
     args = parser.parse_args()
-    print(install(args.config, args.upgrade))
+    print(
+        add_get_controls(args.config)
+        if args.add_get_controls
+        else install(args.config, args.upgrade)
+    )

@@ -8,7 +8,8 @@
  * and add the uniquely named sdmGradebook* helpers. Keep the old runtime and
  * ownership guards unchanged. Verify exactly one definition of each handler
  * in the complete project, exact parent workbook, and complete source readback.
- * A local worker runs the existing canonical refresh after an explicit click.
+ * The installed GET-only worker refreshes protected GET tabs after an explicit
+ * click, preserving every Edit field and its original trusted baseline.
  */
 
 var SDM_GRADEBOOK_MENU_BINDING_ = {
@@ -28,7 +29,7 @@ var SDM_GRADEBOOK_QUEUE_ = {
   states: ['QUEUED', 'CLAIMING', 'CLAIMED', 'PREPARED', 'SENDING',
     'VERIFYING', 'VERIFIED', 'HELD', 'UNCERTAIN', 'OFFLINE'],
   maxValueChars: 2048,
-  heartbeatMaxAgeMs: 180000
+  heartbeatMaxAgeMs: 90000
 };
 
 function sdmGradebookWorkbook_() {
@@ -75,11 +76,12 @@ function sdmGradebookRefreshInstructions() {
     'Choose Canvas Gradebook → Refresh both courses (Canvas GET only). Keep this workbook idle ' +
     'until Show refresh progress reports VERIFIED. The Mac and its local gradebook worker must ' +
     'be awake and online; a recent READY heartbeat is required before a request is queued.\n\n' +
-    'The worker uses Canvas GETs and trusted local baselines, preserving pending Edit proposals ' +
-    'and the Student Info and Assignment reference tabs. No Canvas writes. ' +
+    'The installed GET-only worker refreshes Core GET and Adv GET, preserving pending Edit proposals, ' +
+    'all Edit formulas and feedback notes, the original Edit baselines, and reference tabs. No Canvas writes. ' +
     'This menu does not contact Canvas; it queues one request for the local worker.\n\n' +
-    'If progress is HELD or UNCERTAIN, ask the Canvas MCP Codex task to reconcile the ' +
-    'existing request. Repeated clicks never replace an active request.\n\n' +
+    'HELD before sending: ask Codex to fix the cause, review the held request, and use release-held --confirm. ' +
+    'Then wait for READY before requesting a fresh read. UNCERTAIN: ask Codex to reconcile the existing ' +
+    'request; never retry or release a possible send. Repeated clicks never replace an active request.\n\n' +
     'The old GrAss Submissions snapshot command belongs to a different workbook layout. ' +
     'Do not run its setup command or clear ownership records in this gradebook.', ui.ButtonSet.OK);
 }
@@ -139,7 +141,7 @@ function sdmGradebookQueueRecord_(workbook, kind) {
 
 function sdmGradebookValidateRequest_(data) {
   if (Object.keys(data).sort().join(',') !== 'action,created_at,id,v,workbook_id' ||
-      !sdmGradebookUuid_(data.id) || data.action !== 'REFRESH_BOTH' ||
+      !sdmGradebookUuid_(data.id) || ['REFRESH_BOTH', 'REFRESH_GET_BOTH'].indexOf(data.action) === -1 ||
       data.workbook_id !== SDM_GRADEBOOK_MENU_BINDING_.workbookId ||
       !sdmGradebookIsoTime_(data.created_at) || Date.parse(data.created_at) > Date.now() + 30000) {
     sdmGradebookQueueError_();
@@ -172,7 +174,8 @@ function sdmGradebookHeartbeatReady_(heartbeat) {
   if (!heartbeat) return false;
   var data = heartbeat.data, time = sdmGradebookIsoTime_(data.updated_at);
   var age = time ? Date.now() - Date.parse(time) : Infinity;
-  return data.state === 'READY' && data.workbook_id === SDM_GRADEBOOK_MENU_BINDING_.workbookId &&
+  return data.state === 'READY' && data.refresh_mode === 'GET_ONLY' &&
+    data.workbook_id === SDM_GRADEBOOK_MENU_BINDING_.workbookId &&
     age >= -30000 && age <= SDM_GRADEBOOK_QUEUE_.heartbeatMaxAgeMs;
 }
 
@@ -182,7 +185,8 @@ function sdmGradebookRequestRefresh() {
   var ui = SpreadsheetApp.getUi();
   if (ui.alert('Refresh both courses from Canvas?',
     'Save your edits and keep this workbook idle until refresh progress reports VERIFIED. ' +
-    'The local worker refreshes the two mirrors and preserves pending Edit proposals. ' +
+    'The installed GET-only worker refreshes the two mirrors and preserves every Edit value, formula, ' +
+    'feedback note and original baseline. ' +
     'Canvas is read with GET requests only. No grades are sent to Canvas.', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) {
     return;
   }
@@ -200,9 +204,9 @@ function sdmGradebookRequestRefresh() {
         sdmGradebookQueueError_();
       }
       if (!sdmGradebookHeartbeatReady_(state.heartbeat)) {
-        throw new Error('The local gradebook worker is not ready. Wake the Mac or reconnect the worker, then try again. No request was queued.');
+        throw new Error('The local GET-only gradebook worker is not ready. Wake the Mac or reconnect the GET-only worker, then try again. No request was queued.');
       }
-      var request = {v: 1, id: Utilities.getUuid().toLowerCase(), action: 'REFRESH_BOTH',
+      var request = {v: 1, id: Utilities.getUuid().toLowerCase(), action: 'REFRESH_GET_BOTH',
         created_at: new Date().toISOString(), workbook_id: SDM_GRADEBOOK_MENU_BINDING_.workbookId};
       sdmGradebookValidateRequest_(request);
       var serialized = JSON.stringify(request);
@@ -263,8 +267,10 @@ function sdmGradebookShowProgress() {
   var state = sdmGradebookQueueState_(workbook);
   var text = sdmGradebookSafeProgress_(state) + '\n\nLocal worker: ' +
     (sdmGradebookHeartbeatReady_(state.heartbeat) ? 'READY' : 'not currently READY') +
-    '\nKeep this workbook idle while a refresh runs. If status is HELD or UNCERTAIN, ' +
-    'ask Codex to reconcile the existing request. No Canvas writes are performed.';
+    '\nKeep this workbook idle while a refresh runs. HELD before sending: ask Codex to fix the cause, ' +
+    'review the held request, and use release-held --confirm; then wait for READY before a fresh request. ' +
+    'UNCERTAIN: reconcile the existing request; never retry or release a possible send. ' +
+    'No Canvas writes are performed.';
   var ui = SpreadsheetApp.getUi();
   ui.alert('Canvas gradebook refresh progress', text, ui.ButtonSet.OK);
 }
@@ -274,12 +280,10 @@ function sdmGradebookStoredStatus_(workbook, course) {
   // These cells contain only course identity, origin, time and an aggregate.
   // Never read score grids, student rows, reference tabs or script properties.
   var identity = sheet.getRange('A3:B5').getValues();
-  var pending = sheet.getRange('A10:B10').getValues();
   if (identity.length !== 3 || identity[0][0] !== 'Canvas course ID' ||
       String(identity[0][1]) !== course.courseId || identity[1][0] !== 'Canvas origin' ||
       identity[1][1] !== SDM_GRADEBOOK_MENU_BINDING_.origin ||
-      identity[2][0] !== 'Snapshot time' || pending.length !== 1 ||
-      pending[0][0] !== 'Pending at refresh') {
+      identity[2][0] !== 'Snapshot time') {
     throw new Error('Gradebook menu stopped: stored refresh metadata does not match the configured course.');
   }
   var rawTime = identity[2][1], time;
@@ -292,10 +296,7 @@ function sdmGradebookStoredStatus_(workbook, course) {
   } else {
     time = 'unavailable';
   }
-  var rawCount = pending[0][1];
-  var count = typeof rawCount === 'number' && isFinite(rawCount) && rawCount >= 0 &&
-    Math.floor(rawCount) === rawCount ? String(rawCount) : 'unavailable';
-  return course.label + ': snapshot time ' + time + '\nPending edits at that refresh: ' + count;
+  return course.label + ': GET snapshot time ' + time;
 }
 
 function sdmGradebookShowStatus() {
@@ -306,8 +307,9 @@ function sdmGradebookShowStatus() {
   });
   var ui = SpreadsheetApp.getUi();
   ui.alert('Stored mirror refresh status', lines.join('\n\n') +
-    '\n\nThis is stored metadata, not a live Canvas check. It does not verify the local baseline or ' +
-    'count edits made since the last refresh.', ui.ButtonSet.OK);
+    '\n\nThis is stored metadata, not a live Canvas check. The original Edit baseline is preserved; ' +
+    'pending edits are not recounted by a GET-only refresh. This display does not verify the local baseline.',
+    ui.ButtonSet.OK);
 }
 
 function sdmGradebookOpen_(index) {

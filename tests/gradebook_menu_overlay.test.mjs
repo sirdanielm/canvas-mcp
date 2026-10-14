@@ -11,7 +11,7 @@ const prefix = 'sdm.gradebook.refresh.';
 const fixedIds = {claim: 2026092901, applied: 2026092902, status: 2026092903, heartbeat: 2026092904};
 const request = () => ({v: 1, id: requestId, action: 'REFRESH_BOTH',
   created_at: new Date().toISOString(), workbook_id: config.core.spreadsheet_id});
-const heartbeat = overrides => ({kind: 'heartbeat', data: {v: 1, state: 'READY',
+const heartbeat = overrides => ({kind: 'heartbeat', data: {v: 1, state: 'READY', refresh_mode: 'GET_ONLY',
   updated_at: new Date().toISOString(), workbook_id: config.core.spreadsheet_id, ...overrides}});
 
 function harness(options = {}) {
@@ -121,21 +121,23 @@ test('all stale legacy actions redirect to guidance without legacy runtime or se
   }
 });
 
-test('status reads only four approved metadata ranges and labels freshness limits', () => {
+test('stored GET status never labels a preserved historical pending count as fresh', () => {
   const {context, calls} = harness({pending: 3});
   context.sdmGradebookShowStatus();
-  assert.deepEqual(calls.ranges, [[2026092103, 'A3:B5'], [2026092103, 'A10:B10'],
-    [2026092106, 'A3:B5'], [2026092106, 'A10:B10']]);
-  assert.match(calls.alerts[0][1], /Pending edits at that refresh: 3/);
+  assert.deepEqual(calls.ranges, [[2026092103, 'A3:B5'], [2026092106, 'A3:B5']]);
+  assert.match(calls.alerts[0][1], /GET snapshot time/);
+  assert.doesNotMatch(calls.alerts[0][1], /Pending edits at that refresh|refresh: 3/);
+  assert.match(calls.alerts[0][1], /original Edit baseline is preserved/);
+  assert.match(calls.alerts[0][1], /pending edits are not recounted/);
   assert.match(calls.alerts[0][1], /stored metadata, not a live Canvas check/);
   assert.match(calls.alerts[0][1], /does not verify the local baseline/);
 });
 
-test('status cannot reflect arbitrary sensitive text from timestamp or count cells', () => {
+test('status cannot reflect arbitrary sensitive text from timestamp cells or read pending counts', () => {
   const {context, calls} = harness({time: 'private unexpected value', pending: 'private count value'});
   context.sdmGradebookShowStatus();
-  assert.match(calls.alerts[0][1], /snapshot time unavailable/);
-  assert.match(calls.alerts[0][1], /refresh: unavailable/);
+  assert.match(calls.alerts[0][1], /GET snapshot time unavailable/);
+  assert.equal(calls.ranges.some(([, range]) => range === 'A10:B10'), false);
   assert.doesNotMatch(calls.alerts[0][1], /private/);
 });
 
@@ -179,7 +181,7 @@ test('confirmed request queues only exact authorized protocol under lock and rea
   const saved = JSON.parse(calls.writes[0][1]);
   assert.deepEqual(Object.keys(saved).sort(), ['action', 'created_at', 'id', 'v', 'workbook_id']);
   assert.equal(saved.id, requestId);
-  assert.equal(saved.action, 'REFRESH_BOTH');
+  assert.equal(saved.action, 'REFRESH_GET_BOTH');
   assert.equal(saved.workbook_id, config.core.spreadsheet_id);
   assert.equal(metadata.filter(x => x.kind === 'request').length, 1);
   assert.deepEqual(calls.locks, ['acquired', 'released']);
@@ -207,12 +209,12 @@ test('existing immutable request is deduplicated even when heartbeat is absent',
 });
 
 test('offline, stale, future, wrong-workbook and non-ready heartbeats cannot enqueue', () => {
-  const overrides = [null, {state: 'OFFLINE'}, {updated_at: new Date(Date.now() - 181000).toISOString()},
+  const overrides = [null, {state: 'OFFLINE'}, {updated_at: new Date(Date.now() - 91000).toISOString()},
     {updated_at: new Date(Date.now() + 60000).toISOString()}, {workbook_id: 'different'},
     {updated_at: 'arbitrary private text'}];
   for (const patch of overrides) {
     const {context, calls} = harness({metadata: patch ? [heartbeat(patch)] : []});
-    assert.throws(() => context.sdmGradebookRequestRefresh(), /worker is not ready/);
+    assert.throws(() => context.sdmGradebookRequestRefresh(), /gradebook worker is not ready/);
     assert.equal(calls.writes.length, 0);
     assert.deepEqual(calls.locks, ['acquired', 'released']);
   }
@@ -328,12 +330,46 @@ test('released HELD permits a new request only with no queue markers and a fresh
   for (const additions of [[], [heartbeat({state: 'OFFLINE'})],
     [heartbeat({updated_at: new Date(Date.now() - 181000).toISOString()})]]) {
     const h = harness({metadata: [held, ...additions]});
-    assert.throws(() => h.context.sdmGradebookRequestRefresh(), /worker is not ready/);
+    assert.throws(() => h.context.sdmGradebookRequestRefresh(), /gradebook worker is not ready/);
     assert.equal(h.calls.writes.length, 0);
   }
   for (const kind of ['claim', 'applied']) {
     const h = harness({metadata: [held, heartbeat(), {kind, data: {v: 1, id: otherId}}]});
     assert.throws(() => h.context.sdmGradebookRequestRefresh(), /needs reconciliation/);
     assert.equal(h.calls.writes.length, 0);
+  }
+});
+
+test('recovery guidance distinguishes a pre-send hold from an uncertain send', () => {
+  for (const name of ['sdmGradebookRefreshInstructions', 'sdmGradebookShowProgress']) {
+    const {context, calls} = harness();
+    context[name]();
+    const text = calls.alerts[0][1];
+    assert.match(text, /HELD before sending/);
+    assert.match(text, /fix the cause/);
+    assert.match(text, /release-held --confirm/);
+    assert.match(text, /UNCERTAIN.*reconcile/);
+    assert.match(text, /never retry/);
+    assert.equal(calls.writes.length, 0);
+  }
+});
+
+test('legacy or full-sync READY heartbeats cannot authorize a protected GET request', () => {
+  for (const refresh_mode of [undefined, 'FULL_SYNC', 'UNKNOWN']) {
+    const {context, calls} = harness({metadata: [heartbeat({refresh_mode})]});
+    assert.throws(() => context.sdmGradebookRequestRefresh(), /GET-only gradebook worker is not ready/);
+    assert.equal(calls.writes.length, 0);
+  }
+});
+
+test('explicit GET requests and legacy requests remain visible without replacing either', () => {
+  for (const action of ['REFRESH_BOTH', 'REFRESH_GET_BOTH']) {
+    const current = {...request(), action};
+    const {context, calls} = harness({metadata: [{kind: 'request', data: current}]});
+    context.sdmGradebookShowProgress();
+    assert.match(calls.alerts[0][1], /State: QUEUED/);
+    context.sdmGradebookRequestRefresh();
+    assert.match(calls.alerts.at(-1)[1], /already exists/);
+    assert.equal(calls.writes.length, 0);
   }
 });

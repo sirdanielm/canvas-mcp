@@ -1,5 +1,89 @@
 # Local Canvas gradebook refresh worker
 
+## Protected GET refresh mode
+
+Use `scripts/sdm_gradebook_worker.py --get-only` for the installed gradebook
+menu worker. This mode refreshes Core GET and Adv GET from complete Canvas reads
+while preserving every Edit value, formula, note, layout field and original
+trusted baseline. New Canvas students and assignments appear in GET without
+changing the Edit roster or its proposal schema. `_Sync!B5` and `_Sync!B9` record
+the fresh observation; `_Sync!B2` remains the original Working baseline.
+`_Sync!B10` remains the historical full-sync pending count; GET-only refresh
+does not recount Edit proposals. Stored status displays the GET timestamp only.
+
+The read-only doctor uses the same exact sheet bindings and GET protections,
+without interpreting Edit helper cells as publication proposals. The existing
+full-sync and publisher validators retain their separate fail-closed checks.
+GET-only plans record their mode durably, so uncertain operations reconcile
+against their original mode after restart and never resend a grade-data batch.
+
+The local worker reads at most 100,000 cells per bounded request, with five
+seconds between read starts. Existing 20 MB response and 80 MB capture limits,
+complete allocated-range coverage and bracketing metadata checks remain. Larger
+bounded reads reduce quota usage; slower pacing leaves capacity for other local
+readers. A byte or quota failure retains the prior snapshot and requires
+readback reconciliation after any possible write.
+
+For an on-demand readiness check:
+
+```sh
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only doctor
+```
+
+For the background menu worker, include `--get-only` before `run` in its reviewed
+launch-agent arguments. Startup and a fresh READY heartbeat must be verified
+after restart. A legacy held request remains preserved in the journal; only the
+existing explicit pre-send release operation may remove its queue markers.
+New menu and CLI requests use `REFRESH_GET_BOTH` and require a fresh READY
+heartbeat advertising `refresh_mode: GET_ONLY`. A legacy or full-sync heartbeat
+cannot authorize this request. Legacy `REFRESH_BOTH` records remain readable for
+status and recovery; they are never silently changed into a different operation.
+
+For an authorized on-demand refresh, keep editing paused and queue one request
+through the menu or CLI:
+
+```sh
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only request
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only status
+```
+
+`request` writes only the exact coordination request after checking a fresh
+GET_ONLY READY heartbeat and a clear queue. It does not itself read Canvas or
+write grade data. Wait for the background worker's complete VERIFIED receipt
+before treating the mirror as fresh or resuming edits. Local `status` reads the
+journal and does not independently prove worker liveness.
+
+The local CLI/MCP request waits up to 30 seconds for brief journal-lock
+contention, using nonblocking lock attempts and asynchronous 0.25-second pauses.
+This admission wait occurs before any Google request, immutable intent or
+queue send. A typed local lock conflict is the only retryable event. Permission,
+filesystem, schema and all admitted-body errors remain immediate holds; a
+cancellation while waiting stops admission. After acquiring the lock, the requester checks
+the current queue and fresh READY GET_ONLY heartbeat and executes the body once.
+The wait grants no liveness or freshness assumption and never retries a POST.
+
+If the wait expires, the error states that this attempt created or sent no
+request. Inspect local status: a longer refresh may already be active. Do not
+repeat an uncertain or previously queued operation. Thirty seconds accommodates
+ordinary idle metadata polls without extending the existing 180-second Desktop
+request timeout; longer contention returns a clear safe stop.
+
+The background loop handles the same typed lock conflict as local BUSY and
+waits for its next normal poll. It does not escalate a brief lock conflict into
+HELD or publish a heartbeat that claims READY while it lacks the lock. Other
+errors retain the existing recovery and hold behavior. This local contention
+handling does not complete or reconcile an active refresh.
+
+The separate gradebook MCP exposes `request_gradebook_get_refresh()` and
+`get_gradebook_get_refresh_status(request_id)` through the same controller when
+its local worker configuration is available. Queue once, retain the returned
+request ID, and inspect that exact request until VERIFIED with `finalized: true`
+and a complete GET-only preservation receipt. An error or timeout is not
+permission to queue again. Local status inspection contacts no service.
+`review_gradebook_edits(course)` separately reads native EDIT and fresh Canvas
+to produce a private comparison; it does not prepare or confirm publication.
+See the [agent refresh protocol](sdm-gradebook-workflow.md#agent-refresh-protocol).
+
 The worker connects the central gradebook menu, the existing Canvas GET reader,
 and the immutable local baseline store. It refreshes both courses together while
 preserving pending Edit proposals. It imports no Canvas publisher and exposes no
@@ -56,29 +140,38 @@ the user's spreadsheets, while this transport is restricted to the one configure
 workbook ID. This restriction is an application guard, not a Google per-file
 permission. Credentials are never stored in Apps Script, cells, Git, or logs.
 
-The same `service.prepare_refresh` is used by the MCP and worker paths. The worker
-uses native Sheets reads rather than XLSX exports, so it can additionally verify
+The installed `--get-only` composition uses `get_only_refresh.prepare_get_only_refresh`
+and complete native verification. The legacy MCP refresh and default worker
+composition use `service.prepare_refresh`, which reconciles GET and Edit together
+and can hold on Edit helper formulas or schema differences. Never use that
+full-sync path as a fallback for a fresh read. The GET-only worker uses native
+Sheets reads rather than XLSX exports, so it can additionally verify
 selected formats, notes, validation, dimensions, protections, conditional rules,
-and basic filters. It requires exact course/sheet/name bindings, literal grade
-cells, full GET/Sync protection, the expected editable score rectangle, hidden
-system identities, and frozen headers. It rejects an incompatible layout; it
+and basic filters. It requires exact course/sheet/name bindings, literal GET
+cells, full GET/Sync protection, hidden GET identities and frozen headers. Edit
+cells remain opaque and are preserved rather than parsed as publishable grades.
+It rejects an incompatible GET layout; it
 does not adopt a same-name sheet or recreate missing tabs.
 
-Native reads cover every allocated cell in sequential rectangles of at most
-10,000 cells, with exact offsets and no skipped ranges. Google may omit rules
+Native reads cover every allocated cell in sequential rectangles with exact
+offsets and no skipped ranges. The installed worker factory uses at most
+100,000 cells per rectangle and five seconds between read starts. The reusable
+Google transport's generic defaults remain 10,000 cells and 1.1 seconds; those
+defaults do not describe the installed worker. Google may omit rules
 outside a requested rectangle; every returned rule must match the complete
 metadata, which is checked again after capture and retained for verification.
-Repeated dimension metadata must agree. Reads are spaced at least 1.1 seconds
-apart per client, including retries, to stay below the 60-read-per-minute user
-quota. This remains an interval capture rather than an atomic snapshot; keep the
+Repeated dimension metadata must agree. Pacing includes retries and leaves room
+within the per-user read quota for other readers. This remains an interval
+capture rather than an atomic snapshot; keep the
 workbook idle and retain the independent fresh-input comparison before dispatch.
 The first successful live check used 23 reads in about 25 seconds for nine tabs
 and saved approximately 11 MB of compact native data privately.
 
 Every request prepares both courses before any grade-data write. `_Sync!B2`
-resolves to the trusted local working baseline; `_Sync!B9` records the current
-Canvas snapshot. Pending proposals retain their original baseline even when
-Canvas changes and through later refreshes. Student Info, Assignment, Grader
+resolves to the original trusted local Working baseline and stays unchanged;
+`_Sync!B9` records the fresh Canvas snapshot and `_Sync!B5` its observation time.
+Every Edit value, formula, note and layout field is preserved. A successful GET
+refresh does not clear or accept a proposal. Student Info, Assignment, Grader
 Proposals, and all other unrelated tabs retain their selected native fields.
 No permanent student PIN is regenerated.
 
@@ -97,8 +190,9 @@ in the workbook, choose **Canvas Gradebook → Refresh both courses (Canvas GET
 only)** once, then use **Show refresh progress** until the request reports
 VERIFIED. Resume editing after verification. A queued request, READY heartbeat,
 or updated-looking sheet is not a substitute for VERIFIED. If the request is
-HELD or UNCERTAIN, preserve its evidence and follow the recovery section; do not
-click again to bypass it.
+HELD before sending, fix the cause and review the explicit release procedure
+below. UNCERTAIN requires reconciliation without replay. Do not click again to
+bypass either state.
 
 The installed agent starts at user login. It polls coordination metadata while
 idle and fetches Canvas grades only for an explicit refresh request. It performs
@@ -110,7 +204,7 @@ service without changing either:
 
 ```sh
 cd '/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring'
-.venv/bin/python scripts/sdm_gradebook_worker.py status
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only status
 launchctl print "gui/$(id -u)/org.sdm.canvas-gradebook-refresh"
 ```
 
@@ -191,7 +285,7 @@ Wait for a fresh READY heartbeat before requesting another refresh. If launchd
 already has the service loaded, do not start a second foreground worker. The
 plist depends on this checkout's script, `.venv`, private configuration, and
 `local_gradebooks` store. Stop it while idle before switching branches, updating
-worker code or dependencies, or changing those runtime paths. Run `doctor` before
+worker code or dependencies, or changing those runtime paths. Run `--get-only doctor` before
 restarting after maintenance; moving or deleting the checkout breaks the service.
 Preserve the private baseline store and operation evidence through maintenance.
 
@@ -205,7 +299,7 @@ Canvas Keychain connection are prerequisites:
 
 ```sh
 uv sync --frozen --group dev --extra local-keychain
-.venv/bin/python scripts/sdm_gradebook_worker.py configure
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only configure
 ```
 
 `configure` creates a private configuration with a stable worker UUID. It does
@@ -230,15 +324,16 @@ For Google setup, an operator with authority over a Google Cloud project must:
    central workbook. The following path is a placeholder for that private file:
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py authorize \
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only authorize \
   --client-config /absolute/private/path/desktop-client.json
-.venv/bin/python scripts/sdm_gradebook_worker.py doctor
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only doctor
 ```
 
 The authorization helper uses PKCE, a random state, a short-lived loopback
 callback, and exclusive mode 0600 credential creation. It never overwrites an
 existing credential. `doctor` performs Google reads and validates both courses'
-local baselines and proposal parsing. It writes neither Canvas nor Sheets and
+local baselines. In GET-only mode it preserves Edit fields without parsing them
+as publication proposals. It writes neither Canvas nor Sheets and
 publishes no heartbeat. It does not prove Canvas authentication or successful
 Google write permission; the live pilot verifies those operational prerequisites.
 Fix any hold before continuing.
@@ -257,24 +352,24 @@ Install the queue menu only after reviewing its complete candidate source:
   and compare the complete result. An uncertain update requires GET readback,
   never a blind second update.
 - Reload the workbook. The menu must refuse to queue a request until a recent
-  READY heartbeat exists.
+  READY heartbeat advertising GET_ONLY mode exists.
 
 Run in the foreground for the initial pilot:
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py run
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only run
 ```
 
 After startup preflight succeeds, choose **Canvas Gradebook → Refresh both
 courses (Canvas GET only)**. Save and pause worksheet editing until **Show
-refresh progress** reports VERIFIED. Verify both course counts, pending-edit
-counts, reference preservation, and the saved receipt before enabling background
+refresh progress** reports VERIFIED. Verify both course counts, complete Edit
+preservation, unchanged original baselines, reference preservation, and the saved receipt before enabling background
 operation. A populated menu or a READY heartbeat alone is not a successful refresh.
 
 The worker can generate a launchd template after a successful doctor check:
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py launch-agent \
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only launch-agent \
   --output /absolute/private/path/org.sdm.canvas-gradebook-refresh.plist
 ```
 
@@ -282,7 +377,7 @@ This command neither installs nor starts it. Review the checkout, interpreter,
 configuration, and private log paths before a separately authorized per-user
 launchd installation. The Mac must be awake, online, and able to access Keychain.
 The worker is an ordinary local process; closing a foreground terminal stops it.
-A stopped worker loses its READY heartbeat within three minutes.
+A stopped worker loses its request-ready heartbeat within 90 seconds.
 
 ## Coordination and crash recovery
 
@@ -291,7 +386,8 @@ The queue uses spreadsheet-level, DOCUMENT-visible developer metadata with keys
 identities, tokens, or arbitrary URLs/paths appear there. These records are visible
 to workbook editors and coordinate activity; they are not a security boundary.
 
-The immutable request fixes `REFRESH_BOTH`, workbook ID, UUID, and creation time.
+New immutable requests fix `REFRESH_GET_BOTH`, workbook ID, UUID, and creation time.
+Legacy `REFRESH_BOTH` requests remain preserved for status and mode-bound recovery.
 A menu document lock deduplicates simultaneous clicks. A local file lock prevents
 concurrent workers sharing the same state directory. An explicit unique metadata
 ID claims the remote queue; a per-operation nonce distinguishes copied worker
@@ -309,9 +405,9 @@ becomes UNCERTAIN. Cleanup affects only the exact request/claim/applied metadata
 a verified receipt survives interruption and subsequent teacher edits.
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py status
-.venv/bin/python scripts/sdm_gradebook_worker.py status --request-id REQUEST_UUID
-.venv/bin/python scripts/sdm_gradebook_worker.py reconcile REQUEST_UUID
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only status
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only status --request-id REQUEST_UUID
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only reconcile REQUEST_UUID
 ```
 
 Reconciliation never sends grade data. It reads the applied marker and complete
@@ -329,23 +425,28 @@ Only after reviewing a **pre-SENDING** hold can the operator retire its queue
 records and request a fresh plan:
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py release-held REQUEST_UUID --confirm
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only release-held REQUEST_UUID --confirm
 ```
 
 That command preserves all private evidence and changes no grades. It refuses
 SENDING, VERIFYING, and UNCERTAIN. Coordination cleanup has its own durable intent
-and readback so a lost cleanup response can be recovered safely.
+and readback so a lost cleanup response can be recovered safely. Wait for a
+fresh READY heartbeat and a clear queue, then use the menu or `--get-only request`
+once to request a new GET-only plan. An UNCERTAIN or possible-send operation
+never qualifies for this release. Reconciliation chooses the operation's
+persisted mode even if the CLI flag or later worker composition differs.
 
 ## Limits and tradeoffs
 
 | Control | Default | Reason and tradeoff |
 | --- | --- | --- |
 | Idle polling |30seconds; failure backoff up to300seconds|Fast enough for an explicit classroom refresh; bounded metadata traffic and no Canvas calls while idle.|
-| READY heartbeat age |180seconds|Allows ordinary short delays; an offline worker soon stops accepting new requests.|
+| READY heartbeat age |90seconds|Allows the30second idle polling interval and short delays; an offline worker soon stops accepting new requests.|
 | Request lifetime |10minutes|Covers two bounded course reads; stale requests are held before grade-data dispatch.|
 | Plan lifetime |5minutes|Keeps the Canvas/workbook comparison recent; slow preparations hold rather than apply stale data.|
 | Canvas reads |100published graded assignments;120seconds per course|Caps cost and failure duration; incomplete reads never replace a mirror.|
-| Google read chunks |10,000 allocated cells;20MB per response;1.1seconds between reads|Bounds each response while preserving selected formatting and cell fields; avoids a burst beyond the per-user read quota.|
+| Installed worker Google reads |100,000 allocated cells;20MB per response;5seconds between read starts|Fewer requests for complete workbook coverage while leaving quota capacity for other readers; the byte cap still bounds larger responses.|
+| Generic Google transport defaults |10,000 allocated cells;1.1seconds between read starts|Reusable defaults for callers that do not provide the installed worker's factory settings.|
 | Complete Google capture |80MB cumulative response data;200 chunks;180seconds;1million allocated cells;50,000cells per reference tab|Bounds memory, retries, and duration across the whole capture. A partial capture is rejected; allocation is never a student count.|
 | Native verification |500,000returned cells|Bounds parsed formatting data; oversized inputs hold for explicit review.|
 | Google writes |One grade batch, no transport retries|A timeout sacrifices automatic progress to prevent duplicate or stale replacement.|

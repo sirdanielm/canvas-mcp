@@ -48,7 +48,9 @@ def test_worker_factory_limits_only_the_named_reference(monkeypatch, tmp_path):
     assert result["credential_path"] == tmp_path / "fictional.json"
     assert result["profile"] == "gradebook"
     assert result["sheet_cell_limits"] == {"Unit1 LI Records": 58_000}
-    assert set(result) == {"workbook", "credential_path", "profile", "sheet_cell_limits"}
+    assert set(result) == {"workbook", "credential_path", "profile", "sheet_cell_limits", "max_chunk_cells", "read_interval_seconds"}
+    assert result["max_chunk_cells"] == 100_000
+    assert result["read_interval_seconds"] == 5.0
 
 
 def test_configure_stable_id_private_modes_and_no_start(configured):
@@ -323,6 +325,36 @@ async def test_run_error_backoff_is_bounded_and_sanitized(monkeypatch, capsys):
         await cli.run_loop(Worker(), 30)
     assert delays == [30, 60, 120, 240, 300, 300]
     assert "fictional-private-secret" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("during_heartbeat", [False, True])
+async def test_transient_journal_busy_is_local_busy_with_normal_polling(
+    monkeypatch, capsys, during_heartbeat
+):
+    from canvas_mcp.gradebook.worker import RefreshJournalBusy
+
+    delays = []
+
+    class Worker:
+        async def step(self):
+            if not during_heartbeat:
+                raise RefreshJournalBusy("Another local refresh worker owns this workbook.")
+            return {"state": "IDLE"}
+
+        async def heartbeat(self):
+            raise RefreshJournalBusy("Another local refresh worker owns this workbook.")
+
+    async def sleep(delay):
+        delays.append(delay)
+        if len(delays) == 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(cli.asyncio, "sleep", sleep)
+    with pytest.raises(asyncio.CancelledError):
+        await cli.run_loop(Worker(), 30)
+    assert delays == [30, 30, 30]
+    messages = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert messages == [{"state": "BUSY", "failure_code": "worker_busy", "canvas_writes": 0}]
 
 
 def test_main_redacts_unexpected_exception(configured, monkeypatch, capsys):

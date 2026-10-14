@@ -236,7 +236,9 @@ class GoogleSheets:
                 else (
                     "sheets_batch"
                     if method == "POST"
-                    else "workbook_read" if read_budget is not None else "metadata_read"
+                    else "workbook_read"
+                    if read_budget is not None
+                    else "metadata_read"
                 )
             )
         )
@@ -269,13 +271,36 @@ class GoogleSheets:
                                 "Google response exceeded its size limit."
                             )
                     status = response.status_code
+                    sheet_quota = method == "GET" and url == self.url and status == 429
+                    if sheet_quota:
+                        code = "throttled"
                     if retry and status in {429, 502, 503, 504} and attempt < 2:
-                        delay = response.headers.get("retry-after", str(2**attempt))
-                        if not delay.isdecimal() or int(delay) > 5:
-                            raise GradebookError(
-                                "Google retry delay requires a later attempt."
+                        if sheet_quota:
+                            # Sheets quotas refill each minute. Two bounded
+                            # cooldowns permit recovery without exhausting the
+                            # existing 180-second whole-capture deadline. This
+                            # branch never retries OAuth or Sheets POSTs.
+                            delay = response.headers.get(
+                                "retry-after", str(30 * 2**attempt)
                             )
-                        await asyncio.sleep(int(delay))
+                            numeric = delay.lstrip("0") or "0"
+                            if (
+                                not delay.isascii()
+                                or not delay.isdecimal()
+                                or len(numeric) > 2
+                                or int(numeric) > 60
+                            ):
+                                raise GradebookError(
+                                    "Google retry delay requires a later attempt."
+                                )
+                            await self._read_sleep(int(numeric))
+                        else:
+                            delay = response.headers.get("retry-after", str(2**attempt))
+                            if not delay.isdecimal() or int(delay) > 5:
+                                raise GradebookError(
+                                    "Google retry delay requires a later attempt."
+                                )
+                            await asyncio.sleep(int(delay))
                         continue
                     try:
                         result = json.loads(body)

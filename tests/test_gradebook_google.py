@@ -1,5 +1,6 @@
 """Synthetic Google transport checks. No real credentials or external writes."""
 
+import asyncio
 import copy
 import json
 import os
@@ -899,6 +900,198 @@ class VirtualReadClock:
     async def sleep(self, seconds):
         self.sleeps.append(seconds)
         self.now += seconds
+
+
+@pytest.mark.parametrize("retry_after,wait", [("30", 30), ("60", 60), ("00060", 60)])
+async def test_sheet_read_honors_bounded_quota_retry_after(
+    credentials, retry_after, wait
+):
+    fixture = GoogleFixture()
+    clock = VirtualReadClock()
+    attempts = []
+
+    def limited_once(request):
+        attempts.append(clock())
+        if len(attempts) == 1:
+            return httpx.Response(429, json={}, headers={"Retry-After": retry_after})
+        return httpx.Response(200, json=fixture.metadata)
+
+    fixture.failures["metadata"] = limited_once
+    client = GoogleSheets(
+        WORKBOOK,
+        credentials,
+        transport=httpx.MockTransport(fixture.handle),
+        read_interval_seconds=5,
+        read_clock=clock,
+        read_sleep=clock.sleep,
+    )
+    try:
+        await client.metadata()
+    finally:
+        await client.close()
+    assert clock.sleeps == [wait]
+    assert attempts == [100, 100 + wait]
+    assert_no_sheet_writes(fixture)
+
+
+async def test_sheet_quota_without_header_cools_down_and_stops_after_three_reads(
+    credentials,
+):
+    fixture = GoogleFixture()
+    clock = VirtualReadClock()
+    attempts = []
+
+    def limited(request):
+        attempts.append(clock())
+        return httpx.Response(
+            429, json={"error": {"message": "fictional-private-body"}}
+        )
+
+    fixture.failures["metadata"] = limited
+    client = GoogleSheets(
+        WORKBOOK,
+        credentials,
+        transport=httpx.MockTransport(fixture.handle),
+        read_interval_seconds=5,
+        read_clock=clock,
+        read_sleep=clock.sleep,
+    )
+    try:
+        with pytest.raises(GradebookError, match="HTTP 429") as error:
+            await client.metadata()
+        assert "fictional-private-body" not in str(error.value)
+    finally:
+        await client.close()
+    assert clock.sleeps == [30, 60]
+    assert attempts == [100, 130, 190]
+    assert_no_sheet_writes(fixture)
+
+
+@pytest.mark.parametrize("retry_after", ["0", "1"])
+async def test_small_quota_cooldown_still_obeys_read_start_spacing(
+    credentials, retry_after
+):
+    fixture = GoogleFixture()
+    clock = VirtualReadClock()
+    attempts = []
+
+    def limited_once(request):
+        attempts.append(clock())
+        if len(attempts) == 1:
+            return httpx.Response(429, json={}, headers={"Retry-After": retry_after})
+        return httpx.Response(200, json=fixture.metadata)
+
+    fixture.failures["metadata"] = limited_once
+    client = GoogleSheets(
+        WORKBOOK,
+        credentials,
+        transport=httpx.MockTransport(fixture.handle),
+        read_interval_seconds=5,
+        read_clock=clock,
+        read_sleep=clock.sleep,
+    )
+    try:
+        await client.metadata()
+    finally:
+        await client.close()
+    assert attempts == [100, 105]
+    assert sum(clock.sleeps) == 5
+    assert_no_sheet_writes(fixture)
+
+
+@pytest.mark.parametrize(
+    "retry_after", ["61", "-1", "1.5", "private retry text", "9" * 5000]
+)
+async def test_quota_delay_outside_bound_defers_safely(credentials, retry_after):
+    fixture = GoogleFixture()
+    clock = VirtualReadClock()
+    fixture.failures["metadata"] = lambda _: httpx.Response(
+        429, json={}, headers={"Retry-After": retry_after}
+    )
+    client = GoogleSheets(
+        WORKBOOK,
+        credentials,
+        transport=httpx.MockTransport(fixture.handle),
+        read_interval_seconds=5,
+        read_clock=clock,
+        read_sleep=clock.sleep,
+    )
+    try:
+        with pytest.raises(GradebookError) as error:
+            await client.metadata()
+        assert str(error.value) == "Google retry delay requires a later attempt."
+    finally:
+        await client.close()
+    assert clock.sleeps == []
+    assert sum(r.url.host == "sheets.googleapis.com" for r in fixture.requests) == 1
+    assert_no_sheet_writes(fixture)
+
+
+async def test_quota_cooldown_cannot_extend_whole_capture_deadline(credentials):
+    fixture = GoogleFixture()
+    cooldowns = []
+
+    async def suspended_sleep(seconds):
+        cooldowns.append(seconds)
+        await asyncio.Event().wait()
+
+    fixture.failures["metadata"] = lambda _: httpx.Response(
+        429, json={}, headers={"Retry-After": "30"}
+    )
+    client = GoogleSheets(
+        WORKBOOK,
+        credentials,
+        transport=httpx.MockTransport(fixture.handle),
+        read_interval_seconds=0,
+        read_timeout_seconds=0.01,
+        read_sleep=suspended_sleep,
+    )
+    try:
+        with pytest.raises(GradebookError, match="time limit; no partial read"):
+            await client.read_workbook()
+        assert client._validated_token is None
+    finally:
+        await client.close()
+    assert cooldowns == [30]
+    assert sum(r.url.host == "sheets.googleapis.com" for r in fixture.requests) == 1
+    assert_no_sheet_writes(fixture)
+
+
+async def test_oauth_post_quota_retry_policy_is_unchanged(google, monkeypatch):
+    client, fixture = google
+    sleeps = []
+
+    async def record_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("canvas_mcp.gradebook.google.asyncio.sleep", record_sleep)
+    fixture.failures["token"] = lambda _: httpx.Response(429, json={})
+    with pytest.raises(GradebookError, match="OAuth refresh failed"):
+        await client.metadata()
+    assert sleeps == [1, 2]
+    assert len(fixture.requests) == 3
+    assert all(r.method == "POST" and r.url.path == "/token" for r in fixture.requests)
+
+
+async def test_sheet_write_with_long_quota_header_is_not_retried(google, monkeypatch):
+    client, fixture = google
+    await client.metadata()
+    fixture.requests.clear()
+    sleeps = []
+
+    async def record_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("canvas_mcp.gradebook.google.asyncio.sleep", record_sleep)
+    fixture.failures["batch"] = lambda _: httpx.Response(
+        429, json={}, headers={"Retry-After": "60"}
+    )
+    with pytest.raises(GradebookError, match="write stopped; reconcile"):
+        await client.send_preflighted_batch([{"updateCells": {}}])
+    assert len(fixture.requests) == 1
+    assert fixture.requests[0].method == "POST"
+    assert fixture.requests[0].url.path.endswith(":batchUpdate")
+    assert sleeps == []
 
 
 async def test_default_read_pacing_spans_metadata_chunks_and_repeated_captures(

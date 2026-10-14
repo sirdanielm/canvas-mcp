@@ -10,7 +10,7 @@ The main workbook is FDHS Chemistry Gradebook — 2026–2027 (open through the 
 6. Assignment
 7. Grader Proposals
 
-The mirror tabs are protected GET-only snapshots. The edit tabs have the same layout, with only score cells editable. At the September 20, 2026 migration checkpoint, Student Info retained 173 permanent numbers, including two students outside the active roster, and Assignment contained 52 Canvas assignments plus prior IC mappings. Those are historical counts, not configured limits or a live inventory. Never renumber or recycle permanent numbers. Refreshing grade tabs must preserve both reference tabs and Grader Proposals; reconcile reference metadata separately by exact IDs, retaining IC fields and permanent numbers.
+The mirror tabs are protected GET-only snapshots. The edit tabs retain their original proposal layout, with only score cells editable; a fresh GET may contain additional students or assignments. At the September 20, 2026 migration checkpoint, Student Info retained 173 permanent numbers, including two students outside the active roster, and Assignment contained 52 Canvas assignments plus prior IC mappings. Those are historical counts, not configured limits or a live inventory. Never renumber or recycle permanent numbers. Refreshing grade tabs must preserve both reference tabs and Grader Proposals; reconcile reference metadata separately by exact IDs, retaining IC fields and permanent numbers.
 
 `_Core Sync` and `_Adv Sync` are hidden system tabs. Course-specific `tab_names` in the binding file normalize these names to the internal Canvas/Working/_Sync roles. The previous standalone workbooks and the user's backup (open through the locally configured workbook) remain available. The 36 old tabs were removed from the main workbook only after full replacement readback and backup/student-number checks.
 The course/workbook/sheet bindings are in `config/sdm-gradebook-workbooks.json`.
@@ -37,10 +37,10 @@ command, and fail-closed matching rules.
 ## Everyday use
 
 The new [local refresh worker](sdm-gradebook-worker.md) connects a menu request
-to the canonical planner and trusted local baseline store. It prepares both
+to the protected GET planner and trusted local baseline store. It prepares both
 courses, performs one atomic Google Sheets batch, and verifies the native
-result. Canvas remains GET-only. Pending Edit proposals retain their original
-baselines; reference tabs remain unchanged.
+result. Canvas remains GET-only. Every Edit value, formula, feedback note, layout
+field and original baseline remains unchanged; reference tabs remain unchanged.
 
 **Dated activation evidence, September 30:** the user-owned OAuth transport,
 installed menu, first native refresh, verified reconciliation and advancing worker
@@ -49,11 +49,19 @@ supersedes the September 29 pending-activation checkpoint; it is not a fresh
 liveness check.
 
 Choose **Canvas Gradebook → Refresh both courses (Canvas GET only)** and keep the
-workbook idle until **Show refresh progress** reports VERIFIED. Check the current
-worker status; the Mac and local worker must be awake. Setup, recovery, limits
+workbook idle until **Show refresh progress** reports VERIFIED. New requests
+require the current worker's fresh READY heartbeat to advertise GET_ONLY mode;
+a full-sync or legacy worker cannot authorize a protected GET request. The Mac
+and local worker must be awake. Setup, recovery, limits
 and privacy boundaries are in the runbook. A Git pull does not restart or verify
 the worker. The general server's `ALLOWED_WRITE_TOOLS` policy does not replace the
 separate gradebook service's explicit `--enable-push`, preview and readback gates.
+
+The installed [Desktop shortcuts](gradebook-desktop-shortcuts.md) provide the
+same protected request and a separate private EDIT review. If the bound menu
+still shows an older action or its source update cannot be verified, use the
+reviewed Desktop, MCP or worker CLI entry below. A local source change does not
+prove that the live Apps Script menu has been updated.
 
 ### Historical legacy GET menu error
 
@@ -111,17 +119,29 @@ For each course, the two grade tabs behave as follows:
 1. **GET** is the protected snapshot: student names and sections, assignment
    columns, points possible, and frozen headers. Blue indicates late status,
    yellow indicates excused, and pink indicates Canvas's missing flag.
-2. **Edit** is the editable mirror. Change the grade cells here. Green
-   highlights differences from the GET tab. Enter numeric points or `EX` /
+2. **Edit** retains teacher proposals. Change the grade cells here. The owned
+   green-highlight rule matches Canvas student and assignment IDs through
+   `MATCH`/`INDEX`; it does not rely on matching physical rows. Its ranges belong
+   to the original mapped score rectangle. Use the exact native review for a
+   complete comparison, especially when axes expand. Enter numeric points or `EX` /
    `Excused`; a blank never silently clears a grade or becomes zero.
 
 The hidden course-specific sync tab records the baseline and current Canvas snapshot.
 Hidden column A contains Canvas student IDs; hidden row 5 contains assignment
-IDs. Move complete rows if sorting; do not sort only names or grade cells.
-Keep notes and new assignments outside these connector-owned tabs. Assignment
-creation and roster changes originate in Canvas.
+IDs. In the ordinary contiguous layout, move complete rows if sorting; do not
+sort only names or grade cells. A versioned sparse layout binds physical
+positions, so keep its rows and columns stable until a separately reviewed
+layout reconciliation.
+Authorized feedback notes may remain on Edit score cells; protected GET refresh
+preserves them along with all other Edit fields. They are teacher staging and
+are not automatically published as Canvas submission comments or included in a
+score push. Assignment creation and roster changes originate in Canvas; do not
+add or change the connector's hidden identity rows or columns by hand.
+For an explicitly authorized coverage expansion, follow the
+[append-only EDIT reconciliation](gradebook-edit-axis-reconciliation.md)
+procedure. Ordinary Fresh GET does not expand EDIT or replace its baseline.
 
-Protection reduces accidental edits but an owner can override it. The parser
+Protection reduces accidental edits but an owner can override it. The legacy parser
 therefore verifies IDs, labels, complete roster/assignment coverage, and the
 immutable local baseline. It rejects formulas, duplicate identities, and data
 outside the mapped grade columns. Editing the Canvas tab never changes the
@@ -134,20 +154,27 @@ inactive enrollments. Canvas's status colors do not indicate mastery.
 
 ## Available tools
 
-The tracked connection template exposes seven tools that do not write Canvas,
-plus the separately confirmed push tool when explicitly enabled. Snapshot,
-review, refresh, and push-preparation tools create private local artifacts;
+The tracked connection template admits nine tools that do not write Canvas.
+Four require the configured local worker controller. The separately confirmed
+Canvas push tool is absent from that default allowlist and requires explicit
+enablement. Snapshot, review and push preparation create private local artifacts;
 push preparation and reconciliation also update the local operation ledger.
 
 | Tool | Result |
 | --- | --- |
 | `get_canvas_gradebook` | Complete private snapshot; aggregate counts |
 | `preview_gradebook_changes` | Fresh comparison and private HTML review |
-| `prepare_gradebook_refresh` | Private batchUpdate plan preserving pending edits |
-| `verify_gradebook_refresh` | Fresh-input check or complete output readback |
+| `request_gradebook_get_refresh` | Queue one protected GET refresh for both courses; no Canvas write or EDIT change |
+| `get_gradebook_get_refresh_status` | Local aggregate status and immutable receipt for that exact request |
+| `review_gradebook_edits` | Complete native EDIT comparison against its trusted baseline and fresh Canvas |
+| `select_gradebook_review_batch` | Private scope of up to 25 captured ready rows; retains holds and requires teacher review |
 | `prepare_gradebook_push` | Exact review and expiring operation confirmation |
 | `get_gradebook_push_status` | Durable aggregate operation status |
 | `reconcile_gradebook_push` | Read-only reconciliation; never resends a grade |
+
+`prepare_gradebook_refresh` and `verify_gradebook_refresh` remain legacy
+full-sync operations and are excluded from the new default allowlist. Their
+manual protocol below requires a separately authorized schema reconciliation.
 
 All return aggregate counts and artifact references, never names, emails,
 individual grades, or rosters. Raw data stays in private artifacts. The general
@@ -189,22 +216,104 @@ The installer requires an existing configuration file (by default
 `~/.codex/config.toml`; override with `--config`). It preserves unrelated
 settings, saves a private configuration backup, and refuses unknown
 customizations, including an already customized push-enabled entry. An exact
-template match is a no-op. Reload/reconnect the desktop MCP
-connection if an existing task still has the earlier tool list. A CLI invocation
-of the same MCP tool is also available:
+template match is a no-op. For an existing recognized installation with custom
+push or comment gates, `--add-get-controls` adds only the four controller tool
+names and preserves the other settings; it does not enable publication.
+
+A running MCP process retains its imported source and tool list. Updating code
+or an allowlist does not reload it. Coordinate a reconnect only after checking
+that no shared chat is executing a Canvas write and no operation is uncertain;
+do not kill or restart shared processes blindly. An independent CLI invocation
+of an authorized read tool uses the current installed source:
 
 ```sh
 .venv/bin/python scripts/sdm_gradebook_launcher.py --call get_canvas_gradebook \
   --arguments '{"course":"core"}'
 ```
 
-`--snapshot core` is a direct GET-only shortcut. Local artifacts default to
+`--snapshot core` saves a private Canvas snapshot only; it does not refresh the
+Google workbook. Local artifacts default to
 `local_gradebooks/`; `--state-dir` changes that store, so use the same directory
 for subsequent baseline, preview, and operation references. The launcher loads
 workbook bindings on startup. Changing the binding file therefore requires a
 new launcher process or reconnect before using the updated mapping.
 
 ## Agent refresh protocol
+
+Use the installed GET-only worker for a fresh mirror read. The gradebook MCP's
+`get_canvas_gradebook` saves a snapshot but does not update the workbook; its
+`prepare_gradebook_refresh` and `verify_gradebook_refresh` tools still implement
+legacy full-sync reconciliation. Do not invoke them to bypass an Edit helper
+formula hold or a GET/Edit shape difference.
+
+1. Keep worksheet editing paused and confirm the installed worker is READY in
+   GET_ONLY mode with no unresolved operation. From the stable checkout, local
+   status and diagnostics read the existing journal without contacting Canvas:
+
+   ```sh
+   .venv/bin/python scripts/sdm_gradebook_worker.py --get-only status
+   .venv/bin/python scripts/sdm_gradebook_worker.py --get-only diagnostics
+   ```
+
+2. Use **Canvas - Fresh GET** from Desktop, the verified current menu, or
+   `request_gradebook_get_refresh()` once. The MCP response returns a request ID;
+   poll `get_gradebook_get_refresh_status(request_id)` without requeueing.
+   The equivalent reviewed worker CLI is:
+
+   ```sh
+   .venv/bin/python scripts/sdm_gradebook_worker.py --get-only request
+   ```
+
+   This creates only coordination metadata. It requires a fresh GET_ONLY READY
+   heartbeat and never replaces an active request. The existing background
+   worker performs the bounded Canvas GETs and one native Sheets batch.
+3. Wait for the exact request's VERIFIED status, `finalized: true`, and complete
+   GET-only receipt for both courses. Verify fresh snapshot references in `_Sync!B9` and observation
+   times in `_Sync!B5`, unchanged `_Sync!B2`, every Edit value/formula/note, and
+   reference preservation. A queue entry, heartbeat, doctor success or new-looking
+   sheet alone does not prove completion.
+4. Compare fresh GET and retained Edit by exact course, student and assignment
+   IDs. A GET-only refresh never moves Edit rows/columns or clears proposals;
+   its historical `_Sync!B10` pending count is not a fresh comparison.
+
+For that comparison, use `review_gradebook_edits(course="core")` and
+`review_gradebook_edits(course="advanced")`, or **Canvas - Review EDIT**. The
+native review reads the complete mapped workbook and fresh Canvas, validates
+the original baseline and exact grade axes, and opens a private HTML artifact.
+It sends no grades or comments and changes no worksheet fields. A row labeled
+**Ready for teacher review** has passed the captured comparison, but still
+needs the teacher's decision and the publisher's separate fresh checks.
+Keep raw artifacts private; report only aggregate counts and artifact paths.
+The response's separate `coverage` summary compares exact populated EDIT and
+fresh Canvas identity sets. Additions/removals and unmapped fresh score slots
+remain visible even when the total row or column counts happen to match. This
+summary does not classify grades or extend EDIT. Use a separately reviewed
+[axis reconciliation](gradebook-edit-axis-reconciliation.md) for future additions;
+the installed read and review tools do not dispatch an append.
+
+To use current code without restarting a shared MCP connection:
+
+```sh
+.venv/bin/python scripts/sdm_gradebook_launcher.py --call review_gradebook_edits \
+  --arguments '{"course":"core"}'
+```
+
+An existing content-addressed HTML file is immutable. If an older renderer's
+file conflicts with current display verification, retain it and prepare a new
+fresh review; do not overwrite it or infer teacher approval from old wording.
+
+For a HELD request known to be before sending, fix the saved cause, review and
+use `--get-only release-held REQUEST_UUID --confirm`, wait for a fresh READY
+heartbeat, then request a new plan. For UNCERTAIN or any possible send, use
+`--get-only reconcile REQUEST_UUID`; never release or resend. Reconciliation
+uses the persisted operation mode. See the [worker runbook](sdm-gradebook-worker.md).
+
+## Legacy full-sync reconciliation protocol
+
+The following export/MCP/manual-batch workflow reconciles both GET and Edit. It
+requires separate authorization for the exact schema reconciliation and preserved
+teacher proposals. Its validators remain fail-closed. It is not a fallback for a
+routine protected GET read and does not preserve every Edit note or helper formula.
 
 1. Export the **bound** Google workbook with Drive `fetch`,
    `download_raw_file=true`, and XLSX MIME type. Decode the returned base64
@@ -233,7 +342,7 @@ Google sheet protections, hidden rows/columns, conditional formatting, or notes.
 Check those through Sheets metadata/readback when installing or changing the
 layout; a successful grade-value receipt alone does not certify the full UI.
 
-A refresh merges untouched cells from Canvas while retaining local edits.
+This legacy full-sync refresh merges untouched cells from Canvas while retaining local edits.
 Every pending cell also retains its **original** baseline in a content-addressed
 working-baseline artifact. Thus, a changed Canvas grade remains a conflict
 through repeated refreshes. When Canvas already matches a proposal (including
@@ -301,7 +410,8 @@ results, and held every unresolved identity. No grade was written to Canvas.
 If visible workbook tabs are renamed, update the course-specific `tab_names`
 binding before a refresh. A tab-binding preflight failure is a hold: never fall
 back to similarly named or positional sheets. Restart the configured MCP
-connection or use the launcher CLI after the binding change, then repeat the
+connection after checking shared operation safety, or use the launcher CLI
+after the binding change, then repeat the
 fresh export and verification steps.
 
 ## Grade preview and confirmed push
