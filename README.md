@@ -26,7 +26,7 @@ outcome per bounded cycle. Canvas owns source reads and scoped publishing, while
 grading policy and source judgments remain with their domain owners. The on-demand
 local Unit 2 helper exists outside this repository; numeric policy is **UNSEALED**
 and Canvas delivery remains separate and closed. See the central
-[Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/a677ce40a25c8a5c26da46bb289e247b2cd7648d/docs/UNIT2_TEST_GRADING.md)
+[Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md)
 for current policy, implementation limits and next decisions.
 
 The course mirror currently uses a CLI and JSON reports; it has no spreadsheet

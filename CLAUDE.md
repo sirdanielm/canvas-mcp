@@ -60,7 +60,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
   verified delivery reported separately. Shared local tools belong in LocalGrAss;
   Canvas domain services and installed targets remain owned here.
 - The on-demand Python/Codex Unit 2 helper exists outside this repository. Numeric
-  policy remains **UNSEALED**; see the central [Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/a677ce40a25c8a5c26da46bb289e247b2cd7648d/docs/UNIT2_TEST_GRADING.md).
+  policy remains **UNSEALED**; see the central [Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md).
   This work grants no grading, paid-call, schedule, deployment or Canvas-write authority.
 - Merged fork source includes the worker, private PIN/archive tooling, bounded
   diagnostics, comment recovery and draft-preserving refresh. These are unreleased
