@@ -1,233 +1,125 @@
 # Local Canvas gradebook refresh worker
 
-The worker connects the central gradebook menu, the existing Canvas GET reader,
-and the immutable local baseline store. It refreshes both courses together while
-preserving pending Edit proposals. It imports no Canvas publisher and exposes no
-Canvas write option.
+The worker reads Canvas and updates the bound Google workbook. It imports no
+Canvas publisher and has no grade/comment send path. Use this runbook with the
+[gradebook workflow](sdm-gradebook-workflow.md) and [goals and status](goals-and-status.md).
 
-**September 30, 2026 activation completed:** the installed menu's complete source
-was verified by readback, and the actual menu queued the pilot with request prefix
-`29a70703`.
-The worker refreshed both courses in one Sheets grade-data batch using Canvas
-GET requests only: 120 Core students, 51 Advanced students, 18 assignments per
-course, and zero pending edits. Native readback verified the selected fields on
-the reference tabs as well as the owned gradebook tabs.
-
-The first readback became UNCERTAIN because Google expands the C6 validation
-formula to each destination cell, while the local verifier expected C6 everywhere.
-The projector was corrected to represent that relative-reference behavior;
-formula, reference, strictness, and instruction comparisons remain enforced.
-The original operation was reconciled without resending grade data and reached
-VERIFIED at `2026-09-30T09:14:19.813474+00:00` (05:14:19 EDT). Its durable receipt is
-`acf9176779cc14eddbf9a35c0eac5d1ef3f97d7046e0cfcc260bcf1b7f65d271`.
-
-At that activation checkpoint, the per-user launch agent was installed at
-`~/Library/LaunchAgents/org.sdm.canvas-gradebook-refresh.plist` and bootstrapped
-in the operator's GUI session. Two READY heartbeats advanced
-from `09:15:45.700009` to `09:16:18.441440` UTC, with a clear queue and zero local
-unresolved operations. The actual **Show refresh progress** menu displayed
-VERIFIED, both course counts, and **Local worker READY**. This completes the
-background activation check; later liveness must still be checked when needed.
-
-The earlier shared clasp OAuth project returned `403 SERVICE_DISABLED` for the
-Sheets API. The local worker now uses a user-owned OAuth client instead. The
-authorization helper opens the system browser and receives Google's short-lived
-code on a temporary `127.0.0.1` loopback listener; Safari is not a requirement.
-No password is received by the worker. Credentials remain owner-only local files.
+**Version boundary:** maintained main supports the older full-sync worker and
+commands below. The reviewed installed local overlay adds protected GET-only
+mode, native EDIT review and Desktop controls. Its public source is pending in
+[PR #24](https://github.com/sirdanielm/canvas-mcp/pull/24); a fresh main checkout
+cannot run `--get-only request`. Git synchronization does not install, restart
+or verify the local worker or FDHS Apps Script menu.
 
 ## Architecture and authority
 
-```mermaid
-flowchart LR
-  Click[Teacher requests both courses] --> Queue[Spreadsheet metadata request]
-  Queue --> Worker[Local Python worker]
-  Canvas[Canvas GET reader] --> Planner[Shared canonical refresh planner]
-  Store[Private immutable baseline store] --> Planner
-  Worker --> Planner
-  Planner --> Check[Fresh native workbook check]
-  Check --> Batch[One Sheets batch for both courses]
-  Batch --> Verify[Native readback and durable receipt]
-```
+An explicit request fixes both courses, workbook and operation identity. Complete
+Canvas capture and fresh native preflight precede one atomic Sheets grade-data
+batch. Complete readback and durable coordination cleanup establish completion.
 
-The menu writes only coordination metadata, never grades. The local worker reads
-Canvas using the existing macOS Keychain connection and writes the configured
-Google workbook. Google OAuth requests only the Sheets scope; that grant covers
-the user's spreadsheets, while this transport is restricted to the one configured
-workbook ID. This restriction is an application guard, not a Google per-file
-permission. Credentials are never stored in Apps Script, cells, Git, or logs.
+Full sync uses `service.prepare_refresh` and preserves pending score drafts with
+their original baselines. It can reconcile GET/EDIT axes; it is not the routine
+fallback for helper formulas, custom notes or incompatible proposal layouts.
+The installed GET-only mode instead refreshes protected GET tabs and observation
+metadata while preserving every EDIT field and `_Sync!B2`. `_Sync!B9` identifies
+the actual Canvas observation. Reference tabs and permanent PINs stay unchanged.
+New GET coverage does not authorize an EDIT append or Canvas publication.
 
-The same `service.prepare_refresh` is used by the MCP and worker paths. The worker
-uses native Sheets reads rather than XLSX exports, so it can additionally verify
-selected formats, notes, validation, dimensions, protections, conditional rules,
-and basic filters. It requires exact course/sheet/name bindings, literal grade
-cells, full GET/Sync protection, the expected editable score rectangle, hidden
-system identities, and frozen headers. It rejects an incompatible layout; it
-does not adopt a same-name sheet or recreate missing tabs.
+Ownership requires exact IDs/bindings, not names. Native readback checks selected
+values, formats, notes, validations, dimensions, protections, rules and filters,
+including unrelated tabs. It does not certify every Sheets feature; owned
+generated borders have a shared-edge exception. XLSX checks are narrower.
 
-Native reads cover every allocated cell in sequential rectangles of at most
-10,000 cells, with exact offsets and no skipped ranges. Google may omit rules
-outside a requested rectangle; every returned rule must match the complete
-metadata, which is checked again after capture and retained for verification.
-Repeated dimension metadata must agree. Reads are spaced at least 1.1 seconds
-apart per client, including retries, to stay below the 60-read-per-minute user
-quota. This remains an interval capture rather than an atomic snapshot; keep the
-workbook idle and retain the independent fresh-input comparison before dispatch.
-The first successful live check used 23 reads in about 25 seconds for nine tabs
-and saved approximately 11 MB of compact native data privately.
-
-Every request prepares both courses before any grade-data write. `_Sync!B2`
-resolves to the trusted local working baseline; `_Sync!B9` records the current
-Canvas snapshot. Pending proposals retain their original baseline even when
-Canvas changes and through later refreshes. Student Info, Assignment, Grader
-Proposals, and all other unrelated tabs retain their selected native fields.
-No permanent student PIN is regenerated.
-
-The final batch combines both canonical refreshes and a unique applied marker.
-Google applies a valid batch atomically. A complete native readback and private
-receipt are required for VERIFIED. Generated border placement on owned gradebook
-tabs is excluded from native equality because Sheets may represent shared edges
-on neighboring cells; reference-tab borders remain checked. The selected-field
-comparison does not claim to audit charts, named ranges, or every Sheets feature;
-the batch does not target those objects.
+Canvas uses the existing macOS Keychain connection. Google OAuth uses the
+existing approved account with access to the bound workbook. Its Sheets scope
+covers that account's spreadsheets; the single-workbook restriction is a local
+transport guard. Credentials stay outside Git, cells, Apps Script and logs.
+FDHS authorization is required to alter the institutional bound script; workbook
+reads do not justify changing login profiles, granting scopes or rewriting script
+source. Preserve the existing approved credentials unless setup is authorized.
 
 ## Everyday use and local operation
 
-Keep the Mac awake, online, and able to access its Keychain. Save and pause editing
-in the workbook, choose **Canvas Gradebook → Refresh both courses (Canvas GET
-only)** once, then use **Show refresh progress** until the request reports
-VERIFIED. Resume editing after verification. A queued request, READY heartbeat,
-or updated-looking sheet is not a substitute for VERIFIED. If the request is
-HELD or UNCERTAIN, preserve its evidence and follow the recovery section; do not
-click again to bypass it.
+For the installed overlay, keep the Mac awake, online and able to use Keychain.
+Reload the workbook to load the repaired FDHS menu. Save and pause all worksheet
+editing, request **Refresh both courses (Canvas GET only)** once, and use
+**Show refresh progress**. Before admission, require fresh READY in GET_ONLY mode
+and a clear queue. Before resuming edits, require the exact request VERIFIED,
+its complete preservation receipt finalized, and queue cleanup confirmed.
 
-The installed agent starts at user login. It polls coordination metadata while
-idle and fetches Canvas grades only for an explicit refresh request. It performs
-no automatic grading and has no Canvas write path. Closing a terminal does not
-stop this launchd-managed worker.
+**Canvas - Fresh GET** uses the same queue; **Canvas - Review EDIT** only opens
+private comparisons. Neither publishes or runs imports/QC. A UUID, updated tab
+or READY alone is insufficient. A timed-out watcher may leave work active;
+inspect that request instead of queueing another.
 
-From the stable repository checkout, inspect the local journal and the launchd
-service without changing either:
+The login launch agent polls metadata and reads Canvas only for explicit
+requests. Closing a terminal does not stop it. From the stable checkout:
 
 ```sh
-cd '/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring'
 .venv/bin/python scripts/sdm_gradebook_worker.py status
+.venv/bin/python scripts/sdm_gradebook_worker.py status --request-id REQUEST_UUID
 launchctl print "gui/$(id -u)/org.sdm.canvas-gradebook-refresh"
 ```
 
-Local status reports `IN_PROGRESS` for recorded active phases, `UNCERTAIN` for an
-unverified possible write, and `HELD` for a recorded hold. Its `worker_running`
-field remains `unverified`; journal progress alone does not prove liveness.
-Check the menu's current heartbeat and queue state as well.
+Installed-overlay commands only:
+
+```sh
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only request
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only status
+```
+
+These are unavailable on main; an unknown response never permits a blind repeat.
 
 ### Local diagnostics without network or state changes
-
-The `diagnostics` command reads existing SQLite evidence in read-only mode and
-a bounded tail of private worker telemetry. It never constructs the store or
-journal writer, contacts Google/Canvas, reads credentials, changes permissions,
-creates directories, or runs launchctl:
 
 ```sh
 .venv/bin/python scripts/sdm_gradebook_worker.py diagnostics
 .venv/bin/python scripts/sdm_gradebook_worker.py diagnostics --request-id REQUEST_UUID
 ```
 
-SQLite opens with `mode=ro&immutable=1`, so even a closed WAL-mode database cannot
-create WAL/SHM sidecars. Existing WAL/rollback sidecars or a main database that
-changes during the read produce a hold for a consistent snapshot; diagnostics
-never treats an active WAL's main file as current. Request UUID/unresolved-state
-filters run in SQL before the bounded inventory limit. More than 1,000 matching
-operations is reported as a bound failure, without claiming a complete inventory.
-Log descriptors open nonblocking and are verified as regular files before read
-or append; FIFO/device logs are ignored or counted as dropped telemetry.
+Diagnostics reads existing SQLite and bounded private telemetry without network,
+credentials or filesystem changes. Read-only/immutable SQLite, active-sidecar
+checks and inventory bounds prevent incomplete clean results. Unsafe logs are
+ignored.
 
-It lists unresolved request UUIDs, request/update ages, recognized failure reasons,
-failure codes and stages. Unknown legacy exception text is suppressed. A recent
-local poll establishes recent recorded activity only; `worker_running` remains
-`unverified`, and this local command cannot attest remote READY. A live HELD
-worker remains blocked. The existing remote heartbeat is still published only
-on IDLE; HELD therefore has no continuing remote READY heartbeat.
+Output contains aggregate phases/ages, recognized failures and startup pins;
+arbitrary exception text is suppressed. `worker_running` remains unverified:
+recorded activity is not remote READY. Main drops telemetry at its log cap;
+PR #24 adds private rotation and bounded inspection. Neither permits retries.
+No tokens, URLs, bodies, student records or cell addresses enter telemetry.
+Startup hashes do not prove later edits are loaded by an old process.
 
-On explicitly started `run`/`once`, the worker adds owner-only
-`refresh-worker/diagnostics.jsonl`. Its fixed allowlist admits timestamps,
-request correlation UUIDs, stage names, duration, HTTP outcome classes and
-attempt numbers. Startup pins include the source revision, a digest of the
-worker/gradebook source files, Python version and interpreter digest; no paths
-are emitted. A source digest records files at startup and is not proof of an
-older running process's loaded code. Diagnostics reports a startup pin only
-when retained in its bounded log tail. Source/runtime changes still require
-reviewed maintenance and restart.
-
-Telemetry contains no tokens, URLs, headers, request/response bodies, student
-IDs, scores, feedback, cell addresses, sheet titles or raw exception text.
-Future fingerprint holds retain only changed-field categories, such as
-`cell_value`, `cell_format`, `cell_note`, `protections` or `sheet_properties`.
-These categories do not identify a changed cell or explain who changed it.
-Expired-request holds now retain their recognized reason. Logging failures and
-the 5 MB log cap drop telemetry without permitting a retry or changing the
-refresh outcome; the loop reports the accumulated drop count where possible.
-
-The transport retry counts, state transitions and single Sheets grade-data
-batch remain unchanged. This patch does not install, restart, refresh, release
-a request or publish grades. Read diagnostics before proposing recovery.
-
-Before a routine stop, coordinate with other workbook editors: no new refresh
-clicks, no queued request, and local status must report `NO_LOCAL_HOLDS` with zero
-unresolved operations. Let active work finish; resolve any hold or uncertainty
-before routine maintenance. Once idle, stop the service with:
+For routine maintenance, first stop new requests, confirm zero unresolved
+operations and a clear remote queue, and let active work finish. Resolve holds
+before changing code, dependencies, bindings or checkout paths. When quiescent:
 
 ```sh
 launchctl bootout "gui/$(id -u)/org.sdm.canvas-gradebook-refresh"
-```
-
-To start the installed service again after that stop:
-
-```sh
+# After reviewed maintenance and the correct mode's doctor check:
 launchctl bootstrap "gui/$(id -u)" \
   "$HOME/Library/LaunchAgents/org.sdm.canvas-gradebook-refresh.plist"
 launchctl print "gui/$(id -u)/org.sdm.canvas-gradebook-refresh"
 ```
 
-Wait for a fresh READY heartbeat before requesting another refresh. If launchd
-already has the service loaded, do not start a second foreground worker. The
-plist depends on this checkout's script, `.venv`, private configuration, and
-`local_gradebooks` store. Stop it while idle before switching branches, updating
-worker code or dependencies, or changing those runtime paths. Run `doctor` before
-restarting after maintenance; moving or deleting the checkout breaks the service.
-Preserve the private baseline store and operation evidence through maintenance.
+Preserve plist, configuration, checkout and baselines. Never duplicate a loaded
+worker; require fresh mode-correct READY after restart.
 
 ## Setup and activation
 
-These steps document a fresh installation. The September 30 instance has already
-completed them; use the everyday-operation commands above for that installation.
-
-Run commands from the repository root. Locked dependencies and the existing
-Canvas Keychain connection are prerequisites:
+New **main full-sync** installation only: never replace the overlay or activate
+against incompatible/sparse EDIT. From the reviewed checkout:
 
 ```sh
 uv sync --frozen --group dev --extra local-keychain
 .venv/bin/python scripts/sdm_gradebook_worker.py configure
 ```
 
-`configure` creates a private configuration with a stable worker UUID. It does
-not start a process, contact Google, or overwrite an existing configuration.
-The September 29 configuration-only checkpoint preceded the September 30
-activation described above.
-The default configuration is
-`~/.config/canvas-authoring/gradebook-worker.json`; private state remains in this
-checkout's `local_gradebooks/`. Use the same store as the MCP so existing baseline
-references continue to resolve. Do not point a new worker at an empty store.
+`configure` creates, never overwrites, private configuration; it starts nothing.
+Default: `~/.config/canvas-authoring/gradebook-worker.json`. Keep the MCP baseline
+store; an empty replacement cannot resolve existing references.
 
-For Google setup, an operator with authority over a Google Cloud project must:
-
-1. Enable the Google Sheets API in that project.
-2. Configure the OAuth consent audience and allowed account according to the
-   institution's policy. External apps left in Testing may require repeated
-   authorization as refresh tokens expire; choose a suitable permitted audience
-   before unattended operation.
-3. Create an OAuth client of type **Desktop app** and download its JSON into a
-   private local directory. Set the directory to mode 0700 and JSON to mode 0600.
-4. Run the explicit browser consent flow, using the account that can edit the
-   central workbook. The following path is a placeholder for that private file:
+For authorized Google setup, enable Sheets API in the approved project, configure
+the permitted OAuth audience and retain a Desktop client JSON privately:
 
 ```sh
 .venv/bin/python scripts/sdm_gradebook_worker.py authorize \
@@ -235,154 +127,96 @@ For Google setup, an operator with authority over a Google Cloud project must:
 .venv/bin/python scripts/sdm_gradebook_worker.py doctor
 ```
 
-The authorization helper uses PKCE, a random state, a short-lived loopback
-callback, and exclusive mode 0600 credential creation. It never overwrites an
-existing credential. `doctor` performs Google reads and validates both courses'
-local baselines and proposal parsing. It writes neither Canvas nor Sheets and
-publishes no heartbeat. It does not prove Canvas authentication or successful
-Google write permission; the live pilot verifies those operational prerequisites.
-Fix any hold before continuing.
+Consent uses PKCE, random state and a short-lived loopback callback; credentials
+are created exclusively with mode 0600. `doctor` reads Google and validates local
+baselines; it writes neither Sheets nor Canvas and publishes no heartbeat. It
+does not prove Canvas authentication, Google write access or successful refresh.
+In the installed overlay, use its reviewed `--get-only doctor` composition.
 
-Install the queue menu only after reviewing its complete candidate source:
+Authorized Apps Script edits require the FDHS account. Verify parent workbook,
+back up the entire project, preserve legacy runtime/manifest, compare fresh
+source, update once and read back everything. Uncertainty requires readback,
+never replay. Reload the workbook; a stale label does not justify replacement.
 
-- Read the bound project metadata and confirm its parent workbook ID matches
-  `config/sdm-gradebook-workbooks.json`.
-- Save the entire current project privately. Preserve its manifest and legacy
-  runtime byte-for-byte; replace only the recognized previous menu overlay with
-  `scripts/gradebook-menu-overlay.gs`.
-- Confirm exactly one definition of `onOpen`, all four redirected legacy
-  wrappers, and every new helper in the full candidate project.
-- Before the authorized update, read again and compare the full source digest.
-  Stop if it changed. Send the complete preserved project once, then read back
-  and compare the complete result. An uncertain update requires GET readback,
-  never a blind second update.
-- Reload the workbook. The menu must refuse to queue a request until a recent
-  READY heartbeat exists.
-
-Run in the foreground for the initial pilot:
-
-```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py run
-```
-
-After startup preflight succeeds, choose **Canvas Gradebook → Refresh both
-courses (Canvas GET only)**. Save and pause worksheet editing until **Show
-refresh progress** reports VERIFIED. Verify both course counts, pending-edit
-counts, reference preservation, and the saved receipt before enabling background
-operation. A populated menu or a READY heartbeat alone is not a successful refresh.
-
-The worker can generate a launchd template after a successful doctor check:
+Main's initial foreground pilot uses `run`; generating a template uses:
 
 ```sh
 .venv/bin/python scripts/sdm_gradebook_worker.py launch-agent \
   --output /absolute/private/path/org.sdm.canvas-gradebook-refresh.plist
 ```
 
-This command neither installs nor starts it. Review the checkout, interpreter,
-configuration, and private log paths before a separately authorized per-user
-launchd installation. The Mac must be awake, online, and able to access Keychain.
-The worker is an ordinary local process; closing a foreground terminal stops it.
-A stopped worker loses its READY heartbeat within three minutes.
+Generation starts/installs nothing. Review paths and mode before authorized
+activation; retain the overlay's GET-only flag. Verify complete request/readback
+and advancing READY before background use; tests are insufficient.
 
 ## Coordination and crash recovery
 
-The queue uses spreadsheet-level, DOCUMENT-visible developer metadata with keys
-`sdm.gradebook.refresh.{request,claim,applied,status,heartbeat}.v1`. No grades,
-identities, tokens, or arbitrary URLs/paths appear there. These records are visible
-to workbook editors and coordinate activity; they are not a security boundary.
+Request/claim/applied/status/heartbeat metadata contains no student records or
+credentials. Editors can see it; it is coordination, not authority. Document and
+file locks prevent duplicate admission; ownership/nonce checks detect competing
+workers.
 
-The immutable request fixes `REFRESH_BOTH`, workbook ID, UUID, and creation time.
-A menu document lock deduplicates simultaneous clicks. A local file lock prevents
-concurrent workers sharing the same state directory. An explicit unique metadata
-ID claims the remote queue; a per-operation nonce distinguishes copied worker
-configurations using different journals. Reserved IDs 2026092901–2026092904 must
-not be reused by other integrations.
-
-SQLite commits with FULL synchronization before dispatch. Content-addressed
-private manifests preserve the exact before-read, plans, bindings, and batch.
-The durable state sequence is:
+SQLite FULL commits and immutable private manifests precede dispatch:
 
 `CLAIMING → CLAIMED → PREPARED → SENDING → VERIFYING → VERIFIED`
 
-A pre-send failure becomes HELD. A possible send without complete confirmation
-becomes UNCERTAIN. Cleanup affects only the exact request/claim/applied metadata;
-a verified receipt survives interruption and subsequent teacher edits.
+A failure before send becomes HELD; any possible send without verified readback
+becomes UNCERTAIN. Preserve the original mode, identity, preimage and manifest.
+Absent markers, empty SQL fields or currently missing grades/comments do not
+establish that an old write never occurred.
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py status
-.venv/bin/python scripts/sdm_gradebook_worker.py status --request-id REQUEST_UUID
 .venv/bin/python scripts/sdm_gradebook_worker.py reconcile REQUEST_UUID
 ```
 
-Reconciliation never sends grade data. It reads the applied marker and complete
-workbook against the saved operation. If the marker is missing or the readback
-differs, the hold remains; absence does not authorize replay. Do not delete a
-journal, edit its status, replace a request UUID, or clear remote metadata to get
-past an uncertain write.
+Reconciliation reads the original operation and native result; it never resends
+grade data. It accepts SENDING, VERIFYING, UNCERTAIN and VERIFIED, not HELD.
+In the overlay, retain `--get-only` for a GET-only operation. Require verified
+receipt plus finalized cleanup; never change modes to force recovery.
 
-`reconcile` accepts SENDING, VERIFYING, UNCERTAIN and VERIFIED; it refuses HELD.
-A pre-send HELD request requires investigation and an explicitly authorized
-`release-held` decision. Do not follow reconciliation guidance as permission
-to clear a hold, queue a replacement or resend a batch.
-
-Only after reviewing a **pre-SENDING** hold can the operator retire its queue
-records and request a fresh plan:
+Only after inspecting and repairing an explicitly **pre-SENDING** hold may an
+authorized operator retire its exact queue records:
 
 ```sh
 .venv/bin/python scripts/sdm_gradebook_worker.py release-held REQUEST_UUID --confirm
 ```
 
-That command preserves all private evidence and changes no grades. It refuses
-SENDING, VERIFYING, and UNCERTAIN. Coordination cleanup has its own durable intent
-and readback so a lost cleanup response can be recovered safely.
+Retain the overlay's mode flag when applicable. Release changes no grades and
+preserves private evidence; it refuses SENDING, VERIFYING and UNCERTAIN. Cleanup
+has its own intent/readback. Never delete journals, clear arbitrary metadata,
+replace UUIDs, renew an uncertain operation or resend its saved batch.
 
 ## Limits and tradeoffs
 
-| Control | Default | Reason and tradeoff |
+| Control | Maintained main | Installed GET-only overlay / PR #24 |
 | --- | --- | --- |
-| Idle polling |30seconds; failure backoff up to300seconds|Fast enough for an explicit classroom refresh; bounded metadata traffic and no Canvas calls while idle.|
-| READY heartbeat age |180seconds|Allows ordinary short delays; an offline worker soon stops accepting new requests.|
-| Request lifetime |10minutes|Covers two bounded course reads; stale requests are held before grade-data dispatch.|
-| Plan lifetime |5minutes|Keeps the Canvas/workbook comparison recent; slow preparations hold rather than apply stale data.|
-| Canvas reads |100published graded assignments;120seconds per course|Caps cost and failure duration; incomplete reads never replace a mirror.|
-| Google read chunks |10,000 allocated cells;20MB per response;1.1seconds between reads|Bounds each response while preserving selected formatting and cell fields; avoids a burst beyond the per-user read quota.|
-| Complete Google capture |80MB cumulative response data;200 chunks;180seconds;1million allocated cells;50,000cells per reference tab|Bounds memory, retries, and duration across the whole capture. A partial capture is rejected; allocation is never a student count.|
-| Native verification |500,000returned cells|Bounds parsed formatting data; oversized inputs hold for explicit review.|
-| Google writes |One grade batch, no transport retries|A timeout sacrifices automatic progress to prevent duplicate or stale replacement.|
+| Idle poll | 30 seconds; failure backoff to 300 | Same bounded poll; typed lock contention waits without claiming READY. |
+| READY admission | 180-second legacy heartbeat | 90 seconds and explicit GET_ONLY mode. |
+| Canvas read | 100 published graded assignments; 120 seconds/course | Complete bounded reads; incomplete captures retain the previous mirror. |
+| Google read | 10,000 allocated cells; 1.1-second pacing | Worker factory: 100,000 cells; five-second pacing, fewer requests. |
+| Whole capture | 80 MB cumulative, 200 chunks, 180 seconds | Same complete-capture bounds; bounded GET-only quota cooldown. |
+| Request/plan lifetime | Ten/five minutes | Same; expiry holds before dispatch. |
+| Sheets grade-data send | One batch, no transport retry | Same durable sole-send requirement. |
 
-Google Sheets has no revision compare-and-swap covering the final read and the
-following batch. Keep all editors idle during refresh. Locks coordinate the menu
-and worker but do not prevent a human workbook owner from editing. Fresh full
-selected-field fingerprints reduce this race; readback detects divergence but
-cannot guarantee recovery of an intervening edit that a write replaced. This
-operational editing pause is required, not an optional optimization.
+Allocation bounds are not student counts. Capture is an interval, not an atomic
+snapshot. Both modes require independent fresh preflight and full selected-field
+readback. Sheets has no compare-and-swap; coordinate editors because locks cannot
+prevent edits or restore an overwritten intervening change.
 
 ## Validation and references
 
-Synthetic tests cover canonical merging, repeated pending proposals, both-course
-atomic dispatch, incomplete Canvas reads, changed workbook preflight, native
-structure, metadata ownership, copied worker identities, lost responses,
-interrupted cleanup, OAuth boundaries, and startup activation guards. No live
-student grades are required for a test write.
+Test fictional transports and run repository Python, lint/types and menu checks.
+Never test a live student write. Tests, hashes and merges do not prove activation
+or READY; retain real evidence privately.
 
-At the September 30 activation checkpoint, the full Python suite passed with
-2,053 tests passed and 21 skipped. The menu suite passed 22 tests, and the existing
-TypeScript suite passed 96 tests. The live pilot separately verified the menu,
-Canvas GET access, one Sheets grade-data batch, and strict native reconciliation;
-synthetic tests alone were not treated as activation evidence.
+The detailed September activation, historical runtime counts and validation
+logs remain in the
+[immutable baseline runbook](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/sdm-gradebook-worker.md).
+They are historical evidence, not permission to resume a paused worker or replay
+an old request. Current completion and holds belong in
+[goals and status](goals-and-status.md).
 
-```sh
-.venv/bin/pytest tests/ -q
-.venv/bin/ruff check src/ tests/ scripts/sdm_gradebook_worker.py
-.venv/bin/mypy src/
-node --test tests/gradebook_menu_overlay.test.mjs
-npm run build
-npm test
-```
-
-Primary references: [Google desktop OAuth and PKCE](https://developers.google.com/identity/protocols/oauth2/native-app),
-[create OAuth credentials](https://developers.google.com/workspace/guides/create-credentials),
-[Sheets batch atomicity](https://developers.google.com/workspace/sheets/api/guides/batch),
-[developer metadata](https://developers.google.com/workspace/sheets/api/guides/metadata),
-[ranged native reads](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/get),
-[Sheets usage limits](https://developers.google.com/workspace/sheets/api/limits).
+Primary references: [desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
+[batch atomicity](https://developers.google.com/workspace/sheets/api/guides/batch),
+[developer metadata](https://developers.google.com/workspace/sheets/api/guides/metadata)
+and [Sheets limits](https://developers.google.com/workspace/sheets/api/limits).

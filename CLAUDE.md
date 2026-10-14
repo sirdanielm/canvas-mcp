@@ -2,7 +2,7 @@
 
 Guidance for developing the Canvas MCP server. Agents *using* the server: see [AGENTS.md](./AGENTS.md).
 Design: [internal/architecture.md](internal/architecture.md). Long-form rules and the reasons behind them: [internal/dev-reference.md](internal/dev-reference.md). Completed work: [internal/project-history.md](internal/project-history.md), `CHANGELOG.md`.
-Codex reads `AGENTS.md`, not this file; its "Developing this server" section points here, so keep development rules in this file only. Engineering workflow and release guidance checked on 2026-10-08. Issue numbers and dated session entries below refer to upstream `vishalsachdev/canvas-mcp` unless explicitly identified as this SDM fork; historical issue/advisory status is not a fresh operational check.
+Codex reads `AGENTS.md`, not this file; its "Developing this server" section points here, so keep development rules in this file only. Engineering guidance reconciled on 2026-10-14. Issue numbers and dated session entries below refer to upstream `vishalsachdev/canvas-mcp` unless explicitly identified as this SDM fork; historical issue/advisory status is not a fresh operational check.
 
 ## Commands
 - Install `uv pip install -e .`; run `canvas-mcp-server` (`--test`, `--config`); `.env` holds `CANVAS_API_TOKEN` and `CANVAS_API_URL`.
@@ -12,7 +12,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Use a reviewed branch and PR for changes to this SDM fork, including documentation. Follow an already authorized workflow without asking again; otherwise clarify only consequential scope or target ambiguity. Prefixes: `feature/`, `fix/`, `docs/`, `refactor/`.
 - `main` is the maintained SDM branch; keep the installation-compatible `feature/sdm-authoring` synchronized after reviewed promotion. The primary checkout retains the shared Git directory, and the operational authoring checkout must remain available to installed services. See [repository maintenance](docs/repository-maintenance.md).
 - Keep concurrent changes isolated in suitable worktrees. Before retiring a completed review checkout, inspect ancestry and actual files, preserve unique changes and ignored evidence, and verify recovery. Archive managed worktrees through Codex; do not automatically delete branches or operational checkouts.
-- As checked on 2026-10-08, GitHub reports this fork's `main` as **protected**. The October 1 unprotected observation is historical. PR review and green applicable CI remain the SDM workflow policy; inspect the exact active rules before claiming which checks GitHub enforces. Do not bypass failed checks or change repository protection during ordinary development.
+- As checked on 2026-10-14, GitHub reports this fork's `main` as **protected**. The October 1 unprotected observation is historical. PR review and green applicable CI remain the SDM workflow policy; inspect the exact active rules before claiming which checks GitHub enforces. Do not bypass failed checks or change repository protection during ordinary development.
 - Integrate current base changes without overwriting another session's work, then rerun the relevant validation. Before a release, test the exact merged candidate in an isolated environment; never borrow live credentials merely to make tests pass.
 - Run `./scripts/install-hooks.sh` once per clone. `fixes|closes|resolves #N` mid-sentence in a commit or PR body closes the issue on merge: rephrase (`closed [issue 172]`) or set `ALLOW_CLOSING_KEYWORD=1`. A trailer that opens a line (`Closes #173`) is allowed.
 - Release steps and publish-race fixes: [internal/release-checklist.md](internal/release-checklist.md). Breaking changes need a minor bump. A merged SDM change is not a package release or deployment.
@@ -53,48 +53,21 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Do not repeat "over 18,000 clones" or "UMich selected it as sole candidate" without a primary source.
 - Do not imply a campus security review: the only Illinois artifact is Adam King's LRA, and the public hosted server is retired.
 
-## Current SDM focus — October 14, 2026
+## Current SDM focus
 
-- Goal: useful evidence-backed, teacher-reviewed score-plus-feedback outcomes,
-  with source publication, installation, independent QC, teacher acceptance and
-  verified delivery reported separately. Shared local tools belong in LocalGrAss;
-  Canvas domain services and installed targets remain owned here.
-- The on-demand Python/Codex Unit 2 helper exists outside this repository. Numeric
-  policy remains **UNSEALED**; see the central [Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md).
-  This work grants no grading, paid-call, schedule, deployment or Canvas-write authority.
-- Merged fork source includes the worker, private PIN/archive tooling, bounded
-  diagnostics, comment recovery and draft-preserving refresh. These are unreleased
-  changes; installed overlays remain separately preserved. See [release checklist](internal/release-checklist.md)
-  and [repository maintenance](docs/repository-maintenance.md).
-- Unit 1 preview/fake-channel and disabled exact-GET/form source contracts remain
-  separate from live adoption. Real academic provider, paper-source admission,
-  accepted-pair export and authenticated RELEASE are unconnected; see the
-  [Unit 1 contract](docs/unit1-pair-preview-contract.md).
+Follow [goals and verified status](docs/goals-and-status.md). Reliable gradebook
+sync and useful teacher-reviewed score-plus-feedback pairs lead the work. Shared
+review/workbench tools belong in LocalGrAss; Canvas observations, scoped writers
+and installed bindings remain owned here. Keep source publication, installation,
+QC, teacher acceptance and score/comment delivery evidence separate.
 
-## Upstream focus snapshot (2026-09-30)
-- [ ] **#157** sandbox egress is mitigated, not closed (self-hosted only; `execute_typescript` is disabled on hosted). Needs an egress proxy or network namespace.
-- [ ] **#236** OAuth2 developer-key flow: additive only, blocked on admin access to pilot a scoped key.
-- [ ] **#172** Canvas Quizzes tools: blocked on a New-Quizzes-enabled sandbox (PR #191 was closed as unverifiable).
-- [ ] **#418 to #421** (raw dates, guarded edits, honest pagination, anonymous discussions); #420 includes an `assign_peer_review` placeholder write past 100 submissions.
-- [ ] GHSA-hmr8: publish and request a CVE. GHSA-7pp5: decide (in triage since 07-04).
-- [ ] Watch, no owner: Agent Plugins packaging (blocked on credential delivery; triggers in project-history).
+Bounded local Unit 1 delivery has verified outcomes and remaining historical/source
+holds. The older accepted-pair exporter and authenticated general RELEASE bridge
+remain unconnected. Unit 2 starts with original evidence, exact forms/keys and a
+sealed policy before advisory scoring; no provider or publisher activation follows
+from documentation work.
 
-## Roadmap
-- Resolve the Unit 2 policy and real-packet review dependencies through the central
-  contract before considering publisher adoption. Keep exact target/attempt checks,
-  separate score/comment authorization and independent readback as release gates.
-- Grok/xAI research and pilot remain deferred; no provider activation is authorized.
-
-## Backlog
-- [ ] Module templates; bulk module creation from JSON/YAML; module duplication across courses.
-- [ ] Page templates; bulk page creation from markdown; page versioning tools.
-- [ ] 2026-09-06 security review follow-ups: check `docs/superpowers/plans/2026-09-06-security-review-followups.md` for items PR #360 did not cover.
-
-## Session Log
-> Full history: `internal/session-history.md`, local-only and untracked since 2026-08-20. Do not re-add it to git.
-
-### 2026-09-27 — v1.13.0 released: GHSA-hmr8 fixed, production pinned to releases, hosted service read-only
-- **Merged:** #395, #387, #390, #417 (production deploys only on a tag or manual run), #422 (`mcp-remote --header-file`), #425.
-- **GHSA-hmr8 fix** (`3f23ed0`): `core/tool_policy.py` + `ALLOWED_WRITE_TOOLS`; `send_conversation` always previews; `get_conversation_details` never marks read. Codex security review clean at round 3.
-- **v1.13.0** tagged on `c3207d3`; all five channels verified. Advisory patched version set to 1.13.0, still a draft.
-- **Next:** publish GHSA-hmr8; decide GHSA-7pp5; fix the #420 placeholder write; `scripts/rotate-canvas-token.mjs` does not know `--header-file`.
+Historical upstream issue lists, release snapshots and deferred ideas are retained
+in [project history](internal/project-history.md), [CHANGELOG](CHANGELOG.md) and the
+[pre-trim development guide](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/CLAUDE.md).
+Private session history stays in gitignored `internal/session-history.md`.
