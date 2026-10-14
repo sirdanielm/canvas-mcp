@@ -53,12 +53,23 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Do not repeat "over 18,000 clones" or "UMich selected it as sole candidate" without a primary source.
 - Do not imply a campus security review: the only Illinois artifact is Adam King's LRA, and the public hosted server is retired.
 
-## Current SDM focus
-- The SDM worker, private archive exporter and archive preflight are merged to `main`; the urllib3 2.8.0 hosted-dependency lock repair is also merged. These are unreleased fork changes; see the [release checklist](internal/release-checklist.md).
-- Main also includes bounded read-only diagnostics, private course exports, a separately gated comment lane, unsent-comment recovery and draft-preserving refresh across new assignments. Dirty installed overlays remain preserved; this closeout neither updates their runtime nor resumes grading/publication.
-- Shared GrAss implementation continues in LocalGrAss; Canvas services and installed targets remain owned here. Receipt-bound capture, authenticated durable local teacher review and an authoritative fake-only release bridge are implemented; real policy/source/publisher activation remains held. See [repository maintenance](docs/repository-maintenance.md).
+## Current SDM focus — October 14, 2026
 
-- Unit 1 pair previews, fictional channel contracts, and the disabled exact-GET/form protocol are maintained source only, with no MCP/CLI registration or live send. The real academic provider, paper-source admission, accepted-pair exporter and authenticated RELEASE remain unconnected; see [the Unit 1 contract](docs/unit1-pair-preview-contract.md).
+- Goal: useful evidence-backed, teacher-reviewed score-plus-feedback outcomes,
+  with source publication, installation, independent QC, teacher acceptance and
+  verified delivery reported separately. Shared local tools belong in LocalGrAss;
+  Canvas domain services and installed targets remain owned here.
+- The on-demand Python/Codex Unit 2 helper exists outside this repository. Numeric
+  policy remains **UNSEALED**; see the central [Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md).
+  This work grants no grading, paid-call, schedule, deployment or Canvas-write authority.
+- Merged fork source includes the worker, private PIN/archive tooling, bounded
+  diagnostics, comment recovery and draft-preserving refresh. These are unreleased
+  changes; installed overlays remain separately preserved. See [release checklist](internal/release-checklist.md)
+  and [repository maintenance](docs/repository-maintenance.md).
+- Unit 1 preview/fake-channel and disabled exact-GET/form source contracts remain
+  separate from live adoption. Real academic provider, paper-source admission,
+  accepted-pair export and authenticated RELEASE are unconnected; see the
+  [Unit 1 contract](docs/unit1-pair-preview-contract.md).
 
 ## Upstream focus snapshot (2026-09-30)
 - [ ] **#157** sandbox egress is mitigated, not closed (self-hosted only; `execute_typescript` is disabled on hosted). Needs an egress proxy or network namespace.
@@ -69,7 +80,10 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - [ ] Watch, no owner: Agent Plugins packaging (blocked on credential delivery; triggers in project-history).
 
 ## Roadmap
-- [ ] Grok/xAI integration research and pilot.
+- Resolve the Unit 2 policy and real-packet review dependencies through the central
+  contract before considering publisher adoption. Keep exact target/attempt checks,
+  separate score/comment authorization and independent readback as release gates.
+- Grok/xAI research and pilot remain deferred; no provider activation is authorized.
 
 ## Backlog
 - [ ] Module templates; bulk module creation from JSON/YAML; module duplication across courses.
