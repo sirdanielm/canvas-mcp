@@ -15,6 +15,13 @@ approvals and delivery receipts stay in the private authenticated workbench.
    forms/keys, seal the scoring policy, then review bounded proposals. Unit 2
    grader/provider integration remains a proposal rather than an active publisher.
 
+The on-demand Python/Codex Unit 2 helper exists outside this repository. Its
+numeric policy remains **UNSEALED**; the whole-test 50/50 MC/FRQ split is a proposal.
+Use the [central Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md)
+for policy decisions and real-packet validation before considering publisher
+adoption. Documentation and helper availability grant no automatic grading,
+paid-call, scheduling or Canvas-write authority.
+
 ## Unit 1 outcome
 
 | Result | Verified aggregate |
