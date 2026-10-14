@@ -10,6 +10,8 @@
 
 MCP server for Canvas LMS with **up to 103 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
+For developers: [annotated technical manual](ANNOTATED_TECHNICAL_MANUAL.md) — key functions, execution paths, setup and tests.
+
 ## SDM local workflows
 
 This fork also includes three separate local workflows. Choose the interface for
