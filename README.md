@@ -120,6 +120,8 @@ self-hosted deployment; see [HTTP deployment guidance](deploy/azure/).
 <a id="publishing"></a>
 
 The [documentation map](docs/documentation-map.md) identifies current guides.
+The [annotated technical manual](ANNOTATED_TECHNICAL_MANUAL.md) maps key functions,
+callers, state, setup and offline verification.
 [CLAUDE.md](CLAUDE.md) contains development and validation rules;
 [maintenance](docs/repository-maintenance.md) explains branch ownership, recovery
 and installed overlays. Reviewed source, installed behavior, teacher acceptance
