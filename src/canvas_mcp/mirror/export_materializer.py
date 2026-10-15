@@ -133,6 +133,10 @@ def _receipt(run: Path, value: dict[str, Any]) -> None:
     temporary = run / ".receipt.partial"
     _write(temporary, (json.dumps(value, indent=2) + "\n").encode())
     os.replace(temporary, run / "receipt.json")
+    _sync_directory(run)
+
+
+def _sync_directory(run: Path) -> None:
     fd = os.open(run, os.O_RDONLY)
     try:
         os.fsync(fd)
@@ -208,8 +212,12 @@ def materialize_export(
     }
     partial = run_dir / ".source.partial"
     working = run_dir / ".working.partial"
+    unfinalized = run_dir / "UNFINALIZED"
     started = time.monotonic()
     try:
+        # This fail-closed marker is persisted with the first receipt. Consumers
+        # must hold the run while it exists, even if receipt.json looks verified.
+        _write(unfinalized, b"RECEIPT_NOT_FINALIZED\n")
         _receipt(run_dir, result)
         digest = hashlib.sha256()
         total = 0
@@ -296,10 +304,23 @@ def materialize_export(
                 result["partial_cleanup_requires_review"] = True
     try:
         _receipt(run_dir, result)
+        if result["status"] == "VERIFIED_NEEDS_METADATA":
+            unfinalized.unlink()
+            _sync_directory(run_dir)
     except OSError:
         result.update(
             status="HELD", reason="RECEIPT_IO_HELD", durable_receipt_confirmed=False
         )
+        # A replace may have succeeded before fsync failed. Keep/restore the
+        # independent marker and attempt a saved hold, preserving verified files.
+        try:
+            if not unfinalized.exists():
+                _write(unfinalized, b"FINALIZATION_HELD\n")
+            _receipt(run_dir, result)
+        except OSError:
+            # Broken storage cannot guarantee a new durable write. The earlier
+            # marker and exclusive directory remain review/reconciliation gates.
+            pass
     return result
 
 

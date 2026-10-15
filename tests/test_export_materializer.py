@@ -592,3 +592,86 @@ def test_symlink_loop_is_a_neutral_pre_network_hold(tmp_path: Path) -> None:
     )
     assert_held(result)
     assert requests == []
+
+
+def test_final_receipt_directory_fsync_failure_persists_held_not_verified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import os
+
+    import canvas_mcp.mirror.export_materializer as materializer
+
+    body = office_bytes()
+    requests: list[httpx.Request] = []
+    run = tmp_path / "final-receipt-fsync-held"
+    real_fsync = os.fsync
+    failed = False
+    canary = "SYNTHETIC_FINAL_DIRECTORY_FSYNC_CANARY"
+
+    def fail_verified_directory_once(fd: int) -> None:
+        nonlocal failed
+        receipt = run / "receipt.json"
+        if stat.S_ISDIR(os.fstat(fd).st_mode) and receipt.exists():
+            saved = json.loads(receipt.read_text())
+            if saved["status"] == "VERIFIED_NEEDS_METADATA" and not failed:
+                failed = True
+                raise OSError(canary)
+        real_fsync(fd)
+
+    monkeypatch.setattr(materializer.os, "fsync", fail_verified_directory_once)
+    result = materialize_export(
+        reference(body), run, transport=fixture_transport(body, requests)
+    )
+    assert failed
+    assert_held(result)
+    saved = json.loads((run / "receipt.json").read_text())
+    assert saved["status"] == "HELD"
+    assert saved["bytes"] == result["bytes"] == len(body)
+    assert saved["sha256"] == result["sha256"] == hashlib.sha256(body).hexdigest()
+    assert saved["source_committed"] and saved["working_committed"]
+    assert result_file(saved, "source_path", run).read_bytes() == body
+    assert result_file(saved, "working_path", run).read_bytes() == body
+    assert canary not in json.dumps(result) + json.dumps(saved)
+    assert_no_secret(run, result)
+
+
+def test_persistent_final_receipt_failure_keeps_unfinalized_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import os
+
+    import canvas_mcp.mirror.export_materializer as materializer
+
+    body = office_bytes()
+    requests: list[httpx.Request] = []
+    run = tmp_path / "persistent-finalization-held"
+    real_fsync = os.fsync
+    finalization_failed = False
+    canary = "SYNTHETIC_PERSISTENT_FINAL_FSYNC_CANARY"
+
+    def fail_after_verified_replace(fd: int) -> None:
+        nonlocal finalization_failed
+        receipt = run / "receipt.json"
+        if stat.S_ISDIR(os.fstat(fd).st_mode) and receipt.exists():
+            saved = json.loads(receipt.read_text())
+            if saved["status"] == "VERIFIED_NEEDS_METADATA":
+                finalization_failed = True
+            if finalization_failed:
+                raise OSError(canary)
+        real_fsync(fd)
+
+    monkeypatch.setattr(materializer.os, "fsync", fail_after_verified_replace)
+    result = materialize_export(
+        reference(body), run, transport=fixture_transport(body, requests)
+    )
+    assert finalization_failed
+    assert_held(result)
+    assert (run / "UNFINALIZED").is_file()
+    saved = json.loads((run / "receipt.json").read_text())
+    assert saved["status"] in {"HELD", "VERIFIED_NEEDS_METADATA"}
+    assert result["bytes"] == len(body)
+    assert result["sha256"] == hashlib.sha256(body).hexdigest()
+    assert result["source_committed"] and result["working_committed"]
+    assert result_file(result, "source_path", run).read_bytes() == body
+    assert canary not in json.dumps(result) + json.dumps(saved)
+    assert_no_secret(run, result)

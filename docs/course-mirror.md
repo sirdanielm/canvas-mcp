@@ -127,6 +127,12 @@ It creates an exclusive private directory, a source and separate working copy,
 and a receipt containing hashes and relative paths. Existing or symlinked output
 paths are held before network access. An interrupted receipt requires review;
 reusing its directory cannot replay the transfer or overwrite files.
+Every run starts with an `UNFINALIZED` marker. Its presence requires a hold even
+when `receipt.json` says `VERIFIED_NEEDS_METADATA`; consumers must check both.
+The marker is removed only after the final receipt has been synced. Finalization
+I/O failure retains or restores the marker and attempts to save a held receipt.
+If storage also rejects that write, persistence is unconfirmed and the run must
+remain held for independent reconciliation.
 Request-scoped filters suppress the HTTP libraries' URL and response-header logs
 while preserving unrelated logging contexts. Verified byte hashes and expected
 paths are checkpointed before either final file is committed, so a partial commit
