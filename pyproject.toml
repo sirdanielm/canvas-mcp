@@ -27,7 +27,7 @@ classifiers = [
 keywords = ["canvas", "lms", "mcp", "claude", "education", "api"]
 dependencies = [
     "fastmcp>=4,<5",
-    "mcp>=2,<3",
+    "mcp>=2.2.0,<3",
     # Security floor for FastMCP/Authlib's transitive JOSE implementation.
     "joserfc>=1.7.5,<2",
     "httpx>=0.28.1,<1",
