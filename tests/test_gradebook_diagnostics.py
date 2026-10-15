@@ -15,7 +15,17 @@ from canvas_mcp.gradebook.native import difference_categories
 RID = "00000000-0000-4000-8000-000000000001"
 
 
-def test_allowlist_never_serializes_private_values(tmp_path):
+@pytest.mark.parametrize("microsecond", [123456, 987123])
+def test_allowlist_never_serializes_private_values(tmp_path, monkeypatch, microsecond):
+    # Safe timestamps may contain the same digits as a fictional private ID.
+    frozen = datetime(2026, 10, 15, 22, 44, 9, microsecond, tzinfo=UTC)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen
+
+    monkeypatch.setattr("canvas_mcp.gradebook.diagnostics.datetime", FrozenDateTime)
     log = tmp_path / "diagnostics.jsonl"
     diagnostic = Diagnostics(log)
     diagnostic.emit(
@@ -35,9 +45,19 @@ def test_allowlist_never_serializes_private_values(tmp_path):
     )
     diagnostic.emit("http", component="private-token", operation="private-url")
     rows = [json.loads(line) for line in log.read_text().splitlines()]
-    assert rows[0]["request_id"] == RID
-    assert rows[0]["http_class"] == "forbidden"
-    assert "component" not in rows[1] and "operation" not in rows[1]
+    assert rows == [
+        {
+            "v": 1,
+            "event": "http",
+            "at": frozen.isoformat(),
+            "component": "canvas",
+            "operation": "get",
+            "request_id": RID,
+            "http_class": "forbidden",
+            "duration_ms": 12,
+        },
+        {"v": 1, "event": "http", "at": frozen.isoformat()},
+    ]
     assert not any(
         value in log.read_text()
         for value in (
@@ -46,7 +66,7 @@ def test_allowlist_never_serializes_private_values(tmp_path):
             "student_id",
             "Authorization",
             "grade",
-            "123",
+            "student-123",
         )
     )
     assert log.stat().st_mode & 0o777 == 0o600

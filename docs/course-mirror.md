@@ -102,6 +102,55 @@ module URLs, and opaque LTI launch URLs. Relative URLs and other schemes are exc
 it does not fetch the targets or check for broken links. A resolvable Google ID is not
 proof of student visibility.
 
+### Materializing an admitted native export
+
+`scripts/materialize_course_export.py --output NEW_PRIVATE_RUN_DIR` accepts one
+connector export reference through noninteractive standard input. The callable
+`canvas_mcp.mirror.export_materializer.materialize_export` accepts the same object
+in process: exactly `download_url`, `mime_type`, and `expected_bytes`. Only use the
+connector's returned top-level download reference after a separate metadata and
+teaching-content admission check. This helper does not obtain credentials, invoke
+Drive exports, or decide whether a resource contains student information.
+
+Never interpolate a download reference into shell commands, arguments, environment
+variables, logs, or a durable request file, including reversibly encoded forms.
+Use a non-echoing stdin pipe or the direct callable API. The CLI refuses a terminal
+input stream and prints only aggregate status; invalid arguments are never echoed.
+It has no `--url` option. `--help` is safe without a reference.
+
+The helper admits only HTTPS subdomains of the connector's file-delivery origin,
+with no user information, explicit port, fragment, redirects, ambient proxy/auth
+configuration, or automatic retries. It verifies one DOCX, XLSX, or PPTX export,
+limited to 12 MiB, against the exact expected size, Office package structure and
+member CRCs. Standard input and decompressed ZIP sizes are bounded separately.
+It creates an exclusive private directory, a source and separate working copy,
+and a receipt containing hashes and relative paths. Existing or symlinked output
+paths are held before network access. An interrupted receipt requires review;
+reusing its directory cannot replay the transfer or overwrite files.
+Every run starts with an `UNFINALIZED` marker. Its presence requires a hold even
+when `receipt.json` says `VERIFIED_NEEDS_METADATA`; consumers must check both.
+The marker is removed only after the final receipt has been synced. Finalization
+I/O failure retains or restores the marker and attempts to save a held receipt.
+If storage also rejects that write, persistence is unconfirmed and the run must
+remain held for independent reconciliation.
+Request-scoped filters suppress the HTTP libraries' URL and response-header logs
+while preserving unrelated logging contexts. Verified byte hashes and expected
+paths are checkpointed before either final file is committed, so a partial commit
+can be reviewed without replay. Output I/O failures return a neutral hold.
+
+Connection timeout is 10 seconds and socket-read timeout is 5 seconds. Every
+received chunk checks a 30-second elapsed limit; ZIP verification checks that
+limit too. These are operation timeouts and checks between reads, not a strict
+wall-clock cancellation guarantee. The caller must close standard input after
+the bounded reference object; input/header waiting is not an overall deadline.
+
+Success is `VERIFIED_NEEDS_METADATA`, not archive admission or
+proof of the assignment-time revision. Re-read source metadata, compare it with
+the pre-export observation, verify both local hashes, then use the existing
+archive checkpoint and seal workflow. The helper never promotes an archive,
+changes Canvas or Google originals, or modifies a gradebook. Its controlled
+offline transport tests do not establish a live connector-to-host integration.
+
 Use Drive documents as teacher-authorized assumed template/key mappings until the
 actual LTI attachment is confirmed. Store that provenance explicitly. Do not infer a
 student's source document from a template ID, course title, or assignment code alone.
