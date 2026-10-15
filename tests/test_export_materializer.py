@@ -488,7 +488,7 @@ def test_httpx_info_logging_never_emits_provider_canary(
 def test_second_commit_failure_retains_verified_source_provenance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import canvas_mcp.mirror.export_materializer as materializer
+    from canvas_mcp.mirror import export_materializer as materializer
 
     body = office_bytes()
     requests: list[httpx.Request] = []
@@ -525,7 +525,7 @@ def test_second_commit_failure_retains_verified_source_provenance(
 def test_initial_receipt_io_failure_returns_static_held(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import canvas_mcp.mirror.export_materializer as materializer
+    from canvas_mcp.mirror import export_materializer as materializer
 
     body = office_bytes()
     requests: list[httpx.Request] = []
@@ -548,7 +548,7 @@ def test_initial_receipt_io_failure_returns_static_held(
 def test_elapsed_deadline_checked_after_each_small_transport_chunk(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import canvas_mcp.mirror.export_materializer as materializer
+    from canvas_mcp.mirror import export_materializer as materializer
 
     body = office_bytes()
     elapsed = 0.0
@@ -599,7 +599,7 @@ def test_final_receipt_directory_fsync_failure_persists_held_not_verified(
 ) -> None:
     import os
 
-    import canvas_mcp.mirror.export_materializer as materializer
+    from canvas_mcp.mirror import export_materializer as materializer
 
     body = office_bytes()
     requests: list[httpx.Request] = []
@@ -640,7 +640,7 @@ def test_persistent_final_receipt_failure_keeps_unfinalized_marker(
 ) -> None:
     import os
 
-    import canvas_mcp.mirror.export_materializer as materializer
+    from canvas_mcp.mirror import export_materializer as materializer
 
     body = office_bytes()
     requests: list[httpx.Request] = []
