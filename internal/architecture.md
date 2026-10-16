@@ -174,3 +174,13 @@ Real source/policy admission, scoped academic RELEASE and accepted-pair delivery
 remain separate owner connections. Quinn/local AI is optional. See the
 [canonical contract pointer](../docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md)
 and [production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md).
+
+The intended grading path admits Canvas submissions and teacher-folder/paper
+evidence with their source provenance intact, then carries score and feedback
+from one saved result through local inspection/QC and the protected proposal
+inbox. GrAss's importer preserves GET/EDIT and teacher fields; the general
+revision-bound teacher-decision-to-EDIT transfer remains a separate integration.
+Reuse the central identity and publisher boundaries. A successful proposal
+import does not prove teacher acceptance, downstream application or either
+delivery channel. See the [current grading flow](../docs/goals-and-status.md#grading-flow)
+and [integration contract](../docs/grass-workflow-integration.md).

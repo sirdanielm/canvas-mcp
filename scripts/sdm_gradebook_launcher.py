@@ -33,6 +33,10 @@ def main() -> int:
             "prepare_gradebook_comment_push",
             "reconcile_gradebook_comment_push",
             "confirm_gradebook_comment_push",
+            "request_gradebook_get_refresh",
+            "get_gradebook_get_refresh_status",
+            "review_gradebook_edits",
+            "select_gradebook_review_batch",
         ],
     )
     parser.add_argument(
@@ -92,6 +96,19 @@ def main() -> int:
             bindings = json.loads(
                 (ROOT / "config/sdm-gradebook-workbooks.json").read_text()
             )
+            # Optional local controller; a missing worker configuration does not
+            # disable the existing standalone Canvas snapshot/review tools.
+            get_control = None
+            from sdm_gradebook_worker import DEFAULT_CONFIG, google_client, load_config
+            if DEFAULT_CONFIG.exists():
+                config = load_config(DEFAULT_CONFIG)
+                if Path(config["state_dir"]).resolve() != store.root.resolve():
+                    raise GradebookError("Worker and MCP gradebook stores differ.")
+                from canvas_mcp.gradebook.get_refresh_control import GetRefreshControl
+                get_control = GetRefreshControl(
+                    lambda: google_client(config, bindings), store, bindings,
+                    config["instance_id"],
+                )
             server = create_server(
                 client,
                 store,
@@ -99,6 +116,7 @@ def main() -> int:
                 bindings,
                 enable_push=args.enable_push,
                 enable_comments=args.enable_comments,
+                get_refresh_control=get_control,
             )
             if args.call:
                 from fastmcp import Client

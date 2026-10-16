@@ -17,12 +17,18 @@ interfaces.
 
 ## Current goals
 
-The priority is reliable grades and useful teacher-reviewed score-plus-feedback
-pairs, with a dependable Canvas → GET → EDIT → reviewed Canvas workflow.
-Read [goals and verified status](docs/goals-and-status.md) for the dated Unit 1
-outcome, remaining holds, GET-only work and next priorities. Shared local review
-and dashboard tooling belongs in LocalGrAss; Canvas services and installed
-bindings belong here.
+The grading direction is **dual intake**—Canvas submissions and teacher-folder or
+paper evidence—and **paired score and feedback outputs** from the same saved
+evidence/result revision. Local tools inspect, reconcile and stage proposals for
+teacher review before the central gradebook's EDIT workflow and separately
+authorized Canvas delivery.
+
+The protected proposal inbox exists; the general revision-bound transfer of a
+teacher decision into EDIT remains a separate integration. Score and feedback
+have distinct delivery gates and independent readback. Read
+[goals and status](docs/goals-and-status.md) for the flow, owners and remaining
+work. Shared local tools belong in LocalGrAss; Canvas observations, publisher
+gates and installed Canvas bindings belong here.
 
 | Task | Start here |
 | --- | --- |

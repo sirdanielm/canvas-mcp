@@ -5,25 +5,28 @@ The [current goals and status](goals-and-status.md) records source and installed
 capabilities separately. Repository publication, installation, service restart,
 workbook refresh and classroom delivery are separate actions.
 
-## Current source and checkout boundary
+## Maintained source and ownership
 
-At the October 14 checkpoint, maintained fork main is `d0794b2`; the primary
-checkout is clean. [PR #24](https://github.com/sirdanielm/canvas-mcp/pull/24)
-contains the reviewed GET-only refresh and private EDIT-review improvements and
-remains open at this checkpoint. Its source validation does not establish merge
-or installation. Read the PR and [Actions](https://github.com/sirdanielm/canvas-mcp/actions)
-for subsequent revisions and checks.
+The maintained branch is fork
+[`main`](https://github.com/sirdanielm/canvas-mcp/tree/main).
+`feature/sdm-authoring` is an installation-compatible branch, synchronized only
+after reviewed promotion and safe reconciliation of its operational overlay.
+Read [Actions](https://github.com/sirdanielm/canvas-mcp/actions) for validation of
+the exact candidate; a passing branch check is not installed parity.
 
-The operational authoring checkout retains uncommitted work and private
-evidence. Keep that overlay intact and review its differences before any source
-synchronization. Do not infer that every checkout is clean from the primary
-checkout, or that installed tools changed because a branch was published.
+Canvas owns identity/attempt targeting, GET/EDIT integrity, transport gates and
+installed Canvas services. LocalGrAss owns shared local tools and review;
+GrAss and sdmGrAss retain their domain engines and policy contracts. The
+[grading direction](goals-and-status.md#grading-flow) joins both intake lanes to
+paired score/feedback proposals. Git maintenance does not complete the remaining
+teacher-decision-to-EDIT integration or clear an academic/delivery hold.
 
 ## Reviewed promotion
 
 1. Read current branches, worktrees, upstream containment and actual dirty
-   files. Identify MCP/LaunchAgent runtime paths and active operations before
-   changing a checkout.
+   files. Compare advertised remote heads (`git ls-remote --heads origin`) with
+   local/tracking refs; stale tracking refs are not server evidence. Identify
+   MCP/LaunchAgent runtime paths and active operations before changing a checkout.
 2. Preserve exact tracked/untracked changes, ignored evidence and recoverable
    history separately. Verify the snapshot and retain recovery references.
 3. Create an isolated candidate from the reviewed base. Reconcile intended
@@ -35,7 +38,10 @@ checkout, or that installed tools changed because a branch was published.
    source compatibility, then use a reviewed branch and PR.
 5. After merge, verify remote/local revisions and applicable checks. Synchronize
    a retained checkout only when its preserved overlay can be reconciled safely.
-   A clean fast-forward is not a reason to discard unique files.
+   Fetch remote changes before integrating and push only the reviewed intended
+   commits. Prefer clean fast-forwards; preserve divergent work for explicit
+   reconciliation. Do not force-push, reset away work or prune branches merely
+   to make a checkout appear synchronized.
 6. Plan installation separately with the runtime owner at an idle checkpoint.
    Record exact adopted hashes and readback. Follow the
    [worker runbook](sdm-gradebook-worker.md); never restart shared MCP processes

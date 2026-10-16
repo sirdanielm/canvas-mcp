@@ -67,6 +67,14 @@ that a human approved it.
 Canvas MCP server; the separate gradebook server retains its own exact-preview,
 explicit-enable and durable readback controls.
 
+See the [gradebook workflow](docs/sdm-gradebook-workflow.md#available-tools) for
+the separate local `canvas-gradebook` server. Its four optional GET/review
+controls are registered only with a configured local worker controller and are
+outside the main server's tool manifest. A GET request writes only bound Sheets
+coordination metadata and private local intent receipts; it writes no Canvas
+data and does not change EDIT proposals. These controls grant no publication
+authority; retain the separate enablement, exact approval and readback gates.
+
 ## Tool Categories
 
 ### Student Tools

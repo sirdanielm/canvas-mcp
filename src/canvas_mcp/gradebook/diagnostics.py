@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import math
@@ -12,6 +13,7 @@ import stat
 import subprocess
 import sys
 import time
+import uuid
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -85,6 +87,43 @@ REASONS = {
     "Google returned invalid JSON.": "invalid_json",
     "Canvas returned invalid JSON.": "invalid_json",
     "Trusted baseline course or origin differs.": "baseline_differs",
+    "Google read stopped: HTTP 429.": "throttled",
+    "Google retry delay requires a later attempt.": "retry_deferred",
+    "Google workbook read exceeded its time limit; no partial read accepted.": "workbook_timeout",
+    "Google response exceeded its size limit.": "read_limit",
+    "Google workbook read exceeded its cumulative byte limit.": "read_limit",
+    "GET refresh requires bounded configured bindings.": "binding_differs",
+    "GET refresh workbook binding differs.": "binding_differs",
+    "GET refresh sheet identity or name differs.": "binding_differs",
+    "GET or metadata protection differs.": "structure_differs",
+    "GET metadata sheet is no longer hidden.": "structure_differs",
+    "GET identity headers changed.": "structure_differs",
+    "GET data exceeds its mapped grid.": "schema_differs",
+    "GET metadata course or baseline differs.": "baseline_differs",
+    "GET identity keys are duplicated.": "identity_invalid",
+    "Fresh GET snapshot contains duplicate keys.": "identity_invalid",
+    "GET refresh contains an invalid request.": "plan_differs",
+    "GET refresh requires an explicit row expansion.": "capacity_required",
+    "Canonical GET renderer request contract changed.": "renderer_changed",
+    "GET baseline course or origin differs.": "baseline_differs",
+    "Fresh GET snapshot course or origin differs.": "source_differs",
+    "GET verification requires every configured course.": "binding_differs",
+    "GET refresh plan binding or provenance differs.": "plan_differs",
+    "GET refresh requests differ from canonical projection.": "plan_differs",
+    "GET readback differs from its complete snapshot.": "readback_differs",
+    "GET refresh native readback differs; never replay writes.": "readback_differs",
+    "GET refresh request configuration differs.": "binding_differs",
+    "GET refresh request sheet identities differ.": "binding_differs",
+    "GET refresh request course or workbook identities differ.": "binding_differs",
+    "GET refresh request workbook identity differs.": "binding_differs",
+    "GET refresh request metadata identity is unavailable.": "request_identity_unavailable",
+    "Existing refresh markers require reconciliation.": "queue_blocked",
+    "Existing refresh request has a different mode.": "mode_mismatch",
+    "Existing refresh status requires reconciliation.": "queue_blocked",
+    "Unresolved refresh requires reconciliation.": "queue_blocked",
+    "Another local refresh worker owns this workbook.": "worker_busy",
+    "A fresh READY GET-only worker is required before requesting refresh.": "worker_not_ready",
+    "GET refresh request readback is uncertain; do not enqueue another request.": "request_uncertain",
 }
 FAILURES = frozenset(REASONS.values()) | {
     "unknown",
@@ -96,6 +135,10 @@ FAILURES = frozenset(REASONS.values()) | {
 _context: ContextVar[dict[str, str] | None] = ContextVar(
     "gradebook_diagnostic_context", default=None
 )
+MAX_LOG_BYTES = 5_000_000
+MAX_LOG_RECORD_BYTES = 4096
+LOG_HEADER_BYTES = 4096
+LOG_TAIL_BYTES = 65_536
 
 
 def failure_code(error: BaseException | str) -> str:
@@ -197,15 +240,96 @@ class Diagnostics:
     def __init__(self, path: Path | None = None) -> None:
         self.path, self.dropped = path, 0
         self.last_failure_stage: str | None = None
+        self._startup_record: dict[str, Any] | None = None
+
+    @staticmethod
+    def _private_file(descriptor: int) -> os.stat_result:
+        info = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.getuid()
+            or info.st_mode & 0o077
+            or info.st_nlink != 1
+        ):
+            raise OSError("Telemetry file is not private and regular.")
+        return info
+
+    @staticmethod
+    def _encoded(record: dict[str, Any]) -> bytes:
+        value = (json.dumps(record, sort_keys=True, allow_nan=False) + "\n").encode()
+        if len(value) > MAX_LOG_RECORD_BYTES:
+            raise OSError("Telemetry record exceeds its bound.")
+        return value
+
+    def _rotate(self, descriptor: int) -> int:
+        assert self.path is not None
+        before = self._private_file(descriptor)
+        current = self.path.lstat()
+        if (before.st_dev, before.st_ino) != (current.st_dev, current.st_ino):
+            raise OSError("Telemetry path changed while rotating.")
+        if self._startup_record is None:
+            for line in _log_head(self.path):
+                record = _saved_record(line)
+                if record and record["event"] == "startup":
+                    self._startup_record = record
+                    break
+        name = (
+            f"{self.path.stem}.archive-"
+            f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}-{uuid.uuid4().hex}"
+            f"{self.path.suffix}"
+        )
+        archive = self.path.with_name(name)
+        os.fsync(descriptor)
+        # Reserve a new, private archive name exclusively. Atomic rename then
+        # replaces only our empty reservation, never a pre-existing archive.
+        # Unlike link-then-unlink, interruption cannot leave an active inode
+        # aliased to an archive that later appends could accidentally change.
+        reservation = os.open(
+            archive, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600
+        )
+        new_descriptor: int | None = None
+        directory: int | None = None
+        try:
+            directory = os.open(self.path.parent, os.O_RDONLY)
+            reserved = self._private_file(reservation)
+            archived = archive.lstat()
+            current = self.path.lstat()
+            if (archived.st_dev, archived.st_ino) != (
+                reserved.st_dev,
+                reserved.st_ino,
+            ) or (current.st_dev, current.st_ino) != (before.st_dev, before.st_ino):
+                raise OSError("Telemetry path changed while archiving.")
+            os.rename(self.path, archive)
+            os.fsync(directory)
+            new_descriptor = os.open(
+                self.path,
+                os.O_APPEND | os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+                0o600,
+            )
+            os.fsync(directory)
+        except BaseException:
+            if new_descriptor is not None:
+                os.close(new_descriptor)
+            raise
+        finally:
+            if directory is not None:
+                os.close(directory)
+            os.close(reservation)
+        assert new_descriptor is not None
+        return new_descriptor
 
     def emit(self, event: str, **fields: Any) -> None:
         if self.path is None:
             return
         descriptor: int | None = None
+        lock_descriptor: int | None = None
         try:
             record = safe_record(event, {**(_context.get() or {}), **fields})
             if not record:
                 return
+            encoded = self._encoded(record)
+            if event == "startup":
+                self._startup_record = record
             parent = self.path.parent
             if any(p.is_symlink() for p in (parent, *parent.parents)):
                 raise OSError
@@ -213,29 +337,42 @@ class Diagnostics:
             info = parent.stat()
             if info.st_uid != os.getuid() or info.st_mode & 0o077:
                 raise OSError
+            lock_descriptor = os.open(
+                self.path.with_name(self.path.name + ".lock"),
+                os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
+                0o600,
+            )
+            self._private_file(lock_descriptor)
+            fcntl.flock(lock_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             descriptor = os.open(
                 self.path,
                 os.O_APPEND | os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                 0o600,
             )
-            info = os.fstat(descriptor)
-            if (
-                not stat.S_ISREG(info.st_mode)
-                or info.st_uid != os.getuid()
-                or info.st_mode & 0o077
-                or info.st_size > 5_000_000
-            ):
-                raise OSError
-            os.write(
-                descriptor,
-                (json.dumps(record, sort_keys=True, allow_nan=False) + "\n").encode(),
-            )
+            info = self._private_file(descriptor)
+            if info.st_size + len(encoded) > MAX_LOG_BYTES:
+                new_descriptor = self._rotate(descriptor)
+                os.close(descriptor)
+                descriptor = new_descriptor
+                info = self._private_file(descriptor)
+            if not info.st_size and event != "startup" and self._startup_record:
+                encoded = self._encoded(self._startup_record) + encoded
+            if info.st_size + len(encoded) > MAX_LOG_BYTES:
+                raise OSError("Telemetry active log exceeds its bound.")
+            offset = 0
+            while offset < len(encoded):
+                written = os.write(descriptor, encoded[offset:])
+                if not written:
+                    raise OSError("Telemetry append failed.")
+                offset += written
         except Exception:
             self.dropped += 1
         finally:
-            if descriptor is not None:
+            for opened in (descriptor, lock_descriptor):
+                if opened is None:
+                    continue
                 try:
-                    os.close(descriptor)
+                    os.close(opened)
                 except OSError:
                     self.dropped += 1
 
@@ -309,21 +446,55 @@ def _age(value: Any) -> float | None:
         return None
 
 
-def _log_tail(path: Path) -> list[bytes]:
-    """Reject nonregular files on the opened descriptor before any log read."""
+def _log_sample(path: Path, *, tail: bool) -> list[bytes]:
+    """Bound every read and reject nonprivate or nonregular descriptors."""
     descriptor: int | None = None
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode):
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.getuid()
+            or info.st_mode & 0o077
+        ):
             return []
-        os.lseek(descriptor, max(0, info.st_size - 65_536), os.SEEK_SET)
-        return os.read(descriptor, 65_536).splitlines()
+        size = LOG_TAIL_BYTES if tail else LOG_HEADER_BYTES
+        os.lseek(descriptor, max(0, info.st_size - size) if tail else 0, os.SEEK_SET)
+        return os.read(descriptor, size).splitlines()
     except OSError:
         return []
     finally:
         if descriptor is not None:
             os.close(descriptor)
+
+
+def _log_tail(path: Path) -> list[bytes]:
+    return _log_sample(path, tail=True)
+
+
+def _log_head(path: Path) -> list[bytes]:
+    return _log_sample(path, tail=False)
+
+
+def _saved_record(line: bytes) -> dict[str, Any] | None:
+    try:
+        value = json.loads(line)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if (
+        not isinstance(value, dict)
+        or type(value.get("v")) is not int
+        or value["v"] != 1
+    ):
+        return None
+    event = value.get("event")
+    if not isinstance(event, str) or _age(value.get("at")) is None:
+        return None
+    cleaned = safe_record(event, value)
+    if not cleaned:
+        return None
+    cleaned["at"] = value["at"]
+    return cleaned
 
 
 def inspect_journal(
@@ -439,23 +610,20 @@ def inspect_journal(
                 "VERIFIED",
                 "RELEASED",
             }
-            else "IN_PROGRESS" if result["unresolved"] else "NO_LOCAL_HOLDS"
+            else "IN_PROGRESS"
+            if result["unresolved"]
+            else "NO_LOCAL_HOLDS"
         )
     )
     log = root / "diagnostics.jsonl"
     if log.exists() and not log.is_symlink():
-        lines = _log_tail(log)
+        lines = _log_head(log) + _log_tail(log)
         found_activity = False
         for line in reversed(lines):
-            try:
-                value = json.loads(line)
-            except (ValueError, UnicodeDecodeError):
+            value = _saved_record(line)
+            if value is None:
                 continue
-            if (
-                isinstance(value, dict)
-                and value.get("event") == "startup"
-                and "startup_pin" not in result
-            ):
+            if value.get("event") == "startup" and "startup_pin" not in result:
                 allowed = safe_record("startup", value)
                 result["startup_pin"] = {
                     key: item
@@ -470,8 +638,8 @@ def inspect_journal(
                 }
                 result["startup_age_seconds"] = _age(value.get("at"))
             if (
-                isinstance(value, dict)
-                and value.get("event") == "loop"
+                value.get("event")
+                in {"loop", "http", "stage_start", "stage_end", "startup"}
                 and not found_activity
             ):
                 elapsed = _age(value.get("at"))

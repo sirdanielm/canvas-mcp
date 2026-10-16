@@ -4,12 +4,12 @@ The worker reads Canvas and updates the bound Google workbook. It imports no
 Canvas publisher and has no grade/comment send path. Use this runbook with the
 [gradebook workflow](sdm-gradebook-workflow.md) and [goals and status](goals-and-status.md).
 
-**Version boundary:** maintained main supports the older full-sync worker and
-commands below. The reviewed installed local overlay adds protected GET-only
-mode, native EDIT review and Desktop controls. Its public source is pending in
-[PR #24](https://github.com/sirdanielm/canvas-mcp/pull/24); a fresh main checkout
-cannot run `--get-only request`. Git synchronization does not install, restart
-or verify the local worker or FDHS Apps Script menu.
+**Source and runtime:** this source tree includes protected GET-only refresh,
+native EDIT review and Desktop/menu controls, alongside the older full-sync
+mode. Routine refresh uses `--get-only`; omitting that flag selects full sync.
+Git synchronization does not install, restart or verify the local worker or
+FDHS Apps Script menu. Verify the reviewed installation, its mode and fresh
+READY before requesting work.
 
 ## Architecture and authority
 
@@ -20,10 +20,11 @@ batch. Complete readback and durable coordination cleanup establish completion.
 Full sync uses `service.prepare_refresh` and preserves pending score drafts with
 their original baselines. It can reconcile GET/EDIT axes; it is not the routine
 fallback for helper formulas, custom notes or incompatible proposal layouts.
-The installed GET-only mode instead refreshes protected GET tabs and observation
-metadata while preserving every EDIT field and `_Sync!B2`. `_Sync!B9` identifies
-the actual Canvas observation. Reference tabs and permanent PINs stay unchanged.
-New GET coverage does not authorize an EDIT append or Canvas publication.
+GET-only mode refreshes protected GET tabs and observation metadata while
+preserving every EDIT field and `_Sync!B2`. `_Sync!B5` and `_Sync!B9` describe
+the fresh GET; the original baseline in B2 and historical pending count in B10
+remain unchanged. Reference tabs and permanent PINs stay unchanged. New GET
+coverage does not authorize an EDIT append or Canvas publication.
 
 Ownership requires exact IDs/bindings, not names. Native readback checks selected
 values, formats, notes, validations, dimensions, protections, rules and filters,
@@ -40,11 +41,14 @@ source. Preserve the existing approved credentials unless setup is authorized.
 
 ## Everyday use and local operation
 
-For the installed overlay, keep the Mac awake, online and able to use Keychain.
+For the reviewed GET-only installation, keep the Mac awake, online and able
+to use Keychain.
 Reload the workbook to load the repaired FDHS menu. Save and pause all worksheet
 editing, request **Refresh both courses (Canvas GET only)** once, and use
-**Show refresh progress**. Before admission, require fresh READY in GET_ONLY mode
-and a clear queue. Before resuming edits, require the exact request VERIFIED,
+**Show refresh progress**. New requests use `REFRESH_GET_BOTH`. Before admission,
+require READY no more than 90 seconds old in GET_ONLY mode and a clear queue;
+a legacy or full-sync heartbeat cannot admit them. Before resuming edits, require
+the exact request VERIFIED,
 its complete preservation receipt finalized, and queue cleanup confirmed.
 
 **Canvas - Fresh GET** uses the same queue; **Canvas - Review EDIT** only opens
@@ -56,19 +60,24 @@ The login launch agent polls metadata and reads Canvas only for explicit
 requests. Closing a terminal does not stop it. From the stable checkout:
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py status
-.venv/bin/python scripts/sdm_gradebook_worker.py status --request-id REQUEST_UUID
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only status
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only status --request-id REQUEST_UUID
 launchctl print "gui/$(id -u)/org.sdm.canvas-gradebook-refresh"
 ```
 
-Installed-overlay commands only:
+Queue one request, then inspect that same operation:
 
 ```sh
 .venv/bin/python scripts/sdm_gradebook_worker.py --get-only request
 .venv/bin/python scripts/sdm_gradebook_worker.py --get-only status
 ```
 
-These are unavailable on main; an unknown response never permits a blind repeat.
+A request acknowledgement is not completion. The configured gradebook MCP
+also exposes `request_gradebook_get_refresh` and
+`get_gradebook_get_refresh_status` when its local controller is available.
+Require the exact request's complete native VERIFIED receipt with
+`finalized: true`. Local journal status does not establish current worker
+liveness, and an unknown response never permits a blind repeat.
 
 ### Local diagnostics without network or state changes
 
@@ -84,8 +93,8 @@ ignored.
 
 Output contains aggregate phases/ages, recognized failures and startup pins;
 arbitrary exception text is suppressed. `worker_running` remains unverified:
-recorded activity is not remote READY. Main drops telemetry at its log cap;
-PR #24 adds private rotation and bounded inspection. Neither permits retries.
+recorded activity is not remote READY. Telemetry uses private bounded rotation
+and bounded inspection. Diagnostics never authorizes retries.
 No tokens, URLs, bodies, student records or cell addresses enter telemetry.
 Startup hashes do not prove later edits are loaded by an old process.
 
@@ -106,8 +115,9 @@ worker; require fresh mode-correct READY after restart.
 
 ## Setup and activation
 
-New **main full-sync** installation only: never replace the overlay or activate
-against incompatible/sparse EDIT. From the reviewed checkout:
+For a new, authorized installation, preserve any existing worker configuration
+and state. Never replace an installed worker with a different operation mode or
+activate full sync against incompatible/sparse EDIT. From the reviewed checkout:
 
 ```sh
 uv sync --frozen --group dev --extra local-keychain
@@ -124,29 +134,31 @@ the permitted OAuth audience and retain a Desktop client JSON privately:
 ```sh
 .venv/bin/python scripts/sdm_gradebook_worker.py authorize \
   --client-config /absolute/private/path/desktop-client.json
-.venv/bin/python scripts/sdm_gradebook_worker.py doctor
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only doctor
 ```
 
 Consent uses PKCE, random state and a short-lived loopback callback; credentials
 are created exclusively with mode 0600. `doctor` reads Google and validates local
 baselines; it writes neither Sheets nor Canvas and publishes no heartbeat. It
 does not prove Canvas authentication, Google write access or successful refresh.
-In the installed overlay, use its reviewed `--get-only doctor` composition.
+GET-only doctor validates the preservation-compatible workbook; it does not
+approve full-sync operation or EDIT coverage changes.
 
 Authorized Apps Script edits require the FDHS account. Verify parent workbook,
 back up the entire project, preserve legacy runtime/manifest, compare fresh
 source, update once and read back everything. Uncertainty requires readback,
 never replay. Reload the workbook; a stale label does not justify replacement.
 
-Main's initial foreground pilot uses `run`; generating a template uses:
+An authorized foreground GET-only pilot uses `--get-only run`. Generate its
+reviewable launch-agent template with:
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py launch-agent \
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only launch-agent \
   --output /absolute/private/path/org.sdm.canvas-gradebook-refresh.plist
 ```
 
 Generation starts/installs nothing. Review paths and mode before authorized
-activation; retain the overlay's GET-only flag. Verify complete request/readback
+activation; retain the GET-only flag. Verify complete request/readback
 and advancing READY before background use; tests are insufficient.
 
 ## Coordination and crash recovery
@@ -166,37 +178,43 @@ Absent markers, empty SQL fields or currently missing grades/comments do not
 establish that an old write never occurred.
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py reconcile REQUEST_UUID
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only reconcile REQUEST_UUID
 ```
 
 Reconciliation reads the original operation and native result; it never resends
 grade data. It accepts SENDING, VERIFYING, UNCERTAIN and VERIFIED, not HELD.
-In the overlay, retain `--get-only` for a GET-only operation. Require verified
-receipt plus finalized cleanup; never change modes to force recovery.
+Retain `--get-only` for a GET-only operation; use the original full-sync mode
+only for an operation recorded in that mode. Recovery validates the persisted
+mode, rather than treating absent legacy fields as a GET-only receipt. Require
+verified receipt plus finalized cleanup; never change modes to force recovery.
 
 Only after inspecting and repairing an explicitly **pre-SENDING** hold may an
 authorized operator retire its exact queue records:
 
 ```sh
-.venv/bin/python scripts/sdm_gradebook_worker.py release-held REQUEST_UUID --confirm
+.venv/bin/python scripts/sdm_gradebook_worker.py --get-only release-held REQUEST_UUID --confirm
 ```
 
-Retain the overlay's mode flag when applicable. Release changes no grades and
+Use the operation's original mode flag. Release changes no grades and
 preserves private evidence; it refuses SENDING, VERIFYING and UNCERTAIN. Cleanup
 has its own intent/readback. Never delete journals, clear arbitrary metadata,
 replace UUIDs, renew an uncertain operation or resend its saved batch.
 
 ## Limits and tradeoffs
 
-| Control | Maintained main | Installed GET-only overlay / PR #24 |
-| --- | --- | --- |
-| Idle poll | 30 seconds; failure backoff to 300 | Same bounded poll; typed lock contention waits without claiming READY. |
-| READY admission | 180-second legacy heartbeat | 90 seconds and explicit GET_ONLY mode. |
-| Canvas read | 100 published graded assignments; 120 seconds/course | Complete bounded reads; incomplete captures retain the previous mirror. |
-| Google read | 10,000 allocated cells; 1.1-second pacing | Worker factory: 100,000 cells; five-second pacing, fewer requests. |
-| Whole capture | 80 MB cumulative, 200 chunks, 180 seconds | Same complete-capture bounds; bounded GET-only quota cooldown. |
-| Request/plan lifetime | Ten/five minutes | Same; expiry holds before dispatch. |
-| Sheets grade-data send | One batch, no transport retry | Same durable sole-send requirement. |
+| Control | Source behavior |
+| --- | --- |
+| Idle poll | 30 seconds by default; failure backoff capped at 300 seconds. Lock contention waits without claiming READY. |
+| GET-only admission | READY no more than 90 seconds old, explicit GET_ONLY mode, and clear queue. |
+| Canvas read | 100 published graded assignments; 120 seconds/course. Incomplete captures retain the previous mirror. |
+| Google read | Worker factory: 100,000 allocated cells/chunk and five-second pacing. Whole-capture limits still apply. |
+| Whole capture | 80 MB cumulative, 200 chunks, 180 seconds; bounded quota cooldown for workbook reads. |
+| Request/plan lifetime | Ten/five minutes; expiry holds before dispatch. |
+| Sheets grade-data send | One batch, no transport retry; durable mode and sole-send evidence precede dispatch. |
+
+Larger bounded read chunks reduce request overhead while increasing per-response
+memory; pacing trades latency for quota headroom. These are source settings,
+not proof of a running process's loaded configuration.
 
 Allocation bounds are not student counts. Capture is an interval, not an atomic
 snapshot. Both modes require independent fresh preflight and full selected-field

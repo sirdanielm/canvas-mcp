@@ -56,10 +56,15 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 ## Current SDM focus
 
 Follow [goals and verified status](docs/goals-and-status.md). Reliable gradebook
-sync and useful teacher-reviewed score-plus-feedback pairs lead the work. Shared
-review/workbench tools belong in LocalGrAss; Canvas observations, scoped writers
-and installed bindings remain owned here. Keep source publication, installation,
-QC, teacher acceptance and score/comment delivery evidence separate.
+sync and useful teacher-reviewed score-plus-feedback pairs lead the work. Support
+both Canvas and teacher-folder/paper intake, retaining source identity and policy.
+Reuse saved results to produce score and feedback together, then reconcile them
+through local tools and the protected proposal inbox. The general exact
+teacher-decision-to-EDIT transfer remains a bounded integration to build; staging
+is not acceptance or delivery. Shared review/workbench tools belong in
+LocalGrAss; Canvas observations, scoped writers and installed bindings remain
+owned here. Keep source publication, installation, QC, teacher acceptance and
+score/comment delivery evidence separate.
 
 Bounded local Unit 1 delivery has verified outcomes and remaining historical/source
 holds. The older accepted-pair exporter and authenticated general RELEASE bridge

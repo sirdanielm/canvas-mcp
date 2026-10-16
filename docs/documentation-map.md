@@ -1,6 +1,6 @@
 # Documentation map and authority
 
-Use [goals and verified status](goals-and-status.md) for the latest dated outcomes
+Use [goals and status](goals-and-status.md) for direction and dated outcomes
 and priorities. Read the relevant guide for procedures, and the current source
 and exact installed bindings for capability. Tests, a Git merge or an old
 checkpoint do not establish current service liveness or publication authority.
@@ -9,6 +9,7 @@ checkpoint do not establish current service liveness or publication authority.
 
 | Need | Reference |
 | --- | --- |
+| Dual intake, paired score/feedback outputs and remaining handoffs | [Grading flow](goals-and-status.md#grading-flow), [architecture pointer](GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md) |
 | Start/use the main MCP connection | [README](../README.md), [installation](installation.md), [tool reference](../tools/README.md) |
 | Agent/developer rules | [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [main tool manifest](../tools/TOOL_MANIFEST.json) |
 | GET/EDIT gradebook operation | [Workflow](sdm-gradebook-workflow.md), [worker](sdm-gradebook-worker.md) |
@@ -22,6 +23,11 @@ review/dashboard tooling belongs in [LocalGrAss](https://github.com/sirdanielm/L
 Canvas services and installed targets remain owned here. Preserve the distinction
 between advisory results, accepted teacher decisions, authorized delivery and
 verified score/comment outcomes.
+
+The [GrAss handoff contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
+owns the remaining revision-bound teacher-decision-to-EDIT requirements; the
+proposal inbox and existing Canvas publishers do not connect that step by
+themselves. Domain policy details remain in their owning repositories.
 
 ## Historical records
 

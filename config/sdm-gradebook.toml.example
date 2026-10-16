@@ -5,5 +5,5 @@ cwd = "/Users/sdm/coding projects/repos/canvas-mcp-sdm-authoring"
 enabled = true
 required = false
 startup_timeout_sec = 20
-tool_timeout_sec = 180
-enabled_tools = ["get_canvas_gradebook", "preview_gradebook_changes", "prepare_gradebook_refresh", "verify_gradebook_refresh", "prepare_gradebook_push", "get_gradebook_push_status", "reconcile_gradebook_push"]
+tool_timeout_sec = 300
+enabled_tools = ["get_canvas_gradebook", "preview_gradebook_changes", "prepare_gradebook_push", "get_gradebook_push_status", "reconcile_gradebook_push", "request_gradebook_get_refresh", "get_gradebook_get_refresh_status", "review_gradebook_edits", "select_gradebook_review_batch"]

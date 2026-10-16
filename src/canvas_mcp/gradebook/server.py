@@ -27,6 +27,7 @@ def create_server(
     bindings: dict[str, Any] | None = None,
     enable_push: bool = False,
     enable_comments: bool = False,
+    get_refresh_control: Any | None = None,
 ) -> FastMCP:
     server = FastMCP("canvas-gradebook")
     publisher = Publisher(client, store, Ledger(store.root))
@@ -35,6 +36,83 @@ def create_server(
         if course not in courses:
             raise GradebookError("Choose a configured class: " + ", ".join(courses))
         return courses[course]
+
+    if get_refresh_control is not None:
+
+        @server.tool(annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=False,
+        ))
+        async def request_gradebook_get_refresh() -> dict[str, Any]:
+            """Queue one fresh Canvas read into both protected GET tabs.
+
+            Keep the workbook idle until the returned request is VERIFIED.
+            Preserves every EDIT score, formula, note and original baseline.
+            Poll get_gradebook_get_refresh_status with the request_id. Never
+            resend an uncertain request. No Canvas writes or EDIT changes.
+            """
+            try:
+                return dict(await get_refresh_control.request())
+            except GradebookError as exc:
+                return {"error": str(exc), "canvas_writes": 0, "retry_writes": False}
+            except Exception:
+                return {"error": "GET request unavailable; inspect stored status before retrying.",
+                        "canvas_writes": 0, "retry_writes": False}
+
+        @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+        async def get_gradebook_get_refresh_status(request_id: str) -> dict[str, Any]:
+            """Inspect this request's durable aggregate GET refresh receipt.
+
+            VERIFIED includes source times and complete EDIT preservation.
+            Intermediate local journal phases do not prove worker liveness.
+            Reads local artifacts only. Never queues, releases, or resends.
+            """
+            try:
+                return dict(await get_refresh_control.status(request_id))
+            except GradebookError as exc:
+                return {"error": str(exc), "canvas_writes": 0, "retry_writes": False}
+            except Exception:
+                return {"error": "GET status unavailable; no action was retried.",
+                        "canvas_writes": 0, "retry_writes": False}
+
+        @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+        async def review_gradebook_edits(course: str) -> dict[str, Any]:
+            """Compare current native EDIT scores with fresh Canvas by exact IDs.
+
+            Preserves helper formulas and notes while validating mapped score
+            cells against their original trusted baseline. Returns aggregate
+            counts and a private teacher review. No grades or comments are sent.
+            A Canvas push still requires its exact preview and confirmation.
+            """
+            try:
+                return dict(await get_refresh_control.review(client, course))
+            except GradebookError as exc:
+                return {"error": str(exc), "canvas_writes": 0}
+            except Exception:
+                return {"error": "Native EDIT review held; no grades or comments were sent.",
+                        "canvas_writes": 0}
+
+
+    if get_refresh_control is not None:
+
+        @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+        async def select_gradebook_review_batch(
+            course: str, review_id: str, batch_index: int = 0,
+        ) -> dict[str, Any]:
+            """Make a private scope of up to 25 ready rows from an existing review.
+
+        Independently checks classifications against captured evidence. Held
+        rows remain unresolved in the parent. Does not refresh source times,
+        approve teacher decisions, prepare a publisher, or send Canvas changes.
+        Review the private scope before separately preparing/confirming a push.
+            """
+            try:
+                from .scoped_review import select_ready_batch
+                return select_ready_batch(store, resolve(course), client.origin, review_id, batch_index)
+            except GradebookError as exc:
+                return {"error": str(exc), "canvas_writes": 0}
+            except Exception:
+                return {"error": "Review scope held; no grade operation was prepared.", "canvas_writes": 0}
+
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def get_canvas_gradebook(course: str) -> dict[str, Any]:
