@@ -25,7 +25,10 @@ This is the intended complete path, with distinct implementation boundaries.
 GrAss's protected proposal importer is implemented; the general revision-bound
 teacher-decision-to-EDIT transfer remains a
 [separate integration](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration).
-Automatic end-to-end staging is not established. Score and full feedback derive
+The [offline native transfer planner](teacher-edit-transfer.md) now implements
+the exact selection, destination preflight and semantic readback contract;
+domain authentication and installed execution remain unconnected. Automatic
+end-to-end staging is not established. Score and full feedback derive
 from the same reviewed result but retain separate release permissions, transport
 state and independent destination verification.
 
