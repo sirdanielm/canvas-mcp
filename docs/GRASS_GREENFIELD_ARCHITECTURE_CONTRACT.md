@@ -1,14 +1,19 @@
 # GrAss architecture contract
 
-The canonical GrAss design and new implementation are maintained in
+The canonical GrAss architecture and shared local implementation are maintained in
 [LocalGrAss](https://github.com/sirdanielm/LocalGrAss).
+
+Start with this repository's [grading flow](goals-and-status.md#grading-flow)
+and [integration boundaries](grass-workflow-integration.md): Canvas and
+teacher-folder/paper intake produce paired score/feedback proposals through local
+tools and teacher review. The revision-bound transfer into central EDIT remains
+a separate integration; source tests do not establish that complete path.
 
 - [Architecture contract](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md)
 - [Implementation plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_NEXT_BUILD_PLAN.md)
 - [Production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md)
-- [Receipt/review build](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PILOT_CONNECTIONS_2026-10-01.md)
 - [Implementation status](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/IMPLEMENTATION_STATUS.md)
-- [Local tooling ownership](https://github.com/sirdanielm/LocalGrAss)
+- [Local goals and ownership](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/SDM-GOALS-AND-WORK-STATUS.md)
 
 Shared local tooling is developed in LocalGrAss; Canvas-specific services,
 policies and installed targets remain owned by this repository. Quinn/local AI
@@ -24,5 +29,6 @@ guides and the distinction between implementation, installed runtime and live
 publication authority.
 
 The Canvas-owned [capture contract](grass-capture-contract.md) defines the exact
-observation/PIN handoff to the local core. Its new receipt, local teacher login
-and fake release tests do not establish a live policy scorer or publisher.
+observation/PIN handoff to the local core. Receipt, local teacher login and
+fake-release tests do not connect the general accepted-pair release bridge.
+Existing guarded Canvas delivery remains a separate capability.

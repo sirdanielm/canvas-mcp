@@ -9,14 +9,17 @@ local installation, teacher approval and verified delivery are different states.
 
 | Surface | What is available |
 | --- | --- |
-| Maintained main | Private Canvas snapshots, export-based full-sync planning, exact score preview/push, and a separately enabled comment lane. |
-| Installed local overlay | Protected GET-only worker, private native EDIT review, and reviewed Desktop/menu controls. Verify this installation before use. |
-| [PR #24](https://github.com/sirdanielm/canvas-mcp/pull/24) | Proposed public GET-only implementation; pending review/merge. A fresh main checkout does not yet contain its flags or controls. |
+| This source tree | Protected GET-only worker, native EDIT review, Desktop/menu controls, private Canvas snapshots, export-based full sync, exact score preview/push, and a separately enabled comment lane. |
+| Reviewed local installation | Only the configured tools and loaded worker mode are available. Verify installation, fresh READY and exact receipts before use. |
 
-For the verified installed overlay, save and pause worksheet editing, keep the
+Source synchronization does not install controls, reconnect shared services or
+verify their liveness.
+
+For the reviewed GET-only installation, save and pause worksheet editing, keep the
 Mac awake and online, and choose **Canvas Gradebook → Refresh both courses
 (Canvas GET only)** once. Reload the workbook to load the repaired FDHS menu.
-Require a fresh READY heartbeat advertising GET_ONLY before requesting work;
+Require READY no more than 90 seconds old advertising GET_ONLY before requesting
+work;
 wait for that exact request's VERIFIED, finalized receipt and cleared queue
 before editing again. A populated tab, successful request or READY heartbeat
 alone is not completion. If the menu is stale, use the reviewed installed
@@ -53,8 +56,8 @@ outside Git and public reports.
 
 ## Available tools
 
-These are the maintained-main gradebook connection's default tools, separate
-from the general Canvas MCP server and its tool manifest:
+These belong to the separate gradebook connection, rather than the general
+Canvas MCP server and its tool manifest:
 
 | Tool | Result |
 | --- | --- |
@@ -65,12 +68,17 @@ from the general Canvas MCP server and its tool manifest:
 | `prepare_gradebook_push` | Exact review and expiring confirmation; no Canvas write. |
 | `get_gradebook_push_status` | Durable aggregate operation status. |
 | `reconcile_gradebook_push` | GET-only recovery; never resends. |
+| `request_gradebook_get_refresh` | Queue one protected GET refresh for both courses. |
+| `get_gradebook_get_refresh_status` | Inspect that request's durable aggregate preservation receipt. |
+| `review_gradebook_edits` | Compare native EDIT proposals with fresh Canvas; save a private review. |
+| `select_gradebook_review_batch` | Select up to 25 ready rows from an existing review, retaining its evidence time and holds. |
 
-PR #24 proposes four controller-dependent controls: request/status for a protected
-GET refresh, native EDIT review, and selection of a private ready-row batch.
-They are available in the reviewed local overlay, not maintained main. They add
-no publication authority. The general connector's `ALLOWED_WRITE_TOOLS` does
-not replace this server's separate grade/comment enablement and exact approvals.
+The four controller tools require the existing local worker configuration,
+matching state store and explicit client allowlist entries. Missing controls do
+not permit a workaround. They add no publication authority. A ready batch still
+requires teacher review and the publisher's exact preview and confirmation.
+The general connector's `ALLOWED_WRITE_TOOLS` does not replace this server's
+separate grade/comment enablement and exact approvals.
 
 ### Local setup
 
@@ -91,7 +99,7 @@ The configured FCPS classes require `https://fcps.instructure.com` and confirmed
 The installer requires an existing Codex configuration, backs it up privately
 and refuses unknown customizations. Review paths in `config/sdm-gradebook.toml.example`.
 Default installation does not enable publication. Reconnect only the affected
-connection when needed. A main tool can also run through the CLI:
+connection when needed. An available tool can also run through the CLI:
 
 ```sh
 .venv/bin/python scripts/sdm_gradebook_launcher.py --call get_canvas_gradebook \
@@ -103,11 +111,33 @@ cannot resolve baselines. Changed bindings require a reviewed new process.
 
 ## Agent refresh protocol
 
-Prefer the verified installed GET-only worker for routine reads. The following
-maintained-main protocol is **full sync**, not preservation of arbitrary EDIT
-helpers, notes or divergent axes. Hold incompatible layouts rather than falling
-back to it. Keep all editors idle; Sheets offers no compare-and-swap across read
-and batch update.
+Use the reviewed GET-only worker for routine freshness while preserving EDIT:
+
+1. Save and pause worksheet edits. Require fresh READY in GET_ONLY mode and
+   a clear queue; request `REFRESH_GET_BOTH` once through the menu, Desktop
+   shortcut, `--get-only request` or `request_gradebook_get_refresh`.
+2. Retain its request UUID. Inspect the same operation with `--get-only status`
+   or `get_gradebook_get_refresh_status`; a local status alone is not liveness.
+3. Require its complete native VERIFIED preservation receipt and `finalized: true`
+   before resuming edits. `_Sync!B5` and B9 describe fresh GET, while B2 and the
+   historical pending count in B10 remain unchanged.
+4. Review proposals through `review_gradebook_edits` or **Canvas - Review EDIT**.
+   Inspect the separate exact-ID coverage summary. New GET targets require a
+   separately reviewed [EDIT append plan](gradebook-edit-axis-reconciliation.md)
+   with durable preflight/readback; coverage warnings do not approve scores.
+
+A pre-send HELD operation needs its saved cause repaired and an explicit
+mode-correct `release-held REQUEST_UUID --confirm`, then fresh READY before a
+new request. UNCERTAIN or any possible send permits reconciliation only, never
+release or replay. Use the [worker runbook](sdm-gradebook-worker.md) for recovery.
+
+### Export-based full sync
+
+`prepare_gradebook_refresh` and `verify_gradebook_refresh` remain full-sync XLSX
+tools. They do not preserve arbitrary EDIT helpers, notes or divergent axes and
+are not a fallback for GET/EDIT shape differences or helper-formula holds. Keep
+all editors idle; Sheets offers no compare-and-swap across read and batch update.
+For a separately authorized, compatible full-sync operation:
 
 1. Export the exact bound workbook as XLSX into the mode-0600 private inbox.
    Decode the raw export without printing student rows or signed URLs.
@@ -217,7 +247,14 @@ They are not current inventory or liveness evidence.
 ## Receipt-bound LocalGrAss handoff
 
 The [capture contract](grass-capture-contract.md) joins exact Canvas scope and
-permanent PINs through a producer-bound private receipt. Academic source/policy,
-teacher acceptance and scoped release remain independently owned; a capture or
-Git merge enables none of them. See [integration boundaries](grass-workflow-integration.md)
+permanent PINs through a producer-bound private receipt. The intended flow takes
+Canvas submissions and teacher-folder/paper evidence through the grading
+pipeline, retains paired score and feedback from the same saved result, then
+uses local tools to stage reviewed EDIT proposals. The general transfer from a
+revision-bound teacher decision into EDIT remains integration work. Existing
+protected Grader Proposals intake does not establish that connection.
+
+Source/policy, teacher acceptance and scoped release gates remain independently
+owned. A capture, EDIT proposal or Git merge does not establish teacher approval
+or Canvas delivery. See [integration boundaries](grass-workflow-integration.md)
 and the [current goals](goals-and-status.md).

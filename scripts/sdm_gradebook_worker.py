@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import plistlib
+import re
 import sys
 import uuid
 from collections import Counter
@@ -40,7 +41,11 @@ from canvas_mcp.gradebook.google_authorize import (  # noqa: E402
 from canvas_mcp.gradebook.native import validate_workbook  # noqa: E402
 from canvas_mcp.gradebook.store import Store  # noqa: E402
 from canvas_mcp.gradebook.workbook import edits_from_cells  # noqa: E402
-from canvas_mcp.gradebook.worker import RefreshJournal, RefreshWorker  # noqa: E402
+from canvas_mcp.gradebook.worker import (  # noqa: E402
+    RefreshJournal,
+    RefreshJournalBusy,
+    RefreshWorker,
+)
 
 
 def bindings() -> dict[str, Any]:
@@ -153,12 +158,21 @@ def google_client(config: dict[str, Any], bound: dict[str, Any]) -> GoogleSheets
         Path(config["credential_path"]),
         profile=config["profile"],
         sheet_cell_limits={"Unit1 LI Records": 58_000},
+        max_chunk_cells=100_000,
+        read_interval_seconds=5.0,
     )
 
 
-async def doctor(google: Any, store: Store, bound: dict[str, Any]) -> dict[str, Any]:
+async def doctor(
+    google: Any, store: Store, bound: dict[str, Any], *, get_only: bool = False
+) -> dict[str, Any]:
     raw = await google.read_workbook()
-    views = validate_workbook(raw, bound)
+    if get_only:
+        from canvas_mcp.gradebook.get_only_refresh import validate_get_workbook
+
+        views = validate_get_workbook(raw, bound)
+    else:
+        views = validate_workbook(raw, bound)
     summary = {}
     for course in ("core", "advanced"):
         snapshot_id = views[course]["_Sync"].get("B2")
@@ -170,12 +184,29 @@ async def doctor(google: Any, store: Store, bound: dict[str, Any]) -> dict[str, 
             or baseline.get("origin") != ORIGIN
         ):
             raise GradebookError("Trusted baseline course or origin differs.")
-        edits = edits_from_cells(views[course], baseline)
-        summary[course] = {
-            "students": len(baseline["students"]),
-            "assignments": len(baseline["assignments"]),
-            "pending_edits": len(edits["edits"]),
-        }
+        if get_only:
+            cells = views[course]["Canvas"]
+            summary[course] = {
+                "students": sum(
+                    bool(v)
+                    for k, v in cells.items()
+                    if re.fullmatch(r"A([6-9]|[1-9][0-9]+)", k)
+                ),
+                "assignments": sum(
+                    bool(v)
+                    for k, v in cells.items()
+                    if re.fullmatch(r"[A-Z]+5", k) and k not in {"A5", "B5"}
+                ),
+                "pending_edits": None,
+                "edit_preserved": True,
+            }
+        else:
+            edits = edits_from_cells(views[course], baseline)
+            summary[course] = {
+                "students": len(baseline["students"]),
+                "assignments": len(baseline["assignments"]),
+                "pending_edits": len(edits["edits"]),
+            }
     return {
         "state": "READY",
         "summary": summary,
@@ -261,6 +292,18 @@ async def run_loop(worker: Any, poll_seconds: int) -> None:
                 previous = message
             failures = 0
             delay = poll_seconds
+        except RefreshJournalBusy:
+            # Local mutex contention proves neither a durable hold nor worker
+            # liveness. Poll normally; never resend a request or emit READY.
+            diagnostics.emit("loop", state="BUSY", failure_code="worker_busy")
+            message = json.dumps(
+                {"state": "BUSY", "failure_code": "worker_busy", "canvas_writes": 0},
+                sort_keys=True,
+            )
+            if message != previous:
+                print(message, flush=True)
+                previous = message
+            delay = poll_seconds
         except GradebookError as exc:
             diagnostics.emit("loop", state="HELD", failure_code=failure_code(exc))
             print(
@@ -293,7 +336,7 @@ async def run_loop(worker: Any, poll_seconds: int) -> None:
 
 
 def launch_agent(
-    path: Path, config_path: Path, config: dict[str, Any]
+    path: Path, config_path: Path, config: dict[str, Any], *, get_only: bool = False
 ) -> dict[str, Any]:
     """Generate a reviewable template only; never invoke launchctl or install."""
     logs = Path(config["state_dir"]) / "refresh-worker"
@@ -307,6 +350,7 @@ def launch_agent(
             str(ROOT / "scripts/sdm_gradebook_worker.py"),
             "--config",
             str(config_path),
+            *(["--get-only"] if get_only else []),
             "run",
         ],
         "WorkingDirectory": str(ROOT),
@@ -347,6 +391,8 @@ async def execute(args: argparse.Namespace) -> dict[str, Any]:
         )
     if args.command == "status":
         return local_status(config, bound, args.request_id)
+    if args.command == "request" and not args.get_only:
+        raise GradebookError("Requesting a fresh mirror requires --get-only.")
     if args.command in {"reconcile", "release-held"}:
         _request_id(args.request_id)
     if args.command == "release-held" and not args.confirm:
@@ -363,17 +409,38 @@ async def execute(args: argparse.Namespace) -> dict[str, Any]:
     canvas = None
     try:
         store = Store(Path(config["state_dir"]))
+        if args.command == "request":
+            from canvas_mcp.gradebook.get_refresh_request import request_get_refresh
+
+            return dict(
+                await request_get_refresh(google, store, bound, config["instance_id"])
+            )
         if args.command in {"doctor", "launch-agent", "once", "run"}:
             with diagnostics.stage("startup"):
-                ready = await doctor(google, store, bound)
+                ready = (
+                    await doctor(google, store, bound, get_only=True)
+                    if args.get_only
+                    else await doctor(google, store, bound)
+                )
             if args.command == "doctor":
                 return ready
             if args.command == "launch-agent":
-                return launch_agent(args.output.expanduser().absolute(), path, config)
+                return launch_agent(
+                    args.output.expanduser().absolute(),
+                    path,
+                    config,
+                    get_only=args.get_only,
+                )
         canvas = canvas_client() if args.command in {"once", "run"} else None
         if canvas is not None:
             canvas.diagnostics = diagnostics
-        worker = RefreshWorker(google, canvas, store, bound, config["instance_id"])
+        worker = (
+            RefreshWorker(
+                google, canvas, store, bound, config["instance_id"], get_only=True
+            )
+            if args.get_only
+            else RefreshWorker(google, canvas, store, bound, config["instance_id"])
+        )
         worker.diagnostics = diagnostics
         if args.command == "once":
             result = await worker.step()
@@ -397,6 +464,11 @@ async def execute(args: argparse.Namespace) -> dict[str, Any]:
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    result.add_argument(
+        "--get-only",
+        action="store_true",
+        help="Refresh only protected GET tabs; preserve all EDIT fields and baselines",
+    )
     commands = result.add_subparsers(dest="command", required=True)
     setup = commands.add_parser(
         "configure", help="Create private config; do not start the worker"
@@ -411,6 +483,9 @@ def parser() -> argparse.ArgumentParser:
         "doctor", help="Read Google workbook and validate local baselines"
     )
     commands.add_parser("once", help="Process at most one queued refresh")
+    commands.add_parser(
+        "request", help="Queue one GET-only refresh for the READY installed worker"
+    )
     commands.add_parser(
         "run", help="Run locally while this process is active; no installation"
     )

@@ -47,6 +47,12 @@ STATES = {
     "HELD",
     "UNCERTAIN",
 }
+REFRESH_MODES = {"FULL_SYNC", "GET_ONLY"}
+MODE_MISMATCH = "Refresh mode differs from the original operation; no data was replaced."
+GET_ACTION = "REFRESH_GET_BOTH"
+GET_MODE_REQUIRED = "GET-only request requires a GET-only worker; no data was replaced."
+INTENT_INVALID = "Refresh request intent is invalid; no claim was sent."
+CLAIM_UNCERTAIN = "Refresh claim outcome requires reconciliation; no claim was retried."
 
 
 def stamp() -> str:
@@ -114,7 +120,8 @@ def validate_request(
         set(value) != {"v", "id", "action", "created_at", "workbook_id"}
         or type(value["v"]) is not int
         or value["v"] != 1
-        or value["action"] != "REFRESH_BOTH"
+        or type(value["action"]) is not str
+        or value["action"] not in {"REFRESH_BOTH", GET_ACTION}
         or value["workbook_id"] != workbook_id
         or not isinstance(value["id"], str)
         or not UUID.fullmatch(value["id"])
@@ -155,6 +162,10 @@ def metadata_delete(mid: int) -> dict[str, Any]:
             "dataFilter": {"developerMetadataLookup": {"metadataId": mid}}
         }
     }
+
+
+class RefreshJournalBusy(GradebookError):
+    """Typed pre-admission contention; no journal lock was acquired."""
 
 
 class RefreshJournal:
@@ -203,7 +214,7 @@ class RefreshJournal:
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
-                raise GradebookError(
+                raise RefreshJournalBusy(
                     "Another local refresh worker owns this workbook."
                 ) from None
             yield
@@ -235,12 +246,21 @@ class RefreshJournal:
                 )
             ]
 
-    def create(self, request: dict[str, Any], metadata_id: int) -> dict[str, Any]:
+    def create(
+        self, request: dict[str, Any], metadata_id: int, *,
+        refresh_mode: str | None = None,
+    ) -> dict[str, Any]:
+        if refresh_mode is not None and (
+            type(refresh_mode) is not str or refresh_mode not in REFRESH_MODES
+        ):
+            raise GradebookError("Refresh mode is unsupported.")
         payload = {
             "request": request,
             "metadata_id": metadata_id,
             "claim_nonce": str(uuid.uuid4()),
         }
+        if refresh_mode is not None:
+            payload.update(refresh_mode_schema=1, refresh_mode=refresh_mode)
         with self.connect() as db:
             db.execute(
                 "INSERT OR IGNORE INTO operations VALUES(?,?,?,?,?)",
@@ -259,11 +279,17 @@ class RefreshJournal:
             or operation["payload"]["metadata_id"] != metadata_id
         ):
             raise GradebookError("Request ID was reused with different content.")
+        if refresh_mode is not None and (
+            type(operation["payload"].get("refresh_mode_schema")) is not int
+            or operation["payload"].get("refresh_mode_schema") != 1
+            or operation["payload"].get("refresh_mode") != refresh_mode
+        ):
+            raise GradebookError(MODE_MISMATCH)
         return operation
 
     def update(self, request_id: str, status: str, **patch: Any) -> dict[str, Any]:
         allowed = {
-            "CLAIMING": {"CLAIMED", "HELD"},
+            "CLAIMING": {"CLAIMING", "CLAIMED", "HELD"},
             "CLAIMED": {"PREPARED", "HELD"},
             "PREPARED": {"PREPARED", "SENDING", "HELD"},
             "SENDING": {"VERIFYING", "UNCERTAIN"},
@@ -301,8 +327,14 @@ class RefreshWorker:
         bindings: dict[str, Any],
         instance_id: str,
         diagnostics: Diagnostics | None = None,
+        *,
+        get_only: bool = False,
     ) -> None:
-        if set(bindings) != {"core", "advanced"} or not UUID.fullmatch(instance_id):
+        if (
+            set(bindings) != {"core", "advanced"}
+            or not UUID.fullmatch(instance_id)
+            or type(get_only) is not bool
+        ):
             raise GradebookError(
                 "Worker requires both configured courses and a stable instance ID."
             )
@@ -313,6 +345,7 @@ class RefreshWorker:
         self.google, self.canvas, self.store = google, canvas, store
         self.bindings, self.instance_id = copy.deepcopy(bindings), instance_id
         self.diagnostics = diagnostics or Diagnostics()
+        self.get_only = get_only
         self.journal = RefreshJournal(store.root, self.workbook_id)
 
     async def _metadata(self) -> dict[str, dict[str, Any]]:
@@ -357,6 +390,7 @@ class RefreshWorker:
                 "v": 1,
                 "workbook_id": self.workbook_id,
                 "state": "BUSY" if blocked else "READY",
+                "refresh_mode": "GET_ONLY" if self.get_only else "FULL_SYNC",
                 "updated_at": stamp(),
             }
             await self.google.batch(
@@ -391,6 +425,106 @@ class RefreshWorker:
         ):
             raise GradebookError("Refresh applied marker differs.")
 
+    def _operation_mode(self, op: dict[str, Any]) -> str:
+        """Resolve retained intent; a restart cannot widen a pre-send scope.
+
+        Versioned journal pins precede the first outbound claim. An older
+        operation's existing immutable manifest owns its mode; a truly legacy
+        operation without either pin or manifest retains FULL_SYNC semantics.
+        """
+        payload = op["payload"]
+        pinned = None
+        if "refresh_mode_schema" in payload:
+            mode_value = payload.get("refresh_mode")
+            if (
+                type(payload["refresh_mode_schema"]) is not int
+                or payload["refresh_mode_schema"] != 1
+                or type(mode_value) is not str or mode_value not in REFRESH_MODES
+            ):
+                raise GradebookError("Refresh journal has an unsupported mode pin.")
+            pinned = payload["refresh_mode"]
+        if "manifest_id" in payload:
+            manifest = self.store.load("refresh", payload["manifest_id"])
+            mode = manifest.get("refresh_mode", "FULL_SYNC")
+            if type(mode) is not str or mode not in REFRESH_MODES:
+                raise GradebookError("Refresh manifest has an unsupported mode.")
+            if pinned is not None and pinned != mode:
+                raise GradebookError(MODE_MISMATCH)
+            return str(mode)
+        return str(pinned) if pinned is not None else "FULL_SYNC"
+
+    def _trusted_request_intent(self, op: dict[str, Any]) -> None:
+        """Admit only the helper's immutable, exact GET request intent."""
+        payload = op["payload"]
+        if (
+            type(payload.get("request_intent_schema")) is not int
+            or payload["request_intent_schema"] != 1
+            or type(payload.get("refresh_mode_schema")) is not int
+            or payload["refresh_mode_schema"] != 1
+            or payload.get("refresh_mode") != "GET_ONLY"
+            or payload.get("request_send_state") not in ("SENDING", "CONFIRMED")
+            or type(payload.get("request_intent_receipt_id")) is not str
+        ):
+            raise GradebookError(INTENT_INVALID)
+        receipt = self.store.load("receipt", payload["request_intent_receipt_id"])
+        if (
+            set(receipt) != {
+                "request_intent_schema", "request", "metadata_id", "refresh_mode",
+                "binding_digest", "workbook_id", "created_at", "canvas_writes",
+            }
+            or type(receipt.get("request_intent_schema")) is not int
+            or receipt["request_intent_schema"] != 1
+            or receipt.get("request") != payload["request"]
+            or type(receipt.get("metadata_id")) is not int
+            or receipt["metadata_id"] != payload["metadata_id"]
+            or receipt.get("refresh_mode") != "GET_ONLY"
+            or receipt.get("binding_digest") != digest(self.bindings)
+            or receipt.get("workbook_id") != self.workbook_id
+            or type(receipt.get("canvas_writes")) is not int
+            or receipt["canvas_writes"] != 0
+            or type(receipt.get("created_at")) is not str
+        ):
+            raise GradebookError(INTENT_INVALID)
+        validate_request(receipt["request"], self.workbook_id, fresh=False)
+        if receipt["request"]["action"] != GET_ACTION:
+            raise GradebookError(INTENT_INVALID)
+        if age(receipt["created_at"]) < -30:
+            raise GradebookError(INTENT_INVALID)
+
+    async def _claim_once(self, op: dict[str, Any]) -> dict[str, Any]:
+        """Save the sole claim attempt before POST; lost claims never retry."""
+        validate_request(op["payload"]["request"], self.workbook_id)
+        if op["payload"].get("claim_send_attempted") is True:
+            self.journal.update(
+                op["id"], "HELD", failure_reason=CLAIM_UNCERTAIN,
+                failure_code=failure_code(CLAIM_UNCERTAIN), failure_stage="claim",
+            )
+            raise GradebookError(CLAIM_UNCERTAIN)
+        if "claim_send_attempted" in op["payload"] and op["payload"]["claim_send_attempted"] is not False:
+            raise GradebookError(INTENT_INVALID)
+        op = self.journal.update(op["id"], "CLAIMING", claim_send_attempted=True)
+        claim = {
+            "v": 1, "id": op["id"], "owner": self.instance_id,
+            "nonce": op["payload"]["claim_nonce"],
+            "workbook_id": self.workbook_id, "created_at": stamp(),
+        }
+        try:
+            with self.diagnostics.stage("claim", op["id"]):
+                await self.google.batch([metadata_create("claim", claim)])
+        except Exception:
+            entries = await self._metadata()
+        else:
+            entries = await self._metadata()
+        if "claim" not in entries:
+            self.journal.update(
+                op["id"], "HELD", failure_reason=CLAIM_UNCERTAIN,
+                failure_code=failure_code(CLAIM_UNCERTAIN), failure_stage="claim",
+            )
+            raise GradebookError(CLAIM_UNCERTAIN)
+        self._own_markers(entries, op)
+        self.diagnostics.last_failure_stage = None
+        return self.journal.update(op["id"], "CLAIMED")
+
     async def step(self) -> dict[str, Any]:
         self.diagnostics.last_failure_stage = None
         with self.journal.exclusive():
@@ -407,6 +541,15 @@ class RefreshWorker:
             request = request_entry["value"]
             validate_request(request, self.workbook_id, fresh=False)
             op = self.journal.get(request["id"])
+            if op is not None and op["status"] == "RELEASED":
+                raise GradebookError("Released refresh request arrived late; reconciliation is required.")
+            if (
+                request["action"] == GET_ACTION and not self.get_only
+                and (op is None or op["status"] == "CLAIMING")
+            ):
+                # Leave a fresh GET-only request available for the correctly
+                # composed worker. Post-send recovery still follows its manifest.
+                raise GradebookError(GET_MODE_REQUIRED)
             if op is None:
                 if (
                     self.journal.unresolved()
@@ -414,7 +557,10 @@ class RefreshWorker:
                     or "applied" in entries
                 ):
                     raise GradebookError("An earlier refresh must be reconciled first.")
-                op = self.journal.create(request, request_entry["metadata_id"])
+                op = self.journal.create(
+                    request, request_entry["metadata_id"],
+                    refresh_mode="GET_ONLY" if self.get_only else "FULL_SYNC",
+                )
                 try:
                     validate_request(request, self.workbook_id)
                 except GradebookError as exc:
@@ -427,35 +573,35 @@ class RefreshWorker:
                     )
                     await self._status(op["id"], "HELD")
                     return {"state": "HELD", "request_id": op["id"], "canvas_writes": 0}
-                claim = {
-                    "v": 1,
-                    "id": op["id"],
-                    "owner": self.instance_id,
-                    "nonce": op["payload"]["claim_nonce"],
-                    "workbook_id": self.workbook_id,
-                    "created_at": stamp(),
-                }
-                try:
-                    with self.diagnostics.stage("claim", op["id"]):
-                        await self.google.batch([metadata_create("claim", claim)])
-                except Exception:
-                    # Metadata creation may have succeeded. GET is the only retry.
-                    entries = await self._metadata()
-                    self._own_markers(entries, op)
-                else:
-                    entries = await self._metadata()
-                    self._own_markers(entries, op)
-                op = self.journal.update(op["id"], "CLAIMED")
-                # A lost claim response has now been resolved by exact readback.
-                # Its earlier diagnostic cannot label a later prepare failure.
+                op = await self._claim_once(op)
+                # Exact claim readback resolves any prior lost response.
                 self.diagnostics.last_failure_stage = None
             else:
                 self.journal.create(request, request_entry["metadata_id"])
                 if op["status"] == "HELD":
                     return {"state": "HELD", "request_id": op["id"], "canvas_writes": 0}
-                self._own_markers(entries, op)
-                if op["status"] == "CLAIMING":
-                    op = self.journal.update(op["id"], "CLAIMED")
+                if op["status"] == "CLAIMING" and "claim" not in entries:
+                    if op["payload"].get("claim_send_attempted") is True:
+                        self.journal.update(
+                            op["id"], "HELD", failure_reason=CLAIM_UNCERTAIN,
+                            failure_code=failure_code(CLAIM_UNCERTAIN), failure_stage="claim",
+                        )
+                        raise GradebookError(CLAIM_UNCERTAIN)
+                    if (
+                        entries.get("request") != {
+                            "metadata_id": op["payload"]["metadata_id"],
+                            "value": op["payload"]["request"],
+                        }
+                        or "applied" in entries
+                        or not self.get_only or self._operation_mode(op) != "GET_ONLY"
+                    ):
+                        raise GradebookError(INTENT_INVALID)
+                    self._trusted_request_intent(op)
+                    op = await self._claim_once(op)
+                else:
+                    self._own_markers(entries, op)
+                    if op["status"] == "CLAIMING":
+                        op = self.journal.update(op["id"], "CLAIMED")
             if op["status"] in {"SENDING", "VERIFYING", "UNCERTAIN", "VERIFIED"}:
                 return await self._reconcile(op)
             if op["status"] == "HELD":
@@ -495,21 +641,41 @@ class RefreshWorker:
         from .native import fingerprint, validate_workbook
         from .service import prepare_refresh
 
+        requested_mode = "GET_ONLY" if self.get_only else "FULL_SYNC"
+        if op["payload"]["request"]["action"] == GET_ACTION and not self.get_only:
+            raise GradebookError(GET_MODE_REQUIRED)
+        if self._operation_mode(op) != requested_mode:
+            raise GradebookError(MODE_MISMATCH)
+        if self.get_only:
+            from .get_only_refresh import (
+                prepare_get_only_refresh,
+                validate_get_workbook,
+            )
+
+            validate = validate_get_workbook
+        else:
+            validate = validate_workbook
+
         validate_request(op["payload"]["request"], self.workbook_id)
         await self._status(op["id"], "CLAIMED")
         with self.diagnostics.stage("initial_workbook", op["id"]):
             before = await self.google.read_workbook()
-            views = validate_workbook(before, self.bindings)
+            views = validate(before, self.bindings)
         plans = {}
         for course in ("core", "advanced"):
             with self.diagnostics.stage("prepare_" + course, op["id"]):
-                plans[course] = await prepare_refresh(
-                    self.canvas,
-                    self.store,
-                    course,
-                    self.bindings[course],
-                    views[course],
-                )
+                if self.get_only:
+                    plans[course] = await prepare_get_only_refresh(
+                        self.canvas, self.store, course, self.bindings[course], before
+                    )
+                else:
+                    plans[course] = await prepare_refresh(
+                        self.canvas,
+                        self.store,
+                        course,
+                        self.bindings[course],
+                        views[course],
+                    )
         batch = []
         # Never shrink a sheet merely because the canonical layout is narrower.
         column_counts = {
@@ -539,6 +705,7 @@ class RefreshWorker:
         batch.append(metadata_create("applied", marker))
         manifest = {
             "worker_schema": 1,
+            "refresh_mode": "GET_ONLY" if self.get_only else "FULL_SYNC",
             "request": op["payload"]["request"],
             "binding_digest": digest(self.bindings),
             "before": before,
@@ -553,7 +720,7 @@ class RefreshWorker:
         await self._status(op["id"], "PREPARED")
         with self.diagnostics.stage("fresh_workbook", op["id"]):
             fresh = await self.google.read_workbook()
-            validate_workbook(fresh, self.bindings)
+            validate(fresh, self.bindings)
         self._own_markers(queue_metadata(fresh), op)
         if "applied" in queue_metadata(fresh):
             raise GradebookError(
@@ -598,6 +765,15 @@ class RefreshWorker:
         if not op or "manifest_id" not in op["payload"]:
             raise GradebookError("Refresh reconciliation artifact is unavailable.")
         manifest = self.store.load("refresh", op["payload"]["manifest_id"])
+        mode = self._operation_mode(op)
+        if mode == "GET_ONLY":
+            from .get_only_refresh import verify_get_only_output
+
+            verify = verify_get_only_output
+        elif mode == "FULL_SYNC":
+            verify = verify_native_output
+        else:
+            raise GradebookError("Refresh manifest has an unsupported mode.")
         if (
             manifest["binding_digest"] != digest(self.bindings)
             or digest(manifest["batch_update"]) != op["payload"]["batch_digest"]
@@ -633,7 +809,7 @@ class RefreshWorker:
             op = self.journal.update(op["id"], "VERIFYING")
         try:
             with self.diagnostics.stage("verify", op["id"]):
-                verify_native_output(
+                verify(
                     manifest["before"],
                     after,
                     manifest["plans"],
@@ -666,7 +842,10 @@ class RefreshWorker:
             summary[course] = {
                 "students": len(current["students"]),
                 "assignments": len(current["assignments"]),
-                "pending_edits": len(plan["pending_edits"]),
+                "pending_edits": (
+                    None if mode == "GET_ONLY" else len(plan["pending_edits"])
+                ),
+                **({"edit_preserved": True} if mode == "GET_ONLY" else {}),
             }
         receipt_id, _ = self.store.save(
             "receipt",
@@ -768,6 +947,25 @@ class RefreshWorker:
                 )
             entries = await self._metadata()
             req = entries.get("request")
+            if (
+                op["status"] in {"CLAIMING", "HELD"}
+                and not any(k in entries for k in ("request", "claim", "applied"))
+                and op["payload"].get("request_intent_schema") == 1
+            ):
+                self._trusted_request_intent(op)
+                if (
+                    "manifest_id" in op["payload"]
+                    or ("claim_send_attempted" in op["payload"]
+                        and op["payload"]["claim_send_attempted"] is not False)
+                ):
+                    raise GradebookError("Request claim may have been attempted; release refused.")
+                self.journal.update(
+                    request_id, "HELD", release_requested=True,
+                    release_reason="UNCLAIMED_REQUEST_INTENT_ABSENT_REMOTE",
+                )
+                self.journal.update(request_id, "RELEASED")
+                return {"state": "RELEASED", "request_id": request_id,
+                        "canvas_writes": 0, "grade_writes": 0}
             if op["payload"].get("release_requested") and not any(
                 k in entries for k in ("request", "claim", "applied")
             ):

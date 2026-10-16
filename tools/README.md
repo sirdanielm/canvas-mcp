@@ -2,6 +2,15 @@
 
 This document provides a comprehensive overview of all tools available in the Canvas MCP Server, organized by audience and functionality.
 
+The separate local `canvas-gradebook` server is documented in the
+[gradebook workflow](../docs/sdm-gradebook-workflow.md#available-tools). Its four
+optional GET/review controls require a configured local worker controller and
+are outside the main server's `TOOL_MANIFEST.json`. Queueing a GET refresh writes
+coordination metadata in the bound Google Sheet and private local intent
+receipts; it does not write Canvas or change EDIT proposals. These controls
+provide no publication authority; grade and comment delivery retain their
+separate enablement, exact approval and readback requirements.
+
 ## Table of Contents
 
 - [Student Tools](#student-tools)

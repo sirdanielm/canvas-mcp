@@ -519,7 +519,7 @@ def write_review_html(store: Store, review: dict[str, Any]) -> str:
             change["baseline"],
             change["current"],
             change["proposed"],
-            ", ".join(change["reasons"]) or "Ready for confirmation",
+            ", ".join(change["reasons"]) or "Ready for teacher review",
         ]
         rows.append(
             "<tr>" + "".join("<td>" + escape(v) + "</td>" for v in values) + "</tr>"

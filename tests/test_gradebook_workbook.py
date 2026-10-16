@@ -235,5 +235,6 @@ def test_gradebook_upgrade_preserves_other_tables(tmp_path):
     assert "Installed" in module.install(config, upgrade=True)
     assert config.read_text().startswith(prefix)
     assert config.read_text().endswith(suffix)
-    assert "prepare_gradebook_refresh" in config.read_text()
+    assert "request_gradebook_get_refresh" in config.read_text()
+    assert "prepare_gradebook_refresh" not in config.read_text()
     assert "confirm_gradebook_push" not in config.read_text()
