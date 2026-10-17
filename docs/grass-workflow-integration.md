@@ -64,7 +64,9 @@ authority. No score conversion or feedback rewrite is inferred. Repeated
 substantive previews reuse the existing immutable artifact; only the named
 Canvas observation/report timestamps are excluded from comparison identity.
 These offline fixtures do not establish installation, browser access, unattended
-processing or live delivery. Standalone publishers do not establish consent.
+processing or live delivery. Native GrAss/sdmGrAss advisory exporters remain
+unconnected; fixture lane labels prove consumer conformance only. Standalone
+publishers do not establish consent.
 
 GrAss's [local proposal importer](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_LOCAL_IMPORTER.md)
 reconciles saved results into the protected **Grader Proposals** inbox while
