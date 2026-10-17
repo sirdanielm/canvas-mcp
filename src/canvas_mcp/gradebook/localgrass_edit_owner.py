@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import importlib
+import os
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +100,28 @@ class LocalGrAssEditOwner:
             )
             == files.local_path(self.connection.registry_path),
             "EXISTING_STAGING_CONFIG_CHANGED",
+        )
+        keys = {"edit_preservation_path", "edit_preservation_sha256"}
+        present = keys.intersection(config)
+        _need(not present or present == keys, "EXACT_EDIT_CONFIG_REQUIRED")
+        preservation = None
+        if present:
+            path = files.local_path(config["edit_preservation_path"])
+            info = path.stat()
+            _need(
+                info.st_uid == os.getuid()
+                and info.st_mode & 0o077 == 0
+                and files.file_sha(path) == config["edit_preservation_sha256"],
+                "EXACT_EDIT_PRESERVATION_CHANGED",
+            )
+            preservation = files.load(path)
+            _need(
+                files.file_sha(path) == config["edit_preservation_sha256"],
+                "EXACT_EDIT_PRESERVATION_CHANGED",
+            )
+        _need(
+            preservation == self.connection.preservation,
+            "EXACT_EDIT_PRESERVATION_CHANGED",
         )
         bindings_path = (
             files.local_path(config["canvas_repo"])

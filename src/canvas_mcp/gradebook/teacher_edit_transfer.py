@@ -288,6 +288,7 @@ def prepare_transfer(
     current: dict[str, Any],
     pin_binding: dict[str, Any],
     source_check: SourceCheck,
+    preservation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a single Working-cell batch and complete expected native readback.
 
@@ -359,8 +360,67 @@ def prepare_transfer(
         cell.get("grade_matches_current_submission") is True,
         "CURRENT_CANVAS_GRADE_UNKNOWN",
     )
-    _need(cell == prior_context["cell"], "CANVAS_TARGET_CHANGED_SINCE_BASELINE")
     score = decision["total_score"]
+    sid = binding["sheets"]["Working"]
+    working = before["sheets"][sid]
+    _need(
+        working["properties"]["title"] == binding["tab_names"]["Working"],
+        "EDIT_TAB_CHANGED",
+    )
+    row, col = _location(working["cells"], record)
+    address = f"{row}:{col}"
+    old = working["cells"].get(address, {})
+    old_value = grade_value(next(iter(old.get("userEnteredValue", {}).values()), None))
+    old_note = old.get("note", "")
+    canonical_note = _baseline_note(baseline, binding, record)
+    selection_sha256 = digest({"record": selected, "decision": final})
+    if preservation is not None:
+        _need(type(preservation) is dict, "EXACT_EDIT_PRESERVATION_CHANGED")
+        expected = {
+            "contract": "EXACT_LOCAL_EDIT_PRESERVATION_V1",
+            "authorization_ref": preservation.get("authorization_ref"),
+            "selection_sha256": selection_sha256,
+            "spreadsheet_id": binding["spreadsheet_id"],
+            "course_id": record["course_id"],
+            "user_id": record["user_id"],
+            "assignment_id": record["assignment_id"],
+            "baseline_sha256": digest(baseline),
+            "current_basis_sha256": digest(context),
+            "before_state_sha256": digest(_portable_state(raw)),
+            "cell_sha256": digest(old),
+            "prior_value": old_value,
+            "prior_note": old_note,
+        }
+        _need(
+            type(preservation) is dict
+            and preservation == expected
+            and type(expected["authorization_ref"]) is str
+            and re.fullmatch(r"sha256:[a-f0-9]{64}", expected["authorization_ref"]),
+            "EXACT_EDIT_PRESERVATION_CHANGED",
+        )
+        _need(
+            _number(old_value) and old_value <= score,
+            "HIGHER_LOCAL_SCORE_PRESERVED",
+        )
+    reconciled = preservation is not None and cell != prior_context["cell"]
+    if reconciled:
+        prior = prior_context["cell"]
+        observed_fields = {"value", "grade", "graded_at", "posted_at", "workflow_state"}
+        _need(
+            type(prior) is dict
+            and grade_value(prior.get("value")) is None
+            and _number(grade_value(cell.get("value")))
+            and old_value == grade_value(cell.get("value"))
+            and {
+                key: value for key, value in cell.items() if key not in observed_fields
+            }
+            == {
+                key: value for key, value in prior.items() if key not in observed_fields
+            },
+            "BASELINE_RECONCILIATION_HELD",
+        )
+    else:
+        _need(cell == prior_context["cell"], "CANVAS_TARGET_CHANGED_SINCE_BASELINE")
     value = grade_value(cell.get("value"))
     _need(
         value is None or _number(value) and value <= score,
@@ -383,24 +443,16 @@ def prepare_transfer(
     )
     _need(
         all(
-            item["status"] == "ready_for_review" and not item["reasons"]
+            (
+                item["status"] == "review_required"
+                and item["reasons"] == ["canvas_changed_since_baseline"]
+                if reconciled
+                else item["status"] == "ready_for_review" and not item["reasons"]
+            )
             for item in review["changes"]
         ),
         "CANVAS_COMPARISON_HELD",
     )
-    sid = binding["sheets"]["Working"]
-    working = before["sheets"][sid]
-    _need(
-        working["properties"]["title"] == binding["tab_names"]["Working"],
-        "EDIT_TAB_CHANGED",
-    )
-    row, col = _location(working["cells"], record)
-    address = f"{row}:{col}"
-    old = working["cells"].get(address, {})
-    old_value = grade_value(next(iter(old.get("userEnteredValue", {}).values()), None))
-    old_note = old.get("note", "")
-    canonical_note = _baseline_note(baseline, binding, record)
-    selection_sha256 = digest({"record": selected, "decision": final})
     notes = [
         _note(prefix, selection_sha256, final["feedback"])
         for prefix in (canonical_note, "")
@@ -410,11 +462,12 @@ def prepare_transfer(
     if old_value == score and old_note in notes:
         status = "NO_CHANGE"
     else:
-        _need(
-            old_value in (grade_value(prior_context["cell"]["value"]), score),
-            "EXISTING_TEACHER_EDIT_PRESERVED",
-        )
-        _need(old_note in ("", canonical_note), "EXISTING_TEACHER_NOTE_PRESERVED")
+        if preservation is None:
+            _need(
+                old_value in (grade_value(prior_context["cell"]["value"]), score),
+                "EXISTING_TEACHER_EDIT_PRESERVED",
+            )
+            _need(old_note in ("", canonical_note), "EXISTING_TEACHER_NOTE_PRESERVED")
         replacement = {
             "userEnteredValue": {"numberValue": score},
             "note": _note(old_note, selection_sha256, final["feedback"]),
@@ -430,7 +483,7 @@ def prepare_transfer(
             }
         ]
         status = "PREPARED_LOCAL_EDIT_ONLY"
-    return {
+    plan = {
         "contract": CONTRACT,
         "status": status,
         "record": selected,
@@ -448,6 +501,13 @@ def prepare_transfer(
         "canvas_writes": 0,
         "sheets_writes": 0,
     }
+    if preservation is not None:
+        plan["preservation"] = copy.deepcopy(preservation)
+        plan["baseline_reconciled"] = reconciled
+        plan["canvas_comparison_reasons"] = [
+            item["reasons"] for item in review["changes"]
+        ]
+    return plan
 
 
 def _plan(plan: dict[str, Any], expected_plan_sha256: str) -> None:
@@ -497,6 +557,7 @@ def revalidate_transfer(
         current=current,
         pin_binding=pin_binding,
         source_check=lambda *unused: None,
+        preservation=plan.get("preservation"),
     )
     _need(fresh == plan, "EXACT_TRANSFER_PLAN_CHANGED")
 

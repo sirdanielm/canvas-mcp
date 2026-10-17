@@ -137,6 +137,19 @@ def _assignment_bindings(path: Path, expected: str) -> list[dict[str, Any]]:
     return [dict(row) for row in value]
 
 
+def _preservation(staging: dict[str, Any]) -> dict[str, Any] | None:
+    keys = {"edit_preservation_path", "edit_preservation_sha256"}
+    present = keys.intersection(staging)
+    _need(not present or present == keys, "EXACT_EDIT_CONFIG_REQUIRED")
+    if not present:
+        return None
+    return _read(
+        _path(staging["edit_preservation_path"]),
+        staging["edit_preservation_sha256"],
+        private=True,
+    )
+
+
 def load_configuration(
     path: Path, expected_sha256: str
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -186,6 +199,7 @@ def load_configuration(
             "LOCAL_EDIT_ASSIGNMENT_BINDINGS_CHANGED",
         )
         _assignment_bindings(assignments, staging["assignment_bindings_sha256"])
+        _preservation(staging)
         binding = _read(
             Path(staging["canvas_repo"]) / "config/sdm-gradebook-workbooks.json"
         )[staging["course"]]
@@ -317,6 +331,7 @@ def build_owner_factory(
                 section=config["section"],
                 registry_path=Path(staging["pin_registry"]),
                 shared_tool=Path(config["shared_tool"]),
+                preservation=_preservation(staging),
             )
             return LocalGrAssEditOwner(
                 connection,

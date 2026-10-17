@@ -78,6 +78,7 @@ class LocalGrAssEditConnection:
         section: str,
         registry_path: Path,
         shared_tool: Path,
+        preservation: dict[str, Any] | None = None,
     ) -> None:
         try:
             authority = importlib.import_module("localgrass.teacher_edit_source")
@@ -100,6 +101,7 @@ class LocalGrAssEditConnection:
         self.source, self.store, self.files = source, canvas_store, files
         self.assignment_path = assignment_bindings_path
         self.assignment_sha256 = expected_assignment_bindings_sha256
+        self.preservation = copy.deepcopy(preservation)
         self.section, self.registry_path, self.shared_tool = (
             section,
             registry_path,
@@ -404,6 +406,7 @@ class LocalGrAssEditConnection:
             current=current,
             pin_binding=pin_binding,
             source_check=self._check(snapshot, current),
+            preservation=self.preservation,
         )
         return {
             "contract": CONTRACT,
@@ -456,6 +459,10 @@ class LocalGrAssEditConnection:
         _need(
             plan["assignment_bindings_sha256"] == self.assignment_sha256,
             "EXACT_CONNECTION_PLAN_CHANGED",
+        )
+        _need(
+            plan["transfer"].get("preservation") == self.preservation,
+            "EXACT_EDIT_PRESERVATION_CHANGED",
         )
         self.source.assert_current(plan["source_snapshot"])
         revalidate_transfer(

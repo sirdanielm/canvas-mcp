@@ -462,3 +462,216 @@ def test_changed_pin_authority_and_attempt_hold_prepared_transfer(scenario):
             pin_binding=args["pin_binding"],
             source_check=args["source_check"],
         )
+
+
+def preservation_for(args):
+    state = json.loads(json.dumps(native._state(args["raw"])))
+    cell = state["sheets"]["2"]["cells"]["5:2"]
+    return {
+        "contract": "EXACT_LOCAL_EDIT_PRESERVATION_V1",
+        "authorization_ref": "sha256:" + "9" * 64,
+        "selection_sha256": digest(
+            {"record": args["record"], "decision": args["decision"]}
+        ),
+        "spreadsheet_id": args["binding"]["spreadsheet_id"],
+        "course_id": args["record"]["course_id"],
+        "user_id": args["record"]["user_id"],
+        "assignment_id": args["record"]["assignment_id"],
+        "baseline_sha256": digest(args["baseline"]),
+        "current_basis_sha256": digest(
+            {
+                "origin": args["current"]["origin"],
+                "course_id": args["current"]["course_id"],
+                "course_workflow_state": args["current"].get("course_workflow_state"),
+                "student": {
+                    k: args["current"]["students"][0].get(k) for k in ("id", "sections")
+                },
+                "assignment": args["current"]["assignments"][0],
+                "cell": args["current"]["cells"]["101:21"],
+            }
+        ),
+        "before_state_sha256": digest(state),
+        "cell_sha256": digest(cell),
+        "prior_value": 14.0,
+        "prior_note": cell["note"],
+    }
+
+
+def edited_native(args, value=14):
+    state = native._state(args["raw"])
+    cell = state["sheets"][2]["cells"]["5:2"]
+    cell["userEnteredValue"] = {"numberValue": value}
+    cell["note"] = "Original teacher note.\nKeep this exact text."
+    cell["userEnteredFormat"] = {"backgroundColor": {"red": 0.25}}
+    args["raw"] = raw_from_state(state)
+    return copy.deepcopy(native._state(args["raw"])["sheets"][2]["cells"]["5:2"])
+
+
+def test_exact_operator_preservation_retains_history_and_note_prefix(scenario):
+    args, _ = scenario
+    old = edited_native(args)
+    args["preservation"] = preservation_for(args)
+    plan = prepare(scenario)
+    assert plan["preservation"] == args["preservation"]
+    assert plan["before_state"]["sheets"]["2"]["cells"]["5:2"] == old
+    assert (
+        plan["after_state"]["sheets"]["2"]["cells"]["5:2"]["userEnteredFormat"]
+        == old["userEnteredFormat"]
+    )
+    update = plan["requests"][0]["updateCells"]
+    assert update["fields"] == "userEnteredValue,note"
+    assert update["rows"][0]["values"][0]["userEnteredValue"] == {"numberValue": 16}
+    assert update["rows"][0]["values"][0]["note"].startswith(old["note"] + "\n\n")
+    assert update["rows"][0]["values"][0]["note"].endswith(args["decision"]["feedback"])
+    revalidate_transfer(
+        plan,
+        expected_plan_sha256=digest(plan),
+        raw=args["raw"],
+        current=args["current"],
+        pin_binding=args["pin_binding"],
+        source_check=args["source_check"],
+    )
+    before = copy.deepcopy(plan["before_state"])
+    before["sheets"]["2"]["cells"]["5:2"].update(update["rows"][0]["values"][0])
+    assert before == plan["after_state"]
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        "selection_sha256",
+        "spreadsheet_id",
+        "course_id",
+        "user_id",
+        "assignment_id",
+        "baseline_sha256",
+        "current_basis_sha256",
+        "before_state_sha256",
+        "cell_sha256",
+        "prior_value",
+        "prior_note",
+        "authorization_ref",
+        "extra_field",
+    ],
+)
+def test_operator_preservation_is_exact_not_a_bypass(scenario, changed):
+    args, _ = scenario
+    edited_native(args)
+    args["preservation"] = preservation_for(args)
+    args["preservation"][changed] = "changed"
+    with pytest.raises(GradebookError, match="EXACT_EDIT_PRESERVATION_CHANGED"):
+        prepare(scenario)
+
+
+def test_operator_preservation_cannot_lower_higher_local_grade(scenario):
+    args, _ = scenario
+    edited_native(args, 17)
+    args["preservation"] = preservation_for(args)
+    args["preservation"]["prior_value"] = 17.0
+    with pytest.raises(GradebookError, match="HIGHER_LOCAL_SCORE_PRESERVED"):
+        prepare(scenario)
+
+
+@pytest.mark.parametrize(
+    "change", ["note", "unrelated_cell", "decision", "formula", "excused"]
+)
+def test_preservation_still_holds_actual_preimage_or_decision_changes(scenario, change):
+    args, _ = scenario
+    edited_native(args)
+    args["preservation"] = preservation_for(args)
+    state = native._state(args["raw"])
+    cell = state["sheets"][2]["cells"]["5:2"]
+    if change == "note":
+        cell["note"] += " changed"
+    elif change == "unrelated_cell":
+        state["sheets"][2]["cells"].setdefault("6:2", {})["note"] = (
+            "Another teacher edit"
+        )
+    elif change == "decision":
+        args["decision"]["decision_revision"] = "teacher-final-revised"
+    elif change == "formula":
+        cell["userEnteredValue"] = {"formulaValue": "=14"}
+    else:
+        cell["userEnteredValue"] = {"stringValue": "EX"}
+    args["raw"] = raw_from_state(state)
+    with pytest.raises(GradebookError):
+        prepare(scenario)
+
+
+def observed_grade_after_blank_baseline(args):
+    args["baseline"]["cells"]["101:21"].update(
+        value=None,
+        grade=None,
+        workflow_state="unsubmitted",
+        graded_at=None,
+        posted_at=None,
+    )
+    args["current"]["cells"]["101:21"].update(
+        value=14,
+        grade="14",
+        workflow_state="graded",
+        graded_at="2026-10-17T10:00:00Z",
+        posted_at="2026-10-17T10:00:00Z",
+    )
+    args["raw"] = initial_raw(args["baseline"], args["binding"])
+    edited_native(args, 14)
+    args["preservation"] = preservation_for(args)
+
+
+def test_exact_preservation_reconciles_observed_grade_without_rebasing(scenario):
+    args, _ = scenario
+    observed_grade_after_blank_baseline(args)
+    original_baseline = copy.deepcopy(args["baseline"])
+    before = json.loads(json.dumps(native._state(args["raw"])))
+    plan = prepare(scenario)
+    assert plan["baseline"] == original_baseline
+    assert plan["baseline"]["cells"]["101:21"]["value"] is None
+    assert plan["current_basis"]["cell"]["value"] == 14
+    assert plan["before_state"] == before
+    assert plan["baseline_reconciled"] is True
+    assert plan["canvas_comparison_reasons"] == [["canvas_changed_since_baseline"]]
+    revalidate_transfer(
+        plan,
+        expected_plan_sha256=digest(plan),
+        raw=args["raw"],
+        current=args["current"],
+        pin_binding=args["pin_binding"],
+        source_check=args["source_check"],
+    )
+    assert args["baseline"] == original_baseline
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        "attempt",
+        "submitted_at",
+        "excused",
+        "visible",
+        "late_policy",
+        "local_grade",
+        "prior_grade",
+    ],
+)
+def test_exact_baseline_reconciliation_does_not_remove_other_holds(scenario, changed):
+    args, _ = scenario
+    observed_grade_after_blank_baseline(args)
+    if changed == "local_grade":
+        edited_native(args, 13)
+    elif changed == "prior_grade":
+        args["baseline"]["cells"]["101:21"]["value"] = 13
+    elif changed == "late_policy":
+        args["baseline"]["cells"]["101:21"]["points_deducted"] = 1
+        args["current"]["cells"]["101:21"]["points_deducted"] = 1
+    else:
+        args["baseline"]["cells"]["101:21"][changed] = {
+            "attempt": 2,
+            "submitted_at": None,
+            "excused": True,
+            "visible": False,
+        }[changed]
+    args["preservation"] = preservation_for(args)
+    if changed == "local_grade":
+        args["preservation"]["prior_value"] = 13
+    with pytest.raises(GradebookError):
+        prepare(scenario)
