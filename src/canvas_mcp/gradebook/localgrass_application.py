@@ -26,6 +26,7 @@ from .store import Store
 from .worker import RefreshJournal
 
 CONTRACT = "LOCALGRASS_EDIT_APPLICATION_V1"
+UNIT1_CONTRACT = "LOCALGRASS_EDIT_UNIT1_APPLICATION_V1"
 HASH = re.compile(r"[a-f0-9]{64}\Z")
 FIELDS = {
     "contract",
@@ -142,8 +143,10 @@ def load_configuration(
     """Read pinned configuration and existing paths only; never open a DB."""
     try:
         config = _read(path, expected_sha256, private=True)
+        unit1 = config.get("contract") == UNIT1_CONTRACT
         _need(
-            set(config) == FIELDS and config["contract"] == CONTRACT,
+            set(config) == (FIELDS - {"source_root"} if unit1 else FIELDS)
+            and config["contract"] in {CONTRACT, UNIT1_CONTRACT},
             "LOCAL_EDIT_CONFIGURATION_INVALID",
         )
         _need(
@@ -155,7 +158,11 @@ def load_configuration(
             and config["section"].strip(),
             "LOCAL_EDIT_FIXED_SCOPE_REQUIRED",
         )
-        for key in ("source_root", "identity_runtime_root"):
+        for key in (
+            ("identity_runtime_root",)
+            if unit1
+            else ("source_root", "identity_runtime_root")
+        ):
             _path(config[key], directory=True)
         _path(config["shared_tool"])
         staging = _read(
@@ -215,18 +222,33 @@ def build_owner_factory(
         "localgrass.teacher_edit_source"
     ).AuthenticatedDecisionSource
 
+    frozen = load_configuration(config_path, expected_config_sha256)
+    config, staging, binding = frozen
+    unit1 = config["contract"] == UNIT1_CONTRACT
+    if unit1:
+        AuthenticatedDecisionSource = importlib.import_module(
+            "localgrass.teacher_edit_unit1"
+        ).AuthenticatedUnit1DecisionSource
+        _need(
+            getattr(review.workflow, "identity_runtime_root", None)
+            == Path(config["identity_runtime_root"]),
+            "LOCAL_EDIT_IDENTITY_RUNTIME_CHANGED",
+        )
+
     _need(
         isinstance(review, TeacherReview)
-        and isinstance(source_intake, SourceIntake)
-        and source_intake.registry is review.registry
+        and (
+            (source_intake is None and callable(review.workflow.paper_source_reader))
+            if unit1
+            else isinstance(source_intake, SourceIntake)
+            and source_intake.registry is review.registry
+        )
         and isinstance(canvas, GradebookClient)
         and isinstance(google, GoogleSheets)
         and isinstance(store, Store)
         and isinstance(journal, RefreshJournal),
         "LOCAL_EDIT_APP_OWNERS_REQUIRED",
     )
-    frozen = load_configuration(config_path, expected_config_sha256)
-    config, staging, binding = frozen
     worker = _read(Path(staging["worker_config"]), private=True)
     _need(
         store.root == Path(worker["state_dir"])
@@ -257,8 +279,9 @@ def build_owner_factory(
             review.actor_for_session(token)
             # Check existing exact records before constructing any composition.
             # Missing intake schema/case is an admission hold, never initialization.
-            source_intake._schema()
-            source_intake._stored(config["source_receipt_id"])
+            if not unit1:
+                source_intake._schema()
+                source_intake._stored(config["source_receipt_id"])
             row = review.registry.connection.execute(
                 "SELECT decision_id FROM workflow_teacher_acceptances WHERE decision_id=?",
                 (config["decision_id"],),
@@ -274,16 +297,16 @@ def build_owner_factory(
                     check_runtime()
                     return snapshot
 
-            source = GuardedDecisionSource(
-                review,
-                token,
-                csrf,
-                source_intake=source_intake,
-                source_root=Path(config["source_root"]),
-                source_receipt_id=config["source_receipt_id"],
-                decision_id=config["decision_id"],
-                identity_runtime_root=Path(config["identity_runtime_root"]),
-            )
+            source_args = {
+                "source_receipt_id": config["source_receipt_id"],
+                "decision_id": config["decision_id"],
+                "identity_runtime_root": Path(config["identity_runtime_root"]),
+            }
+            if not unit1:
+                source_args.update(
+                    source_intake=source_intake, source_root=Path(config["source_root"])
+                )
+            source = GuardedDecisionSource(review, token, csrf, **source_args)
             connection = LocalGrAssEditConnection(
                 source,
                 store,

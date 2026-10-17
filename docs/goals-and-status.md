@@ -33,13 +33,14 @@ admission are implemented and tested with fictional records and controlled
 transports. Staging defaults to off; configuration/runtime checks create no
 account, database, client or teacher decision.
 
-A real positive canary remains blocked before selection. The generic scorer
-supports only `FICTIONAL_EXPLICIT_POINTS_V1`; there is no admitted generic
-production result route. The application refuses fictional policy even for an
-authenticated teacher. Production source/policy admission and exact section plus
-explicit `RAW_IDENTITY` assignment bindings require domain work; teacher login
-alone cannot resolve them. The typed Unit 1 adapter is a separate integration,
-and held paper/form results remain ineligible. Source, installed bindings,
+The typed Unit 1 adapter now preserves independently verified owner results,
+their accepted per-question attempt/mastery policy and authenticated teacher
+corrections in `FORM_POINTS`. An exact section and explicit same-maximum
+`RAW_IDENTITY` central mapping are required; no percentage conversion is inferred.
+The real canary still requires a currently admitted source and genuine teacher
+acceptance. An existing advisory pair or learner selection does not supply that
+acceptance. Generic fictional scoring and held results remain ineligible.
+Source, installed bindings,
 authenticated acceptance and native canary readback retain separate evidence.
 Score and full feedback derive from the same reviewed result but retain separate
 release permissions, transport state and independent destination verification.

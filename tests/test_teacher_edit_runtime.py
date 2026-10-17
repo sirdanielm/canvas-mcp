@@ -147,6 +147,19 @@ def reseal(runtime):
     runtime["hash"] = sha(runtime["path"])
 
 
+def test_unit1_static_verifier_is_pinned_at_its_required_package_location(runtime):
+    relative = "tools/clearance-kit/unit1-pair-verifier.cjs"
+    path = runtime["release"] / "domain" / relative
+    path.parent.mkdir(parents=True)
+    path.write_text("// Fictional static verifier asset; never executed here.\n")
+    runtime["manifest"]["packages"]["domain"][relative] = sha(path)
+    reseal(runtime)
+    assert check(runtime).returncode == 0
+    runtime["marker"].unlink()
+    path.write_text("// Changed verifier.\n")
+    held_before_packages(runtime)
+
+
 def test_fresh_subprocess_imports_pinned_code_without_creating_application(runtime):
     result = check(runtime)
     assert result.returncode == 0, result.stdout + result.stderr

@@ -124,7 +124,13 @@ class Admission:
             for relative, expected in files.items():
                 need(
                     type(relative) is str
-                    and re.fullmatch(prefix + r"(?:/[a-zA-Z0-9_]+)+\.py", relative)
+                    and (
+                        re.fullmatch(prefix + r"(?:/[a-zA-Z0-9_]+)+\.py", relative)
+                        or (
+                            name == "domain"
+                            and relative == "tools/clearance-kit/unit1-pair-verifier.cjs"
+                        )
+                    )
                 )
                 read_checked(base / relative, expected)
             observed = set()

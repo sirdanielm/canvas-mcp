@@ -66,7 +66,7 @@ class LocalGrAssEditOwner:
         self.config_path = staging_config_path
         self.config_sha256 = expected_staging_config_sha256
         self.binding = copy.deepcopy(binding)
-        self._pin_module = importlib.import_module("localgrass.participation_staging")
+        self._pin_module = importlib.import_module("localgrass.teacher_edit_identity")
         self._pin_defaults = importlib.import_module("localgrass.student_pin")
         self.config = self._configuration()
         self.output_root = connection.files.local_path(self.config["output_root"])

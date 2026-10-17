@@ -67,7 +67,7 @@ class LocalGrAssEditConnection:
     ) -> None:
         try:
             authority = importlib.import_module("localgrass.teacher_edit_source")
-            files = importlib.import_module("localgrass.grading_chains")
+            files = importlib.import_module("localgrass.teacher_edit_files")
         except ImportError:
             raise GradebookError("LOCAL_SOURCE_NOT_CONFIGURED") from None
         _need(
@@ -102,6 +102,8 @@ class LocalGrAssEditConnection:
         # the session/receipt/head/dependencies and verifies original bytes.
         self.source.assert_current(snapshot)
         receipt, payload = snapshot["source_receipt"], snapshot["payload"]
+        if payload.get("result_kind") == "GRASS_UNIT1_VERIFIED_OWNER_RESULT_V1":
+            return self._project_unit1(snapshot, current, pin_binding)
         deps = payload["dependencies"]
         _need(
             snapshot["source_verified"] is True
@@ -206,6 +208,112 @@ class LocalGrAssEditConnection:
         decision = {
             k: record[k]
             for k in ("evaluation_id", "source_revision", "result_revision", "policy")
+        }
+        decision.update(
+            decision_revision=snapshot["decision_id"],
+            is_final=True,
+            total_score=_amount(snapshot["decision"]["score"]),
+            points_possible=maximum,
+            score_units="CANVAS_POINTS",
+            feedback=snapshot["decision"]["feedback"],
+        )
+        return record, decision
+
+    def _project_unit1(
+        self,
+        snapshot: dict[str, Any],
+        current: dict[str, Any],
+        pin_binding: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Preserve authenticated form points through an explicit same-max map."""
+        authority = importlib.import_module("localgrass.teacher_edit_unit1")
+        _need(
+            isinstance(self.source, authority.AuthenticatedUnit1DecisionSource),
+            "UNIT1_SOURCE_AUTHORITY_REQUIRED",
+        )
+        payload, receipt = snapshot["payload"], snapshot["source_receipt"]
+        deps, computation = payload["dependencies"], payload["computation"]
+        _need(
+            snapshot["source_verified"] is True
+            and not payload["holds"]
+            and computation["status"] == "VERIFIED_OWNER_RESULT"
+            and computation["units"] == "FORM_POINTS"
+            and receipt["producer"] == "GRASS_UNIT1_VERIFIED_OWNER_RESULT_V1",
+            "UNIT1_SOURCE_RESULT_HELD",
+        )
+        paper, identity = receipt["paper"], receipt["identity"]
+        subject = paper["subject"]
+        _need(
+            subject["section"] == self.section
+            and subject["pin"] == identity["student_pin"],
+            "UNIT1_PAPER_SCOPE_CHANGED",
+        )
+        _need(
+            self.files.file_sha(self.assignment_path) == self.assignment_sha256,
+            "ASSIGNMENT_BINDINGS_CHANGED",
+        )
+        assignments = self.files.load(self.assignment_path)
+        _need(
+            self.files.file_sha(self.assignment_path) == self.assignment_sha256
+            and type(assignments) is list,
+            "ASSIGNMENT_BINDINGS_CHANGED",
+        )
+        selected = [
+            row
+            for row in assignments
+            if type(row) is dict
+            and row.get("assignment_key") == snapshot["assignment_id"]
+            and row.get("student_track") == deps["scope"]["track"]
+            and str(row.get("course_id")) == current["course_id"]
+            and row.get("section") == self.section
+        ]
+        _need(len(selected) == 1, "EXACT_CENTRAL_ASSIGNMENT_REQUIRED")
+        target = selected[0]
+        maximum = _amount(computation["maximum"])
+        _need(
+            target.get("score_scale") == "RAW_IDENTITY"
+            and maximum > 0
+            and _amount(target["maximum"]) == maximum,
+            "UNIT1_SAME_MAX_POINTS_REQUIRED",
+        )
+        _need(
+            pin_binding["registry_sha256"] == identity["registry_sha256"]
+            and pin_binding["roster_sha256"] == identity["snapshot_sha256"],
+            "CURRENT_PIN_AUTHORITY_CHANGED",
+        )
+        uid = pin_binding["by_pin"].get(identity["student_pin"])
+        _need(type(uid) is str, "CANONICAL_PIN_NOT_JOINED")
+        aid = str(target["assignment_id"])
+        observed = current["cells"].get(uid + ":" + aid)
+        _need(
+            type(observed) is dict
+            and type(observed.get("attempt")) is int
+            and observed["attempt"] >= 0,
+            "OBSERVED_CANVAS_ATTEMPT_REQUIRED",
+        )
+        record = {
+            "evaluation_id": snapshot["result_id"],
+            "result_revision": snapshot["result_id"],
+            "source_revision": deps["evidence"]["evidence_revision"],
+            "source_key": snapshot["case_key"],
+            "state": "READY_FOR_REVIEW",
+            "policy": deps["scope"]["policy_revision"],
+            "section": self.section,
+            "pin": identity["student_pin"],
+            "course_id": current["course_id"],
+            "user_id": uid,
+            "assignment_id": aid,
+            "paper_attempt": subject["attempt"],
+            "form": subject["formId"],
+            "canvas_attempt": observed["attempt"],
+            "raw_score": _amount(computation["total"]),
+            "raw_maximum": maximum,
+            "proposed_score": _amount(computation["total"]),
+            "score_scale": "RAW_IDENTITY",
+        }
+        decision = {
+            key: record[key]
+            for key in ("evaluation_id", "source_revision", "result_revision", "policy")
         }
         decision.update(
             decision_revision=snapshot["decision_id"],

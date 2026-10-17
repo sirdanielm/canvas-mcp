@@ -171,11 +171,42 @@ an admitted academic case or authorize a local send.
 The current generic scorer accepts only `FICTIONAL_EXPLICIT_POINTS_V1`. The
 application explicitly rejects fictional policy, including after valid login.
 Consequently no admitted generic production result route exists for a real
-positive canary. This is a production source/policy adapter engineering gap;
-creating a teacher account or filling acceptance fields cannot repair it. The
-typed Unit 1 result adapter is separate work. Missing assignment section or
+positive canary. Creating a teacher account or filling acceptance fields cannot
+repair that generic scoring gap. The separate typed Unit 1 adapter below reuses
+the established owner-result policy. Missing assignment section or
 explicit `RAW_IDENTITY` scale also holds; existing participation records cannot
 supply those semantics by inference.
+
+## Typed Unit 1 owner-result adapter
+
+`AuthenticatedUnit1DecisionSource` reads one existing
+`GRASS_UNIT1_VERIFIED_OWNER_RESULT_V1` result, registered independent paper source
+and authenticated teacher acceptance. It retains the accepted
+`QUESTION_ATTEMPT_MASTERY_50_50` policy, original form and paper attempt. It creates
+no Canvas-capture intake and does not rescore a saved result. The configured
+identity runtime is shared by original-source reads and the actual teacher
+acceptance checks.
+
+Canvas selects exactly one academic-assignment/track/course/section mapping and
+requires explicit `RAW_IDENTITY` with equal form and native maxima. The advisory
+total and teacher-final correction remain separate. The actual current Canvas
+attempt, including an observed zero for paper-only work, is retained independently
+of the paper attempt; later attempt or submission-time changes hold the plan.
+Existing higher-grade, custom-note, baseline and complete native preservation
+checks still apply.
+
+Trusted application configuration selects `LOCALGRASS_EDIT_UNIT1_APPLICATION_V1`.
+It uses the existing fixed-scope fields except `source_root`; `source_receipt_id`
+is the registered independent evidence revision. Pass `None` for generic
+`SourceIntake`, and supply the already configured review/workflow/paper reader and
+the existing Canvas owners. The workflow's explicit identity runtime must match.
+No database, academic packet, teacher account or acceptance is created by this
+factory. The runtime includes the unchanged pinned native Unit 1 verifier asset.
+
+This source integration is qualified with authenticated fictional fixtures and
+controlled native transports. A real advisory pair marked `NOT_RECORDED` for
+teacher acceptance remains held. A production canary requires actual current
+source/policy/identity admission, reviewed mapping and genuine teacher acceptance.
 
 ## Activation agenda and restart sequence
 
