@@ -8,12 +8,15 @@ from pathlib import Path
 import pytest
 from test_gradebook import snapshot as snapshot
 from test_gradebook_native import binding as binding
+from test_gradebook_native import raw_from_state
 from test_localgrass_edit_owner import composed as composed
 from test_localgrass_teacher_edit import integrated as integrated
 
 from canvas_mcp.gradebook import localgrass_application as app
+from canvas_mcp.gradebook import native
 from canvas_mcp.gradebook.client import GradebookError
 from canvas_mcp.gradebook.localgrass_edit_owner import LocalGrAssEditOwner
+from canvas_mcp.gradebook.model import digest
 
 
 @pytest.fixture(autouse=True)
@@ -330,4 +333,114 @@ def test_runtime_drift_during_source_read_is_rejected(configured):
     with pytest.raises(GradebookError, match="IMMUTABLE_RUNTIME_HELD"):
         owner.connection.source.read()
     assert len(calls) == 3
+    assert c.calls == {"canvas_reads": 0, "sheets_reads": 0, "posts": []}
+
+
+def configure_preserved_cell(configured, tmp_path):
+    c, value, path, kwargs, owners = configured
+    transfer = c.connection.prepare(**c.context)["transfer"]
+    state = native._state(c.state["raw"])
+    cell = state["sheets"][2]["cells"]["5:2"]
+    cell.update(
+        userEnteredValue={"numberValue": 4},
+        note="Original retained teacher note.\nExact prefix.",
+    )
+    c.state["raw"] = raw_from_state(state)
+    portable = json.loads(json.dumps(native._state(c.state["raw"])))
+    permit = {
+        "contract": "EXACT_LOCAL_EDIT_PRESERVATION_V1",
+        "authorization_ref": "sha256:" + "8" * 64,
+        "selection_sha256": transfer["selection_sha256"],
+        "spreadsheet_id": c.context["binding"]["spreadsheet_id"],
+        "course_id": "12",
+        "user_id": "101",
+        "assignment_id": "21",
+        "baseline_sha256": digest(c.context["baseline"]),
+        "current_basis_sha256": digest(transfer["current_basis"]),
+        "before_state_sha256": digest(portable),
+        "cell_sha256": digest(portable["sheets"]["2"]["cells"]["5:2"]),
+        "prior_value": 4,
+        "prior_note": cell["note"],
+    }
+    permit_path = tmp_path / "private-exact-preservation.json"
+    permit_path.write_bytes(encoded(permit))
+    permit_path.chmod(0o600)
+    c.config.update(
+        edit_preservation_path=str(permit_path),
+        edit_preservation_sha256=hashlib.sha256(permit_path.read_bytes()).hexdigest(),
+    )
+    c.config_path.write_bytes(encoded(c.config))
+    value["staging_config_sha256"] = hashlib.sha256(
+        c.config_path.read_bytes()
+    ).hexdigest()
+    path.write_bytes(encoded(value))
+    owner = app.build_owner_factory(*owners(), **kwargs())(
+        c.domain.source.token, c.domain.source.csrf
+    )
+    return c, owner, permit_path
+
+
+@pytest.mark.asyncio
+async def test_pinned_operator_preservation_through_actual_owner_sends_one_cell_once(
+    configured, tmp_path
+):
+    c, owner, _ = configure_preserved_cell(configured, tmp_path)
+    before = json.loads(json.dumps(native._state(c.state["raw"])))
+    prepared = await owner.prepare()
+    plan = c.store.load("review", prepared["plan_id"])
+    assert plan["transfer"]["before_state"] == before
+    assert plan["transfer"]["before_state"]["sheets"]["2"]["cells"]["5:2"][
+        "userEnteredValue"
+    ] == {"numberValue": 4}
+    result = await owner.execute(prepared["plan_id"], enabled=True)
+    assert result["status"] == "PLANNED_OUTPUT_OBSERVED"
+    assert len(c.calls["posts"]) == 1
+    update = c.calls["posts"][0][0]["updateCells"]
+    assert update["fields"] == "userEnteredValue,note"
+    replacement = update["rows"][0]["values"][0]
+    assert replacement["userEnteredValue"] == {"numberValue": 7}
+    assert replacement["note"].startswith(
+        before["sheets"]["2"]["cells"]["5:2"]["note"] + "\n\n"
+    )
+    assert replacement["note"].endswith("Explicit fictional final feedback.")
+    before["sheets"]["2"]["cells"]["5:2"].update(replacement)
+    assert json.loads(json.dumps(native._state(c.state["raw"]))) == before
+    again = await owner.execute(prepared["plan_id"], enabled=True)
+    assert again["status"] == "PLANNED_OUTPUT_OBSERVED"
+    assert len(c.calls["posts"]) == 1
+    assert result["canvas_writes"] == 0
+    assert result["publication_allowed"] is False
+
+
+@pytest.mark.asyncio
+async def test_changed_operator_preservation_file_holds_before_send(
+    configured, tmp_path
+):
+    c, owner, permit_path = configure_preserved_cell(configured, tmp_path)
+    prepared = await owner.prepare()
+    permit_path.write_bytes(permit_path.read_bytes() + b" ")
+    before_reads = (c.calls["canvas_reads"], c.calls["sheets_reads"])
+    with pytest.raises(GradebookError, match="EXACT_EDIT_PRESERVATION_CHANGED"):
+        await owner.execute(prepared["plan_id"], enabled=True)
+    assert (c.calls["canvas_reads"], c.calls["sheets_reads"]) == before_reads
+    assert c.calls["posts"] == []
+
+
+@pytest.mark.parametrize(
+    "changed", ["missing_hash", "not_private", "different_connection"]
+)
+def test_preservation_config_cannot_be_partial_or_unbound(
+    configured, tmp_path, changed
+):
+    c, owner, permit_path = configure_preserved_cell(configured, tmp_path)
+    if changed == "missing_hash":
+        c.config.pop("edit_preservation_sha256")
+        c.config_path.write_bytes(encoded(c.config))
+        owner.config_sha256 = hashlib.sha256(c.config_path.read_bytes()).hexdigest()
+    elif changed == "not_private":
+        permit_path.chmod(0o644)
+    else:
+        owner.connection.preservation = None
+    with pytest.raises(GradebookError, match="EXACT_EDIT_"):
+        owner._configuration()
     assert c.calls == {"canvas_reads": 0, "sheets_reads": 0, "posts": []}
