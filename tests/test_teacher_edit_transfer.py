@@ -536,6 +536,58 @@ def test_exact_operator_preservation_retains_history_and_note_prefix(scenario):
     assert before == plan["after_state"]
 
 
+def test_fresh_preservation_for_completed_same_decision_is_noop(scenario):
+    args, _ = scenario
+    edited_native(args)
+    args["preservation"] = preservation_for(args)
+    completed = prepare(scenario)
+    args["raw"] = observed_after(args, completed)
+    args["preservation"] = preservation_for(args)
+    args["preservation"]["prior_value"] = args["decision"]["total_score"]
+
+    replay = prepare(scenario)
+
+    assert replay["selection_sha256"] == completed["selection_sha256"]
+    assert replay["status"] == "NO_CHANGE"
+    assert replay["requests"] == []
+    assert replay["before_state"] == replay["after_state"] == completed["after_state"]
+    revalidate_transfer(
+        replay,
+        expected_plan_sha256=digest(replay),
+        raw=args["raw"],
+        current=args["current"],
+        pin_binding=args["pin_binding"],
+        source_check=args["source_check"],
+    )
+
+
+@pytest.mark.parametrize("changed", ["decision", "feedback", "trailing_text"])
+def test_preserved_noop_requires_complete_current_marked_feedback(scenario, changed):
+    args, _ = scenario
+    edited_native(args)
+    args["preservation"] = preservation_for(args)
+    completed = prepare(scenario)
+    args["raw"] = observed_after(args, completed)
+    if changed == "decision":
+        args["decision"]["decision_revision"] = "teacher-final-v2"
+    elif changed == "feedback":
+        args["decision"]["feedback"] += "\nAdditional approved explanation."
+    else:
+        state = native._state(args["raw"])
+        state["sheets"][2]["cells"]["5:2"]["note"] += "\nLater teacher note."
+        args["raw"] = raw_from_state(state)
+    args["preservation"] = preservation_for(args)
+    args["preservation"]["prior_value"] = args["decision"]["total_score"]
+    prior_note = args["preservation"]["prior_note"]
+
+    plan = prepare(scenario)
+
+    assert len(plan["requests"]) == 1
+    replacement = plan["requests"][0]["updateCells"]["rows"][0]["values"][0]
+    assert replacement["note"].startswith(prior_note + "\n\n")
+    assert replacement["note"].endswith(args["decision"]["feedback"])
+
+
 @pytest.mark.parametrize(
     "changed",
     [

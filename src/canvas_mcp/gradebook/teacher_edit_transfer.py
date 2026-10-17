@@ -459,7 +459,12 @@ def prepare_transfer(
     ]
     after = copy.deepcopy(before)
     requests = []
-    if old_value == score and old_note in notes:
+    # An exact operator-bound prefix can precede an already completed transfer.
+    # Require the complete current marker/feedback block at its note boundary.
+    preserved_note_matches = preservation is not None and old_note.endswith(
+        "\n\n" + _note("", selection_sha256, final["feedback"])
+    )
+    if old_value == score and (old_note in notes or preserved_note_matches):
         status = "NO_CHANGE"
     else:
         if preservation is None:
