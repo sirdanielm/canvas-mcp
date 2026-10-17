@@ -1,7 +1,8 @@
 # Goals and status
 
-Direction updated October 17, 2026; the aggregate operational evidence below is
-from October 14. This is not a live monitor or new permission to grade or publish.
+Direction updated October 17, 2026; delivery aggregates retain their October 14
+capture date. The October 17 qualification is dated separately below. This is not
+a live monitor or new permission to grade or publish.
 Detailed identities, source links, approvals and delivery receipts stay in the
 private authenticated workbench.
 
@@ -36,6 +37,25 @@ merged. Installation and the separately owned live case/canary use their own
 current receipts. This review performed no service/account action, real EDIT
 send or Canvas write. Use the
 [current source and restart limits](teacher-edit-transfer.md#reviewed-source-and-restart-limits).
+
+## Dated local qualification — October 17
+
+One genuinely accepted Unit 1 case completed **one native EDIT batch**, independently
+verified **26/26**, with zero paid calls and Canvas writes. The old note, prior whole
+cell/history, both original Sync B2 baselines and unrelated EDIT content are preserved.
+The isolated `release-20261017T1058Z` manifest is
+`35861063af3b915146e644512ec2c0e1593a8c7a243917f8ea14a9a50d906add`, using merged PR31/46 heads
+Canvas `f164e5535911d098c1ba7f801a5388401965e255` and Domain
+`32f7283adb7b7cfed20926ccc985d366a7ca7806`. Private owner receipts retain exact evidence.
+This qualifies one case and that isolated runtime; global rollout is separate.
+The completed plan must not be replayed. The operational checkout now uses merged
+main `ee175b1`, retaining reviewed local edits unstaged and full original preimages.
+Independent source readback verified 567 targets, 27 private source files and 14
+baseline/configuration/history witnesses; no service was restarted.
+
+A separate legacy gradebook MCP factory has an existing configuration-pin startup
+hold. It does not classify the curriculum-authoring launcher path; no factory,
+service or canary requalification is part of this documentation/Git task.
 
 ## Grading flow
 
@@ -72,7 +92,7 @@ required: same-maximum `RAW_IDENTITY`, or the reviewed Unit 1 100-point,
 whole-percent `ROUND_HALF_UP` profile bound to its exact form, source maximum and
 existing policy receipt. No score conversion is inferred. Literal null Canvas
 attempts are retained for observed paper-only work without inventing zero.
-The real canary still requires a currently admitted source and genuine teacher
+Every real canary requires a currently admitted source and genuine teacher
 acceptance. An existing advisory pair or learner selection does not supply that
 acceptance. Generic fictional scoring and held results remain ineligible.
 Source, installed bindings,
@@ -139,13 +159,12 @@ publishing a branch does not install its code or reconcile private overlays.
 
 - Resolve the three historical comment histories and seven source/identity holds
   through their evidence owners. Do not resend or manufacture missing evidence.
-- Follow the [activation agenda and restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence)
-  from the first unfinished gate. Reuse current owner admission, exact mapping
-  and retained human approval instead of repeating completed intake or approval.
-  Genuine application-authenticated acceptance and an admissible native-content
-  preservation plan remain separate requirements. Do not clear edited grades or
-  custom notes to force a canary. Keep staging off until separately authorized;
-  paid calls and Canvas writes remain gated.
+- Retain the verified checkout adoption and recovery receipt. Reuse the qualified
+  case's completed evidence; no replay. Resolve the existing gradebook startup hold
+  through its owner before a fresh gradebook session.
+  Other cases follow the [activation agenda](teacher-edit-transfer.md#activation-agenda-and-restart-sequence)
+  from their first unfinished gate, including genuine acceptance and exact grade/note
+  preservation. Broader staging, paid calls and Canvas writes remain off.
 - Keep GET-only source and installed overlays aligned through reviewed promotion
   and exact adopted-source readback before any activation.
 - Continue the durable workbench and Unit 2 evidence/policy work in

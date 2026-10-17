@@ -14,7 +14,7 @@ checkpoint do not establish current service liveness or publication authority.
 | Agent/developer rules | [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [main tool manifest](../tools/TOOL_MANIFEST.json) |
 | GET/EDIT gradebook operation | [Workflow](sdm-gradebook-workflow.md), [worker](sdm-gradebook-worker.md) |
 | Curriculum authoring and course archives | [Authoring](sdm-canvas-authoring-workflow.md), [course mirror](course-mirror.md) |
-| Review and publisher ownership | [Integration](grass-workflow-integration.md), [capture port](grass-capture-contract.md), [Unit 1 contract](unit1-pair-preview-contract.md) |
+| Review and publisher ownership | [Integration](grass-workflow-integration.md), [capture port](grass-capture-contract.md), [Unit 1 contract](unit1-pair-preview-contract.md), [teacher decision to EDIT](teacher-edit-transfer.md), [exact preservation](teacher-edit-preservation.md) |
 | Private student copies | [PIN policy](STUDENT-PIN-POLICY.md), [exports](local-pin-exports.md), [post-QC archives](post-qc-pin-archives.md) |
 | Source promotion and recovery | [Maintenance](repository-maintenance.md), [workflow inventory](../.github/workflows/README.md), [release checklist](../internal/release-checklist.md) |
 
@@ -27,7 +27,9 @@ verified score/comment outcomes.
 The [GrAss handoff contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
 owns the remaining revision-bound teacher-decision-to-EDIT requirements; the
 proposal inbox and existing Canvas publishers do not connect that step by
-themselves. Domain policy details remain in their owning repositories.
+themselves. The [dated local qualification and checkout adoption](goals-and-status.md#dated-local-qualification--october-17)
+separate one completed canary, its isolated runtime and source adoption.
+Domain policy details remain in their owning repositories.
 
 ## Historical records
 
