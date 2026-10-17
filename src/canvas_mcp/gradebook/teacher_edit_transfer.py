@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import inspect
+import json
 import math
 import re
 from collections.abc import Callable
@@ -61,6 +62,11 @@ DECISION_FIELDS = (
 def _need(condition: Any, code: str) -> None:
     if not condition:
         raise GradebookError(code)
+
+
+def _portable_state(raw: dict[str, Any]) -> dict[str, Any]:
+    """Use JSON object keys before hashing/persisting native sheet inventories."""
+    return json.loads(json.dumps(native._state(raw), allow_nan=False))  # type: ignore[no-any-return]
 
 
 def _number(value: Any) -> bool:
@@ -416,8 +422,8 @@ def prepare_transfer(
         "baseline": copy.deepcopy(baseline),
         "current_basis": context,
         "pin_binding_sha256": digest(pin_binding),
-        "before_state": before,
-        "after_state": after,
+        "before_state": json.loads(json.dumps(before, allow_nan=False)),
+        "after_state": json.loads(json.dumps(after, allow_nan=False)),
         "requests": requests,
         "score_delivery_authorized": False,
         "comment_delivery_authorized": False,
@@ -459,7 +465,7 @@ def revalidate_transfer(
     _plan(plan, expected_plan_sha256)
     _need(digest(pin_binding) == plan["pin_binding_sha256"], "PIN_AUTHORITY_CHANGED")
     _source(source_check, plan["record"], plan["decision"], pin_binding)
-    _need(native._state(raw) == plan["before_state"], "TRANSFER_DESTINATION_CHANGED")
+    _need(_portable_state(raw) == plan["before_state"], "TRANSFER_DESTINATION_CHANGED")
     _need(
         _basis(current, plan["record"]) == plan["current_basis"],
         "CANVAS_TARGET_CHANGED_AFTER_PREP",
@@ -485,7 +491,7 @@ def classify_readback(
 ) -> dict[str, Any]:
     """Classify captured native evidence; absence never permits a blind replay."""
     _plan(plan, expected_plan_sha256)
-    actual = native._state(raw)
+    actual = _portable_state(raw)
     status = (
         "PLANNED_OUTPUT_OBSERVED"
         if actual == plan["after_state"]

@@ -2,9 +2,10 @@
 
 `gradebook/teacher_edit_transfer.py` implements an **unregistered, offline
 planner and readback classifier** for one exact decision. It prepares no Canvas
-operation and executes no Sheets request. The authenticated domain callback and
-installed local owner are still separate connections to qualify; this is not a
-working end-to-end transfer button.
+operation and executes no Sheets request. The authenticated LocalGrAss
+composition below qualifies the generic Canvas-capture/native-point lane in
+offline integration tests. Installed application bindings and a live canary
+remain separate qualifications.
 
 The [GrAss acceptance contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
 owns academic source/result/policy admission. The existing **Grader Proposals**
@@ -85,3 +86,54 @@ different operation and is not converted into a teacher-final decision here.
 The offline tests use fictional records and native fixtures. They verify exact
 revision/PIN/attempt and scale handling, source holds, existing teacher content,
 full feedback, preservation, repeat no-ops and interruption classification.
+
+## Authenticated LocalGrAss composition
+
+`localgrass_teacher_edit.LocalGrAssEditConnection` joins the existing
+LocalGrAss `AuthenticatedDecisionSource` to this planner. The source verifies
+the existing teacher session, CSRF, immutable acceptance receipt, current draft
+and result/dependency heads, current canonical identity and the actual original
+file bytes. It does not turn a proposal flag or browser input into a decision.
+
+The qualified first lane is a generic `COMPUTED` Canvas-capture result with an
+explicit `RAW_IDENTITY` point binding. Paper/form-specific results, held Unit 2
+totals and unspecified score transforms remain ineligible. Capture, current
+Canvas attempt/submission time, assignment and literal PIN must still agree.
+
+`localgrass_edit_owner.LocalGrAssEditOwner` composes that connection with the
+existing GET-only `GradebookClient`, fixed-workbook `GoogleSheets`, private
+`Store` and `RefreshJournal`. Trusted application configuration supplies these
+objects, the existing participation configuration path and its pinned SHA-256,
+and the existing workbook binding. No MCP input constructs an owner or callback.
+The pinned configuration must resolve to the same registered workbook,
+assignment bindings, PIN registry, worker state directory and existing staging
+history root. A new output directory cannot replace prior send history.
+
+`prepare()` takes the existing workbook lock, refuses unresolved refresh history,
+loads the original trusted baseline from native `_Sync!B2`, reads current source
+and destination evidence, and saves one immutable review plan. Native sheet IDs
+are normalized before persistence, so save/reopen/revalidate and repeated
+preparation retain the same substantive plan, including multi-digit sheet IDs.
+
+`execute(plan_id)` defaults to disabled without network calls or new receipts.
+An authorized application can explicitly enable local EDIT staging at an idle
+workbook checkpoint. The existing workbook lock spans preflight, the shared
+participation lock, durable `SENDING`, one `send_preflighted_batch`, and complete
+native readback. It does not use `GoogleSheets.batch`, which performs another
+metadata/authentication read after the send checkpoint.
+
+Any retained receipt forces native readback only. Post-send verification and
+explicit reconciliation read Sheets without requiring a new Canvas snapshot or
+a still-active teacher session. A Canvas outage cannot convert reconciliation
+into a new send. Unknown/divergent output remains held; neither owner releases
+or replays an uncertain operation. A validated completed operation retains its
+historical terminal receipt when later teacher edits change the workbook;
+`VERIFIED_HISTORY_RETAINED` reports current drift separately and creates no new
+uncertain receipt. The existing refresh lock cannot exclude a human browser
+editor, so owner coordination still requires an idle workbook.
+
+Cross-repository qualification is explicit: set `LOCALGRASS_TEST_ROOT` to the
+reviewed LocalGrAss source and run the joined tests. They use real authenticated
+fictional stores and mocked HTTP transports; default CI skips that external
+checkout dependency. No installed service, account, workbook or grading policy
+is changed by importing these modules or by a passing fixture run.

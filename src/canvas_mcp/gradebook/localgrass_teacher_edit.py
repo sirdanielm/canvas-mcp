@@ -1,0 +1,328 @@
+"""Dormant LocalGrAss authenticated decision to native EDIT composition.
+
+Uses the actual LocalGrAss review/source authority and existing central binding
+file reader. No login, decision, authority grant, journal or transport is created.
+The first qualified lane carries generic computed native points unchanged.
+"""
+
+from __future__ import annotations
+
+import copy
+import importlib
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from typing import Any
+
+from .capture import build_case_receipt, intake_digest
+from .client import GradebookError
+from .model import digest
+from .store import Store
+from .teacher_edit_transfer import (
+    classify_readback,
+    prepare_transfer,
+    revalidate_transfer,
+)
+
+CONTRACT = "LOCALGRASS_TEACHER_EDIT_V1"
+
+
+def _need(value: Any, code: str) -> None:
+    if not value:
+        raise GradebookError(code)
+
+
+def _amount(value: Any) -> float:
+    try:
+        _need(type(value) in (str, int, float), "NATIVE_POINT_AMOUNT_REQUIRED")
+        amount = Decimal(str(value))
+        number = float(amount)
+        _need(
+            amount.is_finite() and Decimal(str(number)) == amount and amount >= 0,
+            "EXACT_NATIVE_POINTS_REQUIRED",
+        )
+        return number
+    except (InvalidOperation, ValueError, OverflowError):
+        raise GradebookError("EXACT_NATIVE_POINTS_REQUIRED") from None
+
+
+class LocalGrAssEditConnection:
+    """Compose existing application objects; never construct from MCP input.
+
+    The application supplies an AuthenticatedDecisionSource backed by the actual
+    TeacherReview session and SourceIntake. Central assignments use the existing
+    pinned assignment-bindings file; PINs use the existing shared registry.
+    Neither constructor nor methods execute any native write.
+    """
+
+    def __init__(
+        self,
+        source: Any,
+        canvas_store: Store,
+        *,
+        assignment_bindings_path: Path,
+        expected_assignment_bindings_sha256: str,
+        section: str,
+        registry_path: Path,
+        shared_tool: Path,
+    ) -> None:
+        try:
+            authority = importlib.import_module("localgrass.teacher_edit_source")
+            files = importlib.import_module("localgrass.grading_chains")
+        except ImportError:
+            raise GradebookError("LOCAL_SOURCE_NOT_CONFIGURED") from None
+        _need(
+            isinstance(source, authority.AuthenticatedDecisionSource),
+            "AUTHENTICATED_SOURCE_REQUIRED",
+        )
+        _need(isinstance(canvas_store, Store), "EXISTING_CANVAS_STORE_REQUIRED")
+        _need(
+            all(
+                isinstance(p, Path) and p.is_absolute()
+                for p in (assignment_bindings_path, registry_path, shared_tool)
+            ),
+            "EXPLICIT_LOCAL_BINDINGS_REQUIRED",
+        )
+        _need(type(section) is str and section.strip(), "EXPLICIT_SECTION_REQUIRED")
+        self.source, self.store, self.files = source, canvas_store, files
+        self.assignment_path = assignment_bindings_path
+        self.assignment_sha256 = expected_assignment_bindings_sha256
+        self.section, self.registry_path, self.shared_tool = (
+            section,
+            registry_path,
+            shared_tool,
+        )
+
+    def _project(
+        self,
+        snapshot: dict[str, Any],
+        current: dict[str, Any],
+        pin_binding: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        # read() is not a JSON flag check: this concrete source reauthenticates
+        # the session/receipt/head/dependencies and verifies original bytes.
+        self.source.assert_current(snapshot)
+        receipt, payload = snapshot["source_receipt"], snapshot["payload"]
+        deps = payload["dependencies"]
+        _need(
+            snapshot["source_verified"] is True
+            and not payload["holds"]
+            and payload.get("result_kind") is None
+            and payload["computation"]["status"] == "COMPUTED",
+            "GENERIC_COMPUTED_RESULT_REQUIRED",
+        )
+        _need(
+            self.files.file_sha(self.assignment_path) == self.assignment_sha256,
+            "ASSIGNMENT_BINDINGS_CHANGED",
+        )
+        assignments = self.files.load(self.assignment_path)
+        _need(
+            self.files.file_sha(self.assignment_path) == self.assignment_sha256
+            and type(assignments) is list,
+            "ASSIGNMENT_BINDINGS_CHANGED",
+        )
+        selected = [
+            a
+            for a in assignments
+            if type(a) is dict
+            and a.get("assignment_key") == snapshot["assignment_id"]
+            and a.get("student_track") == deps["scope"]["track"]
+            and str(a.get("course_id")) == receipt["course_id"]
+            and str(a.get("assignment_id")) == receipt["canvas_assignment_id"]
+            and a.get("section") == self.section
+        ]
+        _need(len(selected) == 1, "EXACT_CENTRAL_ASSIGNMENT_REQUIRED")
+        target = selected[0]
+        _need(
+            target.get("score_scale") == "RAW_IDENTITY",
+            "EXPLICIT_RAW_IDENTITY_REQUIRED",
+        )
+        identity = receipt["identity"]
+        _need(
+            pin_binding["registry_sha256"] == identity["registry_sha256"]
+            and pin_binding["roster_sha256"] == identity["snapshot_sha256"],
+            "CURRENT_PIN_AUTHORITY_CHANGED",
+        )
+        uid = pin_binding["by_pin"].get(identity["student_pin"])
+        _need(type(uid) is str, "CANONICAL_PIN_NOT_JOINED")
+        rebuilt = build_case_receipt(
+            self.store,
+            receipt["capture_revision"],
+            expected_origin=current["origin"],
+            expected_course_id=receipt["course_id"],
+            assignment_id=receipt["canvas_assignment_id"],
+            academic_assignment_id=snapshot["assignment_id"],
+            user_id=uid,
+            case_id=receipt["case_id"],
+            sources=receipt["sources"],
+            records=receipt["records"],
+            expected_record_keys=receipt["expected_record_keys"],
+            registry_path=self.registry_path,
+            shared_tool=self.shared_tool,
+        )
+        _need(
+            intake_digest(rebuilt) == intake_digest(receipt),
+            "ADMITTED_CAPTURE_BINDING_CHANGED",
+        )
+        capture = self.store.load("receipt", receipt["capture_revision"])
+        original = self.store.load("snapshot", capture["snapshot_id"])
+        key = uid + ":" + receipt["canvas_assignment_id"]
+        observed, now = original["cells"].get(key), current["cells"].get(key)
+        _need(
+            type(observed) is dict
+            and type(now) is dict
+            and type(observed.get("attempt")) is int
+            and observed["attempt"] == now.get("attempt")
+            and observed.get("submitted_at") == now.get("submitted_at"),
+            "ORIGINAL_CANVAS_ATTEMPT_CHANGED",
+        )
+        maximum = _amount(payload["computation"]["maximum"])
+        _need(
+            maximum > 0 and _amount(target["maximum"]) == maximum,
+            "NATIVE_POINT_SCALE_CHANGED",
+        )
+        # This is the Canvas-capture lane. No paper reassessment/form or
+        # assessment-specific normalization is inferred from a generic result.
+        record = {
+            "evaluation_id": snapshot["result_id"],
+            "result_revision": snapshot["result_id"],
+            "source_revision": deps["evidence"]["evidence_revision"],
+            "source_key": snapshot["case_key"],
+            "state": "READY_FOR_REVIEW",
+            "policy": deps["scope"]["policy_revision"],
+            "section": self.section,
+            "pin": identity["student_pin"],
+            "course_id": receipt["course_id"],
+            "user_id": uid,
+            "assignment_id": receipt["canvas_assignment_id"],
+            "paper_attempt": "CANVAS_CAPTURE",
+            "form": "NOT_APPLICABLE",
+            "canvas_attempt": observed["attempt"],
+            "raw_score": _amount(payload["computation"]["total"]),
+            "raw_maximum": maximum,
+            "proposed_score": _amount(payload["computation"]["total"]),
+            "score_scale": "RAW_IDENTITY",
+        }
+        decision = {
+            k: record[k]
+            for k in ("evaluation_id", "source_revision", "result_revision", "policy")
+        }
+        decision.update(
+            decision_revision=snapshot["decision_id"],
+            is_final=True,
+            total_score=_amount(snapshot["decision"]["score"]),
+            points_possible=maximum,
+            score_units="CANVAS_POINTS",
+            feedback=snapshot["decision"]["feedback"],
+        )
+        return record, decision
+
+    def _check(self, snapshot: dict[str, Any], current: dict[str, Any]) -> Any:
+        def check(
+            record: dict[str, Any], decision: dict[str, Any], pins: dict[str, Any]
+        ) -> None:
+            try:
+                actual_record, actual_decision = self._project(snapshot, current, pins)
+                _need(
+                    actual_record == record and actual_decision == decision,
+                    "AUTHENTICATED_SELECTION_CHANGED",
+                )
+            except GradebookError:
+                raise
+            except Exception:
+                raise GradebookError("AUTHENTICATED_SELECTION_HELD") from None
+
+        return check
+
+    def prepare(
+        self,
+        *,
+        raw: dict[str, Any],
+        binding: dict[str, Any],
+        baseline: dict[str, Any],
+        current: dict[str, Any],
+        pin_binding: dict[str, Any],
+    ) -> dict[str, Any]:
+        snapshot = self.source.read()
+        record, decision = self._project(snapshot, current, pin_binding)
+        transfer = prepare_transfer(
+            record,
+            decision,
+            raw=raw,
+            binding=binding,
+            baseline=baseline,
+            current=current,
+            pin_binding=pin_binding,
+            source_check=self._check(snapshot, current),
+        )
+        return {
+            "contract": CONTRACT,
+            "binding": copy.deepcopy(binding),
+            "items": [{"key": record["user_id"] + ":" + record["assignment_id"]}],
+            "source_snapshot": copy.deepcopy(snapshot),
+            "assignment_bindings_sha256": self.assignment_sha256,
+            "transfer": transfer,
+            "canvas_writes": 0,
+            "sheets_writes": 0,
+            "score_delivery_authorized": False,
+            "comment_delivery_authorized": False,
+        }
+
+    @staticmethod
+    def validate_plan(plan: dict[str, Any], *, expected_plan_sha256: str) -> None:
+        """Bind execution/history scope to the authenticated inner transfer."""
+        _need(
+            digest(plan) == expected_plan_sha256 and plan.get("contract") == CONTRACT,
+            "EXACT_CONNECTION_PLAN_CHANGED",
+        )
+        transfer = plan.get("transfer")
+        if not isinstance(transfer, dict):
+            raise GradebookError("AUTHENTICATED_TARGET_CHANGED")
+        record = transfer.get("record", {})
+        _need(
+            type(record) is dict
+            and type(record.get("user_id")) is str
+            and type(record.get("assignment_id")) is str
+            and plan.get("binding") == transfer.get("binding")
+            and plan.get("items")
+            == [{"key": record["user_id"] + ":" + record["assignment_id"]}]
+            and plan.get("canvas_writes") == 0
+            and plan.get("sheets_writes") == 0
+            and plan.get("score_delivery_authorized") is False
+            and plan.get("comment_delivery_authorized") is False,
+            "AUTHENTICATED_TARGET_CHANGED",
+        )
+
+    def revalidate(
+        self,
+        plan: dict[str, Any],
+        *,
+        expected_plan_sha256: str,
+        raw: dict[str, Any],
+        current: dict[str, Any],
+        pin_binding: dict[str, Any],
+    ) -> None:
+        self.validate_plan(plan, expected_plan_sha256=expected_plan_sha256)
+        _need(
+            plan["assignment_bindings_sha256"] == self.assignment_sha256,
+            "EXACT_CONNECTION_PLAN_CHANGED",
+        )
+        self.source.assert_current(plan["source_snapshot"])
+        revalidate_transfer(
+            plan["transfer"],
+            expected_plan_sha256=digest(plan["transfer"]),
+            raw=raw,
+            current=current,
+            pin_binding=pin_binding,
+            source_check=self._check(plan["source_snapshot"], current),
+        )
+
+    @staticmethod
+    def classify(
+        plan: dict[str, Any], raw: dict[str, Any], *, expected_plan_sha256: str
+    ) -> dict[str, Any]:
+        LocalGrAssEditConnection.validate_plan(
+            plan, expected_plan_sha256=expected_plan_sha256
+        )
+        return classify_readback(
+            plan["transfer"], raw, expected_plan_sha256=digest(plan["transfer"])
+        )

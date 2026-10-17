@@ -1,6 +1,7 @@
 """Exact, offline teacher-decision transfer contracts with fictional records."""
 
 import copy
+import json
 
 import pytest
 from test_gradebook import snapshot as snapshot
@@ -117,7 +118,49 @@ def test_exact_teacher_score_and_full_feedback_are_only_a_local_edit_plan(scenar
     assert plan["score_delivery_authorized"] is False
     assert plan["comment_delivery_authorized"] is False
     assert plan["canvas_writes"] == plan["sheets_writes"] == 0
-    assert native._state(observed_after(args, plan)) == plan["after_state"]
+    assert (
+        json.loads(json.dumps(native._state(observed_after(args, plan))))
+        == plan["after_state"]
+    )
+
+
+@pytest.mark.parametrize("working_id", [2, 10])
+def test_persisted_transfer_reopens_with_stable_digest_and_native_state(
+    scenario, tmp_path, working_id
+):
+    args, _ = scenario
+    args["binding"]["sheets"]["Working"] = working_id
+    args["binding"]["working_protection_id"] = 100 + working_id
+    args["raw"] = initial_raw(args["baseline"], args["binding"])
+    plan = prepare(scenario)
+    expected = digest(plan)
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(plan))
+    reopened = json.loads(path.read_text())
+    assert digest(reopened) == expected
+    revalidate_transfer(
+        reopened,
+        expected_plan_sha256=expected,
+        raw=args["raw"],
+        current=args["current"],
+        pin_binding=args["pin_binding"],
+        source_check=args["source_check"],
+    )
+    assert (
+        classify_readback(reopened, args["raw"], expected_plan_sha256=expected)[
+            "status"
+        ]
+        == "BEFORE_STILL_PRESENT"
+    )
+    state = native._state(args["raw"])
+    update = reopened["requests"][0]["updateCells"]
+    state["sheets"][working_id]["cells"]["5:2"].update(update["rows"][0]["values"][0])
+    assert (
+        classify_readback(
+            reopened, raw_from_state(state), expected_plan_sha256=expected
+        )["status"]
+        == "PLANNED_OUTPUT_OBSERVED"
+    )
 
 
 @pytest.mark.parametrize(
