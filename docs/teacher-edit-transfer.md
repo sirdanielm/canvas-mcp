@@ -221,12 +221,14 @@ source/policy/identity admission, reviewed mapping and genuine teacher acceptanc
    current readiness when needed. Use [mode-bound recovery](sdm-gradebook-worker.md#coordination-and-crash-recovery)
    for a preserved request. A possible send permits readback reconciliation only.
    Release a proven pre-SENDING hold only after fixing and reviewing its cause.
-3. **Implement real admission.** The domain owner must supply and independently
-   validate the production source/policy/result route, or separately implement a
-   typed result adapter. Preserve original evidence, exact revisions and academic
-   holds. Review the assignment's exact section and native-point semantics. Do
-   not relabel fictional policy, infer `RAW_IDENTITY`, manufacture a result or
-   convert participation approval into academic acceptance.
+3. **Admit one real Unit 1 case.** The domain owner must independently validate
+   and register the actual source and result, accepted policy and current canonical
+   identity required by the completed `AuthenticatedUnit1DecisionSource`. Preserve
+   original evidence, exact revisions and academic holds. Review exactly one
+   academic-assignment/track/course/section mapping with explicit `RAW_IDENTITY`
+   and equal form/native maxima before teacher acceptance. Do not relabel fictional
+   policy, infer a scale, manufacture a result or convert participation approval
+   into academic acceptance.
 4. **Authenticate one accepted case.** Require a current teacher session/CSRF and
    immutable acceptance for that eligible result. Bind the original bytes, current
    draft/result/policy heads, canonical identity, section, assignment and observed
