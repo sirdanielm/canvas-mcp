@@ -1,15 +1,28 @@
 # GitHub Actions workflows
 
-Checked against the workflow files and the SDM fork's GitHub workflow inventory
-on 2026-10-08. Workflow definitions describe triggers and effects; they do not
-prove that a fork has the secrets, publication rights or deployment targets
-needed to complete a run.
+Definitions verified at SDM fork main `16b06b5`; live settings read on
+2026-10-17. Definitions describe possible effects; live workflow state separately
+determines whether they can run. Credentials and deployment targets were not read.
 
-GitHub now reports the fork's `main` as protected; its October 1 unprotected
-status is historical. Reviewed PRs and green applicable CI remain the project
-workflow policy. Inspect the exact active rules before claiming enforced checks;
-an upstream ruleset is not evidence of the fork's rules. See
-[development guidance](../../CLAUDE.md).
+**Observed and applied (2026-10-17, readback at 21:24 UTC):** main retains
+Copilot auto-request ruleset `24432455`, with draft reviews and review-on-push
+off, plus the new main-only **SDM main reliability** ruleset `25319809`.
+The new rule requires PRs, resolved code-review threads and current-base checks;
+it prevents main deletion and force pushes. Reviewed PRs and independent review
+remain [development policy](../../CLAUDE.md).
+
+**Settings and why:** required GitHub Actions checks are `test-enhancements`,
+`lint`, `Security Test Suite`, `Dependency Vulnerability Scan`,
+`CodeQL Security Analysis`, and `PR body and commits`. These retain executable
+safety checks for Canvas adapters while keeping zero mandatory second-person
+approvals for the sole-developer workflow. GitHub's default extra-approval flag
+[has no effect at zero required approvals](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#additional-approval-for-unattributed-copilot-pull-requests).
+The test aggregator excludes lint, so lint is required separately. CodeQL success
+establishes analysis execution; advisory SAST/secret steps do not establish a
+clean security verdict. Default token access stays read-only; Actions self-approval,
+automatic merge and merged-branch deletion stay off to preserve deliberate
+reviewed promotion and retained work. No release, deployment or model event
+was requested by the settings application.
 
 ## Validation
 
@@ -53,6 +66,14 @@ package, registry entry, attached artifact and authorized deployment separately.
 
 These definitions can consume model credentials and perform external actions.
 Their presence or GitHub `active` status does not authorize invoking them.
+
+**Observed live state (2026-10-17): all four Claude workflows below are
+`disabled_manually`.** Retain that state for controlled classroom work; the table
+records dormant definitions. Copilot and the independent Codex app have separate
+triggers. PR23 requested Copilot at ready conversion; PR29/31/33 have Codex issue
+comments reporting that event even though their reviews arrays are empty. Codex
+completed PR31/33 after PR29's historical quota refusal. Current entitlement,
+credit use and account settings are unverified; do not test them by publishing.
 
 | Workflow | Trigger and effect |
 |---|---|
