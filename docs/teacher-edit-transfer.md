@@ -6,7 +6,7 @@ operation and executes no Sheets request. The authenticated LocalGrAss
 composition below exercises the generic Canvas-capture/native-point contract
 with fictional records and controlled transports. Source implementation,
 installed qualification, production admission and one real local canary are
-separate gates; a positive production canary is not established.
+separate gates; current operational outcomes belong to their dated owner receipts.
 
 ## Reviewed source and restart limits
 
@@ -29,13 +29,28 @@ reported one style-only line wrap; required checks passed and the reviewed
 runtime bytes were preserved. These are offline software checks, not grading
 accuracy, an installed promotion or a successful real canary.
 
-Reuse the current owner case admission and reviewed mapping if their bindings
-still match. Preserve genuine exact human approval; do not ask for it again
-merely because source merged. This source still requires an actual authenticated
-TeacherReview session and immutable accepted draft. It imports no chat approval,
-creates no account/session, and bypasses no native grade or custom-note hold.
-Any new host-authentication or preservation-permit implementation requires its
-own review and source/installation receipts before use.
+Reuse the current owner case admission, reviewed mapping and genuine exact human
+approval when their bindings still match; source publication does not require
+repeating them. The separately reviewed authentication/preservation followup is
+accepted through [LocalGrAss PR46](https://github.com/sirdanielm/LocalGrAss/pull/46)
+(head `32f7283adb7b7cfed20926ccc985d366a7ca7806`, merge `02021af30f2c0e3d48ea798c978b9a80e2f81119`) and
+[Canvas PR31](https://github.com/sirdanielm/canvas-mcp/pull/31)
+(head `f164e5535911d098c1ba7f801a5388401965e255`, merge
+`eac0e7c19c1871f336f2c02135b51d5fe97f315b`). Its final configured Canvas suite passed 3,508 tests
+with 21 optional skips; Ruff and mypy across 91 source files passed. Domain
+validation: 1,609 run, 1,599 passed, ten optional skips; tracked-file publication guard and final integration review passed. Hosted checks: all exact-head workflows passed, including Python 3.11/3.12/3.13, code-API build/tests, confirmation proofs, lint/types and security.
+
+The existing password review remains supported. Trusted application code may
+instead use the reviewed
+[host-review adapter](https://github.com/sirdanielm/LocalGrAss/blob/02021af30f2c0e3d48ea798c978b9a80e2f81119/localgrass/teacher_host_review.py)
+with an injected genuine human/message verifier, an exact unexpired claim and
+its application credentials. It retains the immutable accepted draft and current
+source checks; it creates no password account or browser login and imports no
+arbitrary chat receipt. The [exact preservation contract](teacher-edit-preservation.md)
+retains original teacher content and the specified narrow baseline exception.
+The reviewed same-decision no-op repair preserves a completed marked feedback
+block after a fresh exact permit. These are source checks; installed/runtime
+qualification and any separately owned canary require their own receipts.
 
 Keep the dirty operational checkout and existing installed release intact.
 Installation-compatible branch reconciliation is held for its operational
@@ -86,8 +101,11 @@ or changed target state holds the transfer.
 
 The resulting batch changes only one Working score and its note, using the
 `userEnteredValue,note` mask. The complete teacher feedback is retained with an
-exact selection marker. Existing teacher score conflicts or custom notes hold;
-canonical baseline notes are preserved as a prefix. All other cells, helpers,
+exact selection marker. Existing teacher score conflicts or custom notes hold by
+default. Only an operator-owned, hash-pinned private
+[exact preservation permit](teacher-edit-preservation.md) can admit its named
+numeric preimage; original notes remain verbatim before the marked full feedback.
+Canonical baseline notes likewise remain as a prefix. All other cells, helpers,
 formats, validations, tabs, GET state, proposal M:O and Sync baselines remain in
 the complete expected native readback.
 
@@ -129,9 +147,11 @@ full feedback, preservation, repeat no-ops and interruption classification.
 
 `localgrass_teacher_edit.LocalGrAssEditConnection` joins the existing
 LocalGrAss `AuthenticatedDecisionSource` to this planner. The source verifies
-the existing teacher session, CSRF, immutable acceptance receipt, current draft
-and result/dependency heads, current canonical identity and the actual original
-file bytes. It does not turn a proposal flag or browser input into a decision.
+the current authenticated review capability, CSRF, immutable acceptance receipt,
+current draft and result/dependency heads, current canonical identity and the
+actual original file bytes. The existing password review and reviewed trusted-host
+application adapter use this same interface. Host-only capabilities cannot bind
+the browser login server. A proposal flag or browser input supplies no decision.
 
 The first lane's contract requires a generic `COMPUTED` Canvas-capture result
 with an explicit `RAW_IDENTITY` point binding. Paper/form-specific results, held
@@ -281,18 +301,24 @@ source/policy/identity admission, reviewed mapping and genuine teacher acceptanc
    acceptance. Do not relabel fictional
    policy, infer a scale, manufacture a result or convert participation approval
    into academic acceptance.
-4. **Authenticate one accepted case.** Retain genuine exact human approval; do
-   not repeat that approval or fabricate a password/session. Require a current
-   teacher session/CSRF and immutable accepted draft for that eligible result. Bind the original bytes, current
-   draft/result/policy heads, canonical identity, section, assignment and observed
-   Canvas attempt. The application must pass its real-policy gate before any
-   local selection or plan; login alone does not pass that gate.
+4. **Authenticate one accepted case.** Retain genuine exact human approval and
+   its current immutable accepted draft; do not repeat valid approval or fabricate
+   an account/session. Use a current password-review session/CSRF or the reviewed
+   trusted-host application capability/CSRF backed by its actual verifier and
+   exact claim. Recheck the original bytes, current draft/result/policy heads,
+   canonical identity, section, assignment and observed Canvas attempt. The
+   application must pass its real-policy gate before any local selection or plan;
+   authentication alone does not pass that gate.
 5. **Prepare and qualify one canary.** The trusted application prepares one
    immutable review plan through the existing owner. Review its exact score/note
-   delta and complete preimage. Under current scoped authority, consume the one
+   delta and complete preimage. Where needed, require the separately approved
+   [exact preservation permit](teacher-edit-preservation.md) from pinned trusted
+   configuration; never erase teacher notes, higher grades or the original
+   baseline to pass preflight. Under current scoped authority, consume the one
    preview and stage that same plan once. Require complete native readback of
    score and marked full feedback, with all other EDIT/GET/formula/protection and
-   Sync state preserved. No paid call or Canvas write is part of this canary.
+   Sync state preserved. A completed identical decision is a no-op. No paid call
+   or Canvas write is part of this canary.
 6. **Reconcile and close out.** Any retained attempt uses native readback only via
    `owner.execute(plan_id, reconcile_only=True)`. Preserve SENDING and terminal
    history; absence or changed teacher content never authorizes replay. Save
