@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import copy
 import importlib
-from decimal import Decimal, InvalidOperation
+import re
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ from .teacher_edit_transfer import (
 )
 
 CONTRACT = "LOCALGRASS_TEACHER_EDIT_V1"
+UNIT1_WHOLE_PERCENT = "UNIT1_WHOLE_PERCENT_100"
 
 
 def _need(value: Any, code: str) -> None:
@@ -43,6 +45,18 @@ def _amount(value: Any) -> float:
         return number
     except (InvalidOperation, ValueError, OverflowError):
         raise GradebookError("EXACT_NATIVE_POINTS_REQUIRED") from None
+
+
+def _unit1_native_score(value: Any, maximum: float, scale: str) -> float:
+    amount = _amount(value)
+    _need(0 < maximum and amount <= maximum, "UNIT1_FORM_SCORE_OUT_OF_RANGE")
+    if scale == "RAW_IDENTITY":
+        return amount
+    _need(scale == UNIT1_WHOLE_PERCENT, "UNIT1_EXPLICIT_SCORE_SCALE_REQUIRED")
+    with localcontext() as context:
+        context.prec = 48
+        percent = Decimal(str(amount)) * 100 / Decimal(str(maximum))
+        return float(percent.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 class LocalGrAssEditConnection:
@@ -225,7 +239,7 @@ class LocalGrAssEditConnection:
         current: dict[str, Any],
         pin_binding: dict[str, Any],
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Preserve authenticated form points through an explicit same-max map."""
+        """Map authenticated form points through one explicitly reviewed scale."""
         authority = importlib.import_module("localgrass.teacher_edit_unit1")
         _need(
             isinstance(self.source, authority.AuthenticatedUnit1DecisionSource),
@@ -270,12 +284,25 @@ class LocalGrAssEditConnection:
         _need(len(selected) == 1, "EXACT_CENTRAL_ASSIGNMENT_REQUIRED")
         target = selected[0]
         maximum = _amount(computation["maximum"])
+        native_maximum = _amount(target["maximum"])
+        scale = target.get("score_scale")
+        if not isinstance(scale, str):
+            raise GradebookError("UNIT1_EXPLICIT_SCORE_SCALE_REQUIRED")
         _need(
-            target.get("score_scale") == "RAW_IDENTITY"
-            and maximum > 0
-            and _amount(target["maximum"]) == maximum,
-            "UNIT1_SAME_MAX_POINTS_REQUIRED",
+            maximum > 0 and scale in {"RAW_IDENTITY", UNIT1_WHOLE_PERCENT},
+            "UNIT1_EXPLICIT_SCORE_SCALE_REQUIRED",
         )
+        if scale == "RAW_IDENTITY":
+            _need(native_maximum == maximum, "UNIT1_SAME_MAX_POINTS_REQUIRED")
+        else:
+            _need(
+                native_maximum == 100
+                and _amount(target.get("source_maximum")) == maximum
+                and target.get("form_id") == subject["formId"]
+                and type(target.get("scale_policy_ref")) is str
+                and re.fullmatch(r"sha256:[a-f0-9]{64}", target["scale_policy_ref"]),
+                "UNIT1_PERCENT_MAP_REQUIRED",
+            )
         _need(
             pin_binding["registry_sha256"] == identity["registry_sha256"]
             and pin_binding["roster_sha256"] == identity["snapshot_sha256"],
@@ -285,10 +312,19 @@ class LocalGrAssEditConnection:
         _need(type(uid) is str, "CANONICAL_PIN_NOT_JOINED")
         aid = str(target["assignment_id"])
         observed = current["cells"].get(uid + ":" + aid)
+        observed_null = (
+            type(observed) is dict
+            and "attempt" in observed
+            and observed["attempt"] is None
+            and observed.get("submitted_at") is None
+        )
         _need(
             type(observed) is dict
-            and type(observed.get("attempt")) is int
-            and observed["attempt"] >= 0,
+            and (
+                observed_null
+                or type(observed.get("attempt")) is int
+                and observed["attempt"] >= 0
+            ),
             "OBSERVED_CANVAS_ATTEMPT_REQUIRED",
         )
         record = {
@@ -308,9 +344,13 @@ class LocalGrAssEditConnection:
             "canvas_attempt": observed["attempt"],
             "raw_score": _amount(computation["total"]),
             "raw_maximum": maximum,
-            "proposed_score": _amount(computation["total"]),
-            "score_scale": "RAW_IDENTITY",
+            "proposed_score": _unit1_native_score(computation["total"], maximum, scale),
+            "score_scale": scale,
         }
+        if scale == UNIT1_WHOLE_PERCENT:
+            record["score_scale_policy_ref"] = target["scale_policy_ref"]
+        if observed_null:
+            record["canvas_attempt_observation"] = "UNIT1_PAPER_OBSERVED_NULL"
         decision = {
             key: record[key]
             for key in ("evaluation_id", "source_revision", "result_revision", "policy")
@@ -318,8 +358,10 @@ class LocalGrAssEditConnection:
         decision.update(
             decision_revision=snapshot["decision_id"],
             is_final=True,
-            total_score=_amount(snapshot["decision"]["score"]),
-            points_possible=maximum,
+            total_score=_unit1_native_score(
+                snapshot["decision"]["score"], maximum, scale
+            ),
+            points_possible=native_maximum,
             score_units="CANVAS_POINTS",
             feedback=snapshot["decision"]["feedback"],
         )

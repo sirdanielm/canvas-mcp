@@ -35,8 +35,11 @@ account, database, client or teacher decision.
 
 The typed Unit 1 adapter now preserves independently verified owner results,
 their accepted per-question attempt/mastery policy and authenticated teacher
-corrections in `FORM_POINTS`. An exact section and explicit same-maximum
-`RAW_IDENTITY` central mapping are required; no percentage conversion is inferred.
+corrections in `FORM_POINTS`. An exact section and explicit central mapping are
+required: same-maximum `RAW_IDENTITY`, or the reviewed Unit 1 100-point,
+whole-percent `ROUND_HALF_UP` profile bound to its exact form, source maximum and
+existing policy receipt. No score conversion is inferred. Literal null Canvas
+attempts are retained for observed paper-only work without inventing zero.
 The real canary still requires a currently admitted source and genuine teacher
 acceptance. An existing advisory pair or learner selection does not supply that
 acceptance. Generic fictional scoring and held results remain ineligible.

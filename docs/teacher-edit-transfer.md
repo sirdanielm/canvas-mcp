@@ -19,6 +19,9 @@ The planner retains the selected evaluation's source key, source/result hashes,
 evaluation ID, policy, section, literal four-digit PIN, exact Canvas IDs,
 paper attempt, observed Canvas attempt, form, raw score/maximum and bound
 consumer proposal/scale. A paper `R1` or `R2` label never supplies a Canvas attempt.
+The typed Unit 1 source can retain a literally observed null attempt when there
+is no submitted timestamp. It records that observation explicitly; a missing
+attempt or a null attempt paired with a submission timestamp remains held.
 
 The separate final decision binds the same evaluation, source/result and policy,
 a substantive decision revision, explicit final Canvas points/maximum and full
@@ -187,13 +190,25 @@ no Canvas-capture intake and does not rescore a saved result. The configured
 identity runtime is shared by original-source reads and the actual teacher
 acceptance checks.
 
-Canvas selects exactly one academic-assignment/track/course/section mapping and
-requires explicit `RAW_IDENTITY` with equal form and native maxima. The advisory
-total and teacher-final correction remain separate. The actual current Canvas
-attempt, including an observed zero for paper-only work, is retained independently
-of the paper attempt; later attempt or submission-time changes hold the plan.
+Canvas selects exactly one academic-assignment/track/course/section mapping.
+`RAW_IDENTITY` requires equal form and native maxima. The explicit
+`UNIT1_WHOLE_PERCENT_100` profile supports the existing Unit 1 100-point policy:
+divide form points by the exact form maximum, multiply by 100, then round to a
+whole percent using decimal `ROUND_HALF_UP`. Its pinned mapping must name the
+exact `form_id`, `source_maximum`, native `maximum: 100` and a
+`scale_policy_ref: sha256:<64 hexadecimal characters>` bound to the reviewed
+existing policy receipt. The trusted mapping owner verifies that receipt's
+authority; its hash alone grants none. Other scales remain held.
+
+The raw advisory total, original maximum, mapped proposal and mapped
+teacher-final correction remain separate. Full feedback is unchanged. The actual
+current Canvas attempt, including observed zero or literal null for paper-only
+work, is retained independently of the paper attempt; later attempt or
+submission-time changes hold the plan.
 Existing higher-grade, custom-note, baseline and complete native preservation
-checks still apply.
+checks still apply. An existing edited grade or nonbaseline note is not cleared
+by a compatible scale or source admission; preserve it and review the exact
+delta before any separately authorized staging.
 
 Trusted application configuration selects `LOCALGRASS_EDIT_UNIT1_APPLICATION_V1`.
 It uses the existing fixed-scope fields except `source_root`; `source_receipt_id`
@@ -225,8 +240,9 @@ source/policy/identity admission, reviewed mapping and genuine teacher acceptanc
    and register the actual source and result, accepted policy and current canonical
    identity required by the completed `AuthenticatedUnit1DecisionSource`. Preserve
    original evidence, exact revisions and academic holds. Review exactly one
-   academic-assignment/track/course/section mapping with explicit `RAW_IDENTITY`
-   and equal form/native maxima before teacher acceptance. Do not relabel fictional
+   academic-assignment/track/course/section mapping with explicit same-maximum
+   `RAW_IDENTITY` or the reviewed Unit 1 whole-percent profile before teacher
+   acceptance. Do not relabel fictional
    policy, infer a scale, manufacture a result or convert participation approval
    into academic acceptance.
 4. **Authenticate one accepted case.** Require a current teacher session/CSRF and

@@ -45,6 +45,7 @@ RECORD_FIELDS = (
     "proposed_score",
     "score_scale",
 )
+OPTIONAL_RECORD_FIELDS = ("score_scale_policy_ref", "canvas_attempt_observation")
 DECISION_FIELDS = (
     "evaluation_id",
     "source_revision",
@@ -106,7 +107,12 @@ def _selection(record: dict[str, Any], decision: dict[str, Any]) -> None:
         "LITERAL_FOUR_DIGIT_PIN_REQUIRED",
     )
     _need(
-        type(record["canvas_attempt"]) is int and record["canvas_attempt"] >= 0,
+        type(record["canvas_attempt"]) is int
+        and record["canvas_attempt"] >= 0
+        or record["canvas_attempt"] is None
+        and record.get("canvas_attempt_observation") == "UNIT1_PAPER_OBSERVED_NULL"
+        and record["paper_attempt"] != "CANVAS_CAPTURE"
+        and record["form"] != "NOT_APPLICABLE",
         "OBSERVED_CANVAS_ATTEMPT_REQUIRED",
     )
     _need(
@@ -296,6 +302,13 @@ def prepare_transfer(
     # Only substantive fields bind a decision. Fetch/report timestamps do not
     # silently revoke or renew it; original audit metadata stays with its owner.
     selected = {field: copy.deepcopy(record[field]) for field in RECORD_FIELDS}
+    selected.update(
+        {
+            field: copy.deepcopy(record[field])
+            for field in OPTIONAL_RECORD_FIELDS
+            if field in record
+        }
+    )
     final = {field: copy.deepcopy(decision[field]) for field in DECISION_FIELDS}
     _need(
         (baseline["origin"], baseline["course_id"])
@@ -330,7 +343,12 @@ def prepare_transfer(
     )
     _need(
         type(cell.get("attempt")) is int
-        and cell["attempt"] == record["canvas_attempt"],
+        and cell["attempt"] == record["canvas_attempt"]
+        or record.get("canvas_attempt_observation") == "UNIT1_PAPER_OBSERVED_NULL"
+        and record["canvas_attempt"] is None
+        and "attempt" in cell
+        and cell["attempt"] is None
+        and cell.get("submitted_at") is None,
         "OBSERVED_CANVAS_ATTEMPT_CHANGED",
     )
     _need(
@@ -495,7 +513,9 @@ def classify_readback(
     status = (
         "PLANNED_OUTPUT_OBSERVED"
         if actual == plan["after_state"]
-        else "BEFORE_STILL_PRESENT" if actual == plan["before_state"] else "DIVERGED"
+        else "BEFORE_STILL_PRESENT"
+        if actual == plan["before_state"]
+        else "DIVERGED"
     )
     return {
         "contract": CONTRACT,

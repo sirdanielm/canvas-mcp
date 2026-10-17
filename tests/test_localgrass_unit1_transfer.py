@@ -19,7 +19,11 @@ from test_localgrass_teacher_edit import integrated as integrated
 from canvas_mcp.gradebook import localgrass_application as application
 from canvas_mcp.gradebook import native
 from canvas_mcp.gradebook.client import GradebookError
-from canvas_mcp.gradebook.localgrass_teacher_edit import LocalGrAssEditConnection
+from canvas_mcp.gradebook.localgrass_teacher_edit import (
+    UNIT1_WHOLE_PERCENT,
+    LocalGrAssEditConnection,
+    _unit1_native_score,
+)
 from canvas_mcp.gradebook.model import digest
 from canvas_mcp.gradebook.store import Store
 
@@ -194,6 +198,117 @@ def test_actual_zero_canvas_attempt_is_retained_and_later_submission_holds(unit1
     plan = connection.prepare(**context)
     assert plan["transfer"]["record"]["canvas_attempt"] == 0
     assert plan["transfer"]["record"]["paper_attempt"] != "0"
+    context["current"]["cells"]["101:21"]["attempt"] = 1
+    with pytest.raises(GradebookError):
+        connection.revalidate(
+            plan,
+            expected_plan_sha256=digest(plan),
+            raw=context["raw"],
+            current=context["current"],
+            pin_binding=context["pin_binding"],
+        )
+
+
+def percent_mapping(unit1):
+    connection, context, domain, mapping, path = unit1
+    mapping[0].update(
+        score_scale=UNIT1_WHOLE_PERCENT,
+        source_maximum=32,
+        maximum=100,
+        form_id="CT-A",
+        scale_policy_ref="sha256:" + "f" * 64,
+    )
+    for state in (context["baseline"], context["current"]):
+        state["assignments"][0]["points_possible"] = 100
+    context["raw"] = initial_raw(context["baseline"], context["binding"])
+    path.write_text(json.dumps(mapping))
+    connection.assignment_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    return connection, context, domain, mapping, path
+
+
+def test_explicit_unit1_percent_mapping_retains_form_points_and_teacher_correction(
+    unit1,
+):
+    connection, context, domain, _, _ = percent_mapping(unit1)
+    before = domain.fx.registry.connection.total_changes
+    plan = connection.prepare(**context)
+    record, decision = plan["transfer"]["record"], plan["transfer"]["decision"]
+    assert record["raw_score"] == 24.5
+    assert record["raw_maximum"] == 32
+    assert record["proposed_score"] == 77
+    assert record["score_scale"] == UNIT1_WHOLE_PERCENT
+    assert record["score_scale_policy_ref"] == "sha256:" + "f" * 64
+    assert decision["total_score"] == 78  # Exact teacher correction: 25 / 32.
+    assert decision["points_possible"] == 100
+    assert decision["feedback"] == domain.source.read()["decision"]["feedback"]
+    update = plan["transfer"]["requests"][0]["updateCells"]
+    assert update["rows"][0]["values"][0]["userEnteredValue"] == {"numberValue": 78}
+    assert update["rows"][0]["values"][0]["note"].endswith(decision["feedback"])
+    assert domain.fx.registry.connection.total_changes == before
+    assert plan["canvas_writes"] == plan["sheets_writes"] == 0
+    connection.revalidate(
+        plan,
+        expected_plan_sha256=digest(plan),
+        raw=context["raw"],
+        current=context["current"],
+        pin_binding=context["pin_binding"],
+    )
+
+
+@pytest.mark.parametrize(
+    "value,maximum,expected",
+    [(0, 48, 0), (48, 48, 100), (43.5, 48, 91), (12.24, 48, 26), (24.5, 100, 25)],
+)
+def test_unit1_percent_policy_uses_decimal_half_up(value, maximum, expected):
+    assert _unit1_native_score(value, maximum, UNIT1_WHOLE_PERCENT) == expected
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("maximum", 99),
+        ("source_maximum", 31),
+        ("form_id", "other"),
+        ("scale_policy_ref", None),
+        ("scale_policy_ref", "unreviewed"),
+    ],
+)
+def test_unit1_percent_map_requires_exact_form_maximum_and_policy(unit1, field, value):
+    connection, context, _, mapping, path = percent_mapping(unit1)
+    mapping[0][field] = value
+    path.write_text(json.dumps(mapping))
+    connection.assignment_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    with pytest.raises(GradebookError):
+        connection.prepare(**context)
+
+
+def test_unit1_percent_mapping_change_invalidates_retained_plan(unit1):
+    connection, context, _, mapping, path = percent_mapping(unit1)
+    plan = connection.prepare(**context)
+    mapping[0]["scale_policy_ref"] = "sha256:" + "e" * 64
+    path.write_text(json.dumps(mapping))
+    with pytest.raises(GradebookError):
+        connection.revalidate(
+            plan,
+            expected_plan_sha256=digest(plan),
+            raw=context["raw"],
+            current=context["current"],
+            pin_binding=context["pin_binding"],
+        )
+
+
+def test_observed_null_paper_submission_attempt_is_preserved_without_fabricating_zero(
+    unit1,
+):
+    connection, context, _, _, _ = percent_mapping(unit1)
+    for state in (context["baseline"], context["current"]):
+        state["cells"]["101:21"].update(attempt=None, submitted_at=None)
+    context["raw"] = initial_raw(context["baseline"], context["binding"])
+    plan = connection.prepare(**context)
+    record = plan["transfer"]["record"]
+    assert record["canvas_attempt"] is None
+    assert record["canvas_attempt_observation"] == "UNIT1_PAPER_OBSERVED_NULL"
+    assert plan["canvas_writes"] == plan["sheets_writes"] == 0
     context["current"]["cells"]["101:21"]["attempt"] = 1
     with pytest.raises(GradebookError):
         connection.revalidate(
