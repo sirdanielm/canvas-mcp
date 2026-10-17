@@ -52,10 +52,12 @@ The reviewed same-decision no-op repair preserves a completed marked feedback
 block after a fresh exact permit. These are source checks; installed/runtime
 qualification and any separately owned canary require their own receipts.
 
-Keep the dirty operational checkout and existing installed release intact.
-Installation-compatible branch reconciliation is held for its operational
-overlay owner. No merge, passing test or source receipt starts a service,
-installs a release, stages EDIT, grants paid-call authority or publishes Canvas.
+The [dated one-case qualification](goals-and-status.md#dated-local-qualification--october-17)
+is complete in an isolated runtime. Operational-checkout adoption to merged main
+`ee175b1` is verified with local edits retained unstaged, original preimages saved and
+private sources/baselines/configuration/history unchanged. Keep the recovery receipt;
+future invocations use the adopted source, while existing services were not restarted.
+No merge or checkpoint starts a service, stages EDIT, grants paid calls or publishes Canvas.
 
 The [GrAss acceptance contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
 owns academic source/result/policy admission. The existing **Grader Proposals**
