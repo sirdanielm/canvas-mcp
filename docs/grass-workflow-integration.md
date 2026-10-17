@@ -43,9 +43,28 @@ are not all published in Git.
 
 The public [Unit 1 preview and wire contract](unit1-pair-preview-contract.md)
 remains an offline contract. General policy/source admission, an accepted-pair
-exporter and authenticated release connections require their own implementation
-and qualification. The standalone Canvas publishers do not establish teacher
-consent or connect those upstream stages automatically.
+exporter and authenticated release connections require their own qualification.
+
+The source-only `proposal_preview.prepare_preview` consumer projects explicitly
+selected GrAss summative and sdmGrAss formative results through the existing
+`model.compare_edits` contract and immutable `Store` review artifacts. It creates
+no transport, queue, source admission or teacher decision. A trusted owner
+revalidates the original request, source, result, rubric, configuration and
+identity references; opaque producer IDs and digests are retained verbatim.
+The independent binding supplies the exact Canvas origin/target/attempt,
+canonical PIN join, actual assignment metadata, assessment floor and teacher
+correction/final state. The 25-row resource limit does not broaden that selection.
+
+Every output remains **UNAPPROVED**, with score and comment approval separately
+false. Higher grades, excusals, teacher corrections and assessment floors hold
+changes. Ordinary held and already-matching results retain their complete pair
+for review without edit requests. Edpuzzle is excluded using actual assignment
+metadata at selection and retention; its diagnostic references confer no staging
+authority. No score conversion or feedback rewrite is inferred. Repeated
+substantive previews reuse the existing immutable artifact; only the named
+Canvas observation/report timestamps are excluded from comparison identity.
+These offline fixtures do not establish installation, browser access, unattended
+processing or live delivery. Standalone publishers do not establish consent.
 
 GrAss's [local proposal importer](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_LOCAL_IMPORTER.md)
 reconciles saved results into the protected **Grader Proposals** inbox while
