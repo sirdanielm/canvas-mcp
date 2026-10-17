@@ -48,14 +48,14 @@ The isolated `release-20261017T1058Z` manifest is
 Canvas `f164e5535911d098c1ba7f801a5388401965e255` and Domain
 `32f7283adb7b7cfed20926ccc985d366a7ca7806`. Private owner receipts retain exact evidence.
 This qualifies one case and that isolated runtime; global rollout is separate.
-The completed plan must not be replayed. The operational checkout now uses merged
-main `ee175b1`, retaining reviewed local edits unstaged and full original preimages.
-Independent source readback verified 567 targets, 27 private source files and 14
-baseline/configuration/history witnesses; no service was restarted.
+The completed plan must not be replayed. The October 17 source reconciliation
+retained operational main `16b06b5`, local edits and original recovery preimages.
+It did not restart services or advance an installed release.
 
-A separate legacy gradebook MCP factory has an existing configuration-pin startup
-hold. It does not classify the curriculum-authoring launcher path; no factory,
-service or canary requalification is part of this documentation/Git task.
+The local overlay qualified read startup offline with 14 tools registered,
+deferring optional owner-factory checks to the action boundary. The original sealed writer
+configuration pin remains held. That startup repair is local; this source/docs
+publication does not install it or establish shared-service liveness.
 
 ## Grading flow
 
@@ -159,9 +159,9 @@ publishing a branch does not install its code or reconcile private overlays.
 
 - Resolve the three historical comment histories and seven source/identity holds
   through their evidence owners. Do not resend or manufacture missing evidence.
-- Retain the verified checkout adoption and recovery receipt. Reuse the qualified
-  case's completed evidence; no replay. Resolve the existing gradebook startup hold
-  through its owner before a fresh gradebook session.
+- Retain the checkout recovery receipt and completed case evidence; no replay.
+  Keep the sealed-writer pin hold. Read startup has offline qualification only;
+  coordinate any fresh service connection with its current operator.
   Other cases follow the [activation agenda](teacher-edit-transfer.md#activation-agenda-and-restart-sequence)
   from their first unfinished gate, including genuine acceptance and exact grade/note
   preservation. Broader staging, paid calls and Canvas writes remain off.
