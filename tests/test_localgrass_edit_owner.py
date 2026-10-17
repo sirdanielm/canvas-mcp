@@ -43,6 +43,7 @@ def composed(integrated, tmp_path, monkeypatch):
     output.mkdir(mode=0o700)
     runtime = tmp_path / "existing-runtime"
     runtime.mkdir()
+    domain.source.identity_runtime_root = runtime
     worker_config_path = tmp_path / "existing-worker-config.json"
     worker_config_path.write_text(json.dumps({"state_dir": str(store.root)}))
     config = {
@@ -343,7 +344,9 @@ async def test_native_success_uses_sheets_readback_when_canvas_and_teacher_login
     assert receipt["status"] == "PLANNED_OUTPUT_OBSERVED"
     assert c.state["canvas_unavailable"] is True
     assert c.domain.source.csrf == "revoked"
-    assert c.calls["canvas_reads"] == 3  # Prepare and two preflight reads, all before send.
+    assert (
+        c.calls["canvas_reads"] == 3
+    )  # Prepare and two preflight reads, all before send.
     assert c.calls["sheets_reads"] == 4  # Prepare, two preflights, native readback.
     c.journal.create(
         {"id": "fictional-unresolved-refresh"}, 23, refresh_mode="GET_ONLY"
@@ -387,9 +390,9 @@ async def test_changed_configuration_and_owner_binding_hold_before_io(
         c.worker_config_path.write_text(json.dumps({"state_dir": str(c.output)}))
         code = "EXISTING_WORKER_STATE_CHANGED"
     else:
-        (c.google if changed == "google_workbook" else c.journal).workbook_id = (
-            "other-fictional-book"
-        )
+        (
+            c.google if changed == "google_workbook" else c.journal
+        ).workbook_id = "other-fictional-book"
         code = "EXISTING_WORKBOOK_OWNER_MISMATCH"
     with pytest.raises(GradebookError, match=code):
         await c.owner.execute(prepared["plan_id"], enabled=True)

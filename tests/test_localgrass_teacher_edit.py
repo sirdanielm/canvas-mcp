@@ -88,14 +88,27 @@ def integrated(tmp_path, snapshot, binding, monkeypatch):
     domain = fixture_module.VerifiedTeacherSourceFixture(
         source_root, receipt_transform=transform
     )
-    monkeypatch.setattr(
-        "localgrass.manual_local_recovery.identity_binding",
-        lambda: (
+
+    def explicit_identity(runtime):
+        assert runtime == domain.source.identity_runtime_root
+        return (
             {"registry_sha256": registry_hash, "roster_sha256": roster_hash},
             {"fictional@example.invalid": "0042"},
             {},
-        ),
+        )
+
+    monkeypatch.setattr(
+        "localgrass.manual_local_recovery.identity_binding",
+        explicit_identity,
     )
+
+    def read_shared_table(path, raw, sheet, runtime):
+        assert runtime == domain.source.identity_runtime_root
+        return (
+            ["Canvas ID", "Email"],
+            [{"Canvas ID": "101", "Email": "fictional@example.invalid"}],
+        )
+
     shared = SimpleNamespace(
         binding=lambda _: (
             {
@@ -107,10 +120,7 @@ def integrated(tmp_path, snapshot, binding, monkeypatch):
             roster_path.read_bytes(),
             registry_hash,
         ),
-        read_table=lambda *unused: (
-            ["Canvas ID", "Email"],
-            [{"Canvas ID": "101", "Email": "fictional@example.invalid"}],
-        ),
+        read_table=read_shared_table,
         roster_index=lambda *unused: ({"fictional@example.invalid": "0042"}, {}),
     )
     monkeypatch.setattr(

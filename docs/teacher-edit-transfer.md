@@ -3,9 +3,10 @@
 `gradebook/teacher_edit_transfer.py` implements an **unregistered, offline
 planner and readback classifier** for one exact decision. It prepares no Canvas
 operation and executes no Sheets request. The authenticated LocalGrAss
-composition below qualifies the generic Canvas-capture/native-point lane in
-offline integration tests. Installed application bindings and a live canary
-remain separate qualifications.
+composition below exercises the generic Canvas-capture/native-point contract
+with fictional records and controlled transports. Source implementation,
+installed qualification, production admission and one real local canary are
+separate gates; a positive production canary is not established.
 
 The [GrAss acceptance contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
 owns academic source/result/policy admission. The existing **Grader Proposals**
@@ -95,10 +96,14 @@ the existing teacher session, CSRF, immutable acceptance receipt, current draft
 and result/dependency heads, current canonical identity and the actual original
 file bytes. It does not turn a proposal flag or browser input into a decision.
 
-The qualified first lane is a generic `COMPUTED` Canvas-capture result with an
-explicit `RAW_IDENTITY` point binding. Paper/form-specific results, held Unit 2
-totals and unspecified score transforms remain ineligible. Capture, current
-Canvas attempt/submission time, assignment and literal PIN must still agree.
+The first lane's contract requires a generic `COMPUTED` Canvas-capture result
+with an explicit `RAW_IDENTITY` point binding. Paper/form-specific results, held
+Unit 2 totals and unspecified score transforms remain ineligible. Capture,
+current Canvas attempt/submission time, assignment and literal PIN must agree.
+The authenticated source takes an explicit `identity_runtime_root` for the
+canonical identity implementation; it is distinct from the evidence source root
+and must match the existing staging configuration. Neither path is inferred from
+request content or the source workspace.
 
 `localgrass_edit_owner.LocalGrAssEditOwner` composes that connection with the
 existing GET-only `GradebookClient`, fixed-workbook `GoogleSheets`, private
@@ -137,3 +142,79 @@ reviewed LocalGrAss source and run the joined tests. They use real authenticated
 fictional stores and mocked HTTP transports; default CI skips that external
 checkout dependency. No installed service, account, workbook or grading policy
 is changed by importing these modules or by a passing fixture run.
+
+## Authenticated application and immutable runtime
+
+The optional LocalGrAss `LocalEditApplication` extends the existing authenticated
+review server for one fixed decision, source receipt and section. Browser requests
+carry the existing session/CSRF and a single-use preview token; they do not select
+an owner, import path or arbitrary target. Preparing rechecks source and session,
+and executing consumes the preview before further work. An uncertain response
+requires reconciliation of the retained owner operation, never another send.
+
+`localgrass_application.build_application` composes that controller from already
+opened `TeacherReview`, `SourceIntake`, Canvas/Sheets clients, `Store` and
+`RefreshJournal`. It requires the same registry, existing intake/acceptance rows,
+pinned private configuration, original staging history and workbook ownership.
+Missing real records hold before owner construction; the factory creates no
+schema or acceptance. Staging defaults to `enabled=False`.
+
+The immutable runtime bootstrap supplies a retained `Admission` guard before
+imports and on source reentry. It verifies the exact manifest, Python executable,
+complete Canvas/domain code closure and external identity-reader dependencies.
+Extra files, symlinks or changed pins hold. Admission checks are code-integrity
+checks, not a sandbox for malicious trusted code. Application configuration and
+bootstrap `--check` modes create no clients, accounts, database or teacher session,
+make no network call and leave staging off. A successful check does not establish
+an admitted academic case or authorize a local send.
+
+The current generic scorer accepts only `FICTIONAL_EXPLICIT_POINTS_V1`. The
+application explicitly rejects fictional policy, including after valid login.
+Consequently no admitted generic production result route exists for a real
+positive canary. This is a production source/policy adapter engineering gap;
+creating a teacher account or filling acceptance fields cannot repair it. The
+typed Unit 1 result adapter is separate work. Missing assignment section or
+explicit `RAW_IDENTITY` scale also holds; existing participation records cannot
+supply those semantics by inference.
+
+## Activation agenda and restart sequence
+
+1. **Preserve and inspect.** Record exact source and installed revisions, manifest,
+   interpreter and configuration digests, original baseline and operation history.
+   Preserve dirty/private work and teacher EDIT scores, notes and formulas. Use one
+   destination writer and coordinate an idle browser checkpoint.
+2. **Qualify installation and history.** Install only the reviewed code closure
+   through its owner; verify the immutable bootstrap with staging off. Resolve
+   interpreter drift through reviewed installation rather than replacing a hash
+   solely to pass. Inspect existing GET-only status and native queue; require
+   current readiness when needed. Use [mode-bound recovery](sdm-gradebook-worker.md#coordination-and-crash-recovery)
+   for a preserved request. A possible send permits readback reconciliation only.
+   Release a proven pre-SENDING hold only after fixing and reviewing its cause.
+3. **Implement real admission.** The domain owner must supply and independently
+   validate the production source/policy/result route, or separately implement a
+   typed result adapter. Preserve original evidence, exact revisions and academic
+   holds. Review the assignment's exact section and native-point semantics. Do
+   not relabel fictional policy, infer `RAW_IDENTITY`, manufacture a result or
+   convert participation approval into academic acceptance.
+4. **Authenticate one accepted case.** Require a current teacher session/CSRF and
+   immutable acceptance for that eligible result. Bind the original bytes, current
+   draft/result/policy heads, canonical identity, section, assignment and observed
+   Canvas attempt. The application must pass its real-policy gate before any
+   local selection or plan; login alone does not pass that gate.
+5. **Prepare and qualify one canary.** The trusted application prepares one
+   immutable review plan through the existing owner. Review its exact score/note
+   delta and complete preimage. Under current scoped authority, consume the one
+   preview and stage that same plan once. Require complete native readback of
+   score and marked full feedback, with all other EDIT/GET/formula/protection and
+   Sync state preserved. No paid call or Canvas write is part of this canary.
+6. **Reconcile and close out.** Any retained attempt uses native readback only via
+   `owner.execute(plan_id, reconcile_only=True)`. Preserve SENDING and terminal
+   history; absence or changed teacher content never authorizes replay. Save
+   aggregate outcomes, checks, exact revisions/digests, effects, owned resources,
+   remaining holds and the first unfinished task. Stop after the scoped canary;
+   unattended staging and Canvas publication require their own qualification.
+
+Resume from the first unfinished gate using saved evidence whose bytes still
+match. Revalidate current authority and destination state when required. A Git
+merge, source sync, installed check or checkpoint starts no runtime and grants
+no academic acceptance, model spending or Canvas delivery permission.

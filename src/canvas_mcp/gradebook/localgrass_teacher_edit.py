@@ -158,6 +158,7 @@ class LocalGrAssEditConnection:
             expected_record_keys=receipt["expected_record_keys"],
             registry_path=self.registry_path,
             shared_tool=self.shared_tool,
+            identity_runtime_root=self.source.identity_runtime_root,
         )
         _need(
             intake_digest(rebuilt) == intake_digest(receipt),
