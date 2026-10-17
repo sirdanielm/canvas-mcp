@@ -8,6 +8,40 @@ with fictional records and controlled transports. Source implementation,
 installed qualification, production admission and one real local canary are
 separate gates; a positive production canary is not established.
 
+## Reviewed source and restart limits
+
+[PR29](https://github.com/sirdanielm/canvas-mcp/pull/29) merged on October 17,
+2026 as `fee655db516a936cbe4efb34452954e99d962614`. Its exact reviewed head
+`a75ed0d4a1a9d5459b605679eaf13072699df92e` and merged tree
+`565b03cdd8dca84daeb5be9170aa6fffed2ba91c` are identical. Two independent
+reviews found no blocking defects; no source repair or speculative hardening
+was needed. Accepted LocalGrAss PR41/43 source supplies the compatible source
+and mapped-preview interfaces.
+
+The fresh configured Python 3.12 suite ran 3,492 tests: 3,471 passed, 21 optional
+skips, zero failures/errors. Cross-repository transfer tests ran within that
+suite against exact accepted LocalGrAss source; they were not repeated as a
+second success count. Ruff, mypy across 91 source files and whitespace checks
+passed. Exact-head hosted checks passed Python 3.11/3.12/3.13, the TypeScript
+code API, confirmation proofs and security jobs. Four existing pytest temporary
+cleanup warnings remain in the saved log. An optional bootstrap formatter check
+reported one style-only line wrap; required checks passed and the reviewed
+runtime bytes were preserved. These are offline software checks, not grading
+accuracy, an installed promotion or a successful real canary.
+
+Reuse the current owner case admission and reviewed mapping if their bindings
+still match. Preserve genuine exact human approval; do not ask for it again
+merely because source merged. This source still requires an actual authenticated
+TeacherReview session and immutable accepted draft. It imports no chat approval,
+creates no account/session, and bypasses no native grade or custom-note hold.
+Any new host-authentication or preservation-permit implementation requires its
+own review and source/installation receipts before use.
+
+Keep the dirty operational checkout and existing installed release intact.
+Installation-compatible branch reconciliation is held for its operational
+overlay owner. No merge, passing test or source receipt starts a service,
+installs a release, stages EDIT, grants paid-call authority or publishes Canvas.
+
 The [GrAss acceptance contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
 owns academic source/result/policy admission. The existing **Grader Proposals**
 inbox remains the review surface, including teacher-owned M:O. This adapter adds
@@ -236,8 +270,10 @@ source/policy/identity admission, reviewed mapping and genuine teacher acceptanc
    current readiness when needed. Use [mode-bound recovery](sdm-gradebook-worker.md#coordination-and-crash-recovery)
    for a preserved request. A possible send permits readback reconciliation only.
    Release a proven pre-SENDING hold only after fixing and reviewing its cause.
-3. **Admit one real Unit 1 case.** The domain owner must independently validate
-   and register the actual source and result, accepted policy and current canonical
+3. **Reuse or admit one current Unit 1 case.** Start with existing owner receipts
+   and retain completed admission and mapping when their current bindings match.
+   If admission is absent, the domain owner must independently validate and
+   register the actual source and result, accepted policy and current canonical
    identity required by the completed `AuthenticatedUnit1DecisionSource`. Preserve
    original evidence, exact revisions and academic holds. Review exactly one
    academic-assignment/track/course/section mapping with explicit same-maximum
@@ -245,8 +281,9 @@ source/policy/identity admission, reviewed mapping and genuine teacher acceptanc
    acceptance. Do not relabel fictional
    policy, infer a scale, manufacture a result or convert participation approval
    into academic acceptance.
-4. **Authenticate one accepted case.** Require a current teacher session/CSRF and
-   immutable acceptance for that eligible result. Bind the original bytes, current
+4. **Authenticate one accepted case.** Retain genuine exact human approval; do
+   not repeat that approval or fabricate a password/session. Require a current
+   teacher session/CSRF and immutable accepted draft for that eligible result. Bind the original bytes, current
    draft/result/policy heads, canonical identity, section, assignment and observed
    Canvas attempt. The application must pass its real-policy gate before any
    local selection or plan; login alone does not pass that gate.

@@ -1,9 +1,28 @@
 # Goals and status
 
-Direction updated October 16, 2026; the aggregate operational evidence below is
+Direction updated October 17, 2026; the aggregate operational evidence below is
 from October 14. This is not a live monitor or new permission to grade or publish.
 Detailed identities, source links, approvals and delivery receipts stay in the
 private authenticated workbench.
+
+## Reviewed source acceptance — October 17
+
+[PR29](https://github.com/sirdanielm/canvas-mcp/pull/29) merged as
+`fee655db516a936cbe4efb34452954e99d962614`, from reviewed head
+`a75ed0d4a1a9d5459b605679eaf13072699df92e`. The merged and reviewed trees
+match. Both independent code reviews cleared the unchanged implementation.
+The configured offline suite passed 3,471 tests with 21 optional skips and no
+failures/errors; exact-head hosted Python, code-API, confirmation and security
+checks passed. Ruff and mypy (91 source files) passed.
+
+This is source acceptance. Existing native scores, custom notes, baselines,
+uncertain history and authentication holds remain protected. Recorded exact
+human approval does not need repeating; the application still requires genuine
+authenticated acceptance. New authentication/preservation work remains a
+separately reviewed followup. The dirty operational checkout and installation
+remain held for their owners; no service, account, native EDIT or Canvas write
+was performed by this review. Use the
+[current source and restart limits](teacher-edit-transfer.md#reviewed-source-and-restart-limits).
 
 ## Grading flow
 
@@ -107,11 +126,13 @@ publishing a branch does not install its code or reconcile private overlays.
 
 - Resolve the three historical comment histories and seven source/identity holds
   through their evidence owners. Do not resend or manufacture missing evidence.
-- Follow the [activation agenda and restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence):
-  first admit a real production source/policy route and reviewed assignment
-  semantics, then establish the exact teacher acceptance, prepare one local
-  canary and verify complete native preservation. Keep staging off until those
-  prerequisites pass; paid calls and Canvas writes remain separately gated.
+- Follow the [activation agenda and restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence)
+  from the first unfinished gate. Reuse current owner admission, exact mapping
+  and retained human approval instead of repeating completed intake or approval.
+  Genuine application-authenticated acceptance and an admissible native-content
+  preservation plan remain separate requirements. Do not clear edited grades or
+  custom notes to force a canary. Keep staging off until separately authorized;
+  paid calls and Canvas writes remain gated.
 - Keep GET-only source and installed overlays aligned through reviewed promotion
   and exact adopted-source readback before any activation.
 - Continue the durable workbench and Unit 2 evidence/policy work in
