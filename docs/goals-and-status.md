@@ -15,13 +15,26 @@ The configured offline suite passed 3,471 tests with 21 optional skips and no
 failures/errors; exact-head hosted Python, code-API, confirmation and security
 checks passed. Ruff and mypy (91 source files) passed.
 
-This is source acceptance. Existing native scores, custom notes, baselines,
-uncertain history and authentication holds remain protected. Recorded exact
-human approval does not need repeating; the application still requires genuine
-authenticated acceptance. New authentication/preservation work remains a
-separately reviewed followup. The dirty operational checkout and installation
-remain held for their owners; no service, account, native EDIT or Canvas write
-was performed by this review. Use the
+The reviewed authentication/preservation followup is now source-accepted:
+[LocalGrAss PR46](https://github.com/sirdanielm/LocalGrAss/pull/46), head
+`32f7283adb7b7cfed20926ccc985d366a7ca7806`, merged as `02021af30f2c0e3d48ea798c978b9a80e2f81119`;
+[Canvas PR31](https://github.com/sirdanielm/canvas-mcp/pull/31), head
+`f164e5535911d098c1ba7f801a5388401965e255`, merged as
+`eac0e7c19c1871f336f2c02135b51d5fe97f315b`. It adds the trusted-host application review alternative
+and [exact operator-owned native preservation](teacher-edit-preservation.md).
+The validated text-PIN serialization repair retains canonical identity holds;
+the native same-decision repair prevents duplicate marked feedback after a fresh
+exact permit. The final configured Canvas suite passed 3,508 tests with 21
+optional skips; Ruff and mypy (91 source files) passed. Final Domain validation:
+1,609 run, 1,599 passed, ten optional skips; tracked-file publication guard and final integration review passed. Hosted checks: all exact-head workflows passed, including Python 3.11/3.12/3.13, code-API build/tests, confirmation proofs, lint/types and security.
+
+These are source acceptance and deterministic fictional software checks.
+Existing native grades, custom notes, original baselines, failed reads and
+uncertain history remain protected. Retain genuine exact human approval and
+current authenticated acceptance; do not repeat valid approval because source
+merged. Installation and the separately owned live case/canary use their own
+current receipts. This review performed no service/account action, real EDIT
+send or Canvas write. Use the
 [current source and restart limits](teacher-edit-transfer.md#reviewed-source-and-restart-limits).
 
 ## Grading flow
