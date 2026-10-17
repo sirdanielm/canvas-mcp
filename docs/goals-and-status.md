@@ -25,9 +25,28 @@ This is the intended complete path, with distinct implementation boundaries.
 GrAss's protected proposal importer is implemented; the general revision-bound
 teacher-decision-to-EDIT transfer remains a
 [separate integration](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration).
-Automatic end-to-end staging is not established. Score and full feedback derive
-from the same reviewed result but retain separate release permissions, transport
-state and independent destination verification.
+The [authenticated native transfer composition](teacher-edit-transfer.md) joins
+LocalGrAss teacher/source authority to exact selection, destination preflight,
+one-shot local EDIT execution and semantic readback. The optional authenticated
+`LocalEditApplication`, Canvas `build_application` factory and immutable runtime
+admission are implemented and tested with fictional records and controlled
+transports. Staging defaults to off; configuration/runtime checks create no
+account, database, client or teacher decision.
+
+The typed Unit 1 adapter now preserves independently verified owner results,
+their accepted per-question attempt/mastery policy and authenticated teacher
+corrections in `FORM_POINTS`. An exact section and explicit central mapping are
+required: same-maximum `RAW_IDENTITY`, or the reviewed Unit 1 100-point,
+whole-percent `ROUND_HALF_UP` profile bound to its exact form, source maximum and
+existing policy receipt. No score conversion is inferred. Literal null Canvas
+attempts are retained for observed paper-only work without inventing zero.
+The real canary still requires a currently admitted source and genuine teacher
+acceptance. An existing advisory pair or learner selection does not supply that
+acceptance. Generic fictional scoring and held results remain ineligible.
+Source, installed bindings,
+authenticated acceptance and native canary readback retain separate evidence.
+Score and full feedback derive from the same reviewed result but retain separate
+release permissions, transport state and independent destination verification.
 
 ## Priorities
 
@@ -88,9 +107,11 @@ publishing a branch does not install its code or reconcile private overlays.
 
 - Resolve the three historical comment histories and seven source/identity holds
   through their evidence owners. Do not resend or manufacture missing evidence.
-- Complete and review the exact teacher-decision-to-EDIT handoff, preserving
-  existing teacher values, score units, source/result revisions and repeat-safe
-  reconciliation. Run the domain-owned fleet canary before unattended staging.
+- Follow the [activation agenda and restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence):
+  first admit a real production source/policy route and reviewed assignment
+  semantics, then establish the exact teacher acceptance, prepare one local
+  canary and verify complete native preservation. Keep staging off until those
+  prerequisites pass; paid calls and Canvas writes remain separately gated.
 - Keep GET-only source and installed overlays aligned through reviewed promotion
   and exact adopted-source readback before any activation.
 - Continue the durable workbench and Unit 2 evidence/policy work in

@@ -103,12 +103,15 @@ def build_case_receipt(
     expected_record_keys: list[str],
     registry_path: Path,
     shared_tool: Path,
+    identity_runtime_root: Path | None = None,
 ) -> dict[str, Any]:
     """Join one exact Canvas observation to the shared canonical PIN authority.
 
     Source records are independently selected private operator metadata. This
     port binds them; LocalGrAss must verify original bytes and trusted retained
     expectations before admission. It never infers scan ownership from a name.
+    New application compositions supply their explicitly reviewed identity
+    reader runtime; omission preserves the established shared-reader contract.
     """
     course_id, aid, uid = (
         identifier(value) for value in (expected_course_id, assignment_id, user_id)
@@ -182,6 +185,22 @@ def build_case_receipt(
         "CAPTURE_TARGET_HELD",
     )
     _require(registry_path.is_absolute(), "ABSOLUTE_REGISTRY_REQUIRED")
+    if identity_runtime_root is not None:
+        _require(
+            isinstance(identity_runtime_root, Path)
+            and identity_runtime_root.is_absolute()
+            and ".." not in identity_runtime_root.parts
+            and all(
+                ord(char) >= 32 and ord(char) != 127
+                for char in str(identity_runtime_root)
+            )
+            and not any(
+                path.is_symlink()
+                for path in (identity_runtime_root, *identity_runtime_root.parents)
+            )
+            and identity_runtime_root.is_dir(),
+            "EXPLICIT_IDENTITY_RUNTIME_REQUIRED",
+        )
     shared = load_shared_pin_module(shared_tool)
     try:
         registry, roster, raw, registry_hash = shared.binding(registry_path)
@@ -189,7 +208,12 @@ def build_case_receipt(
             registry.get("roster_sheet") == "Student Info",
             "CURRENT_PIN_AUTHORITY_REQUIRED",
         )
-        headers, rows = shared.read_table(roster, raw, registry["roster_sheet"])
+        if identity_runtime_root is None:
+            headers, rows = shared.read_table(roster, raw, registry["roster_sheet"])
+        else:
+            headers, rows = shared.read_table(
+                roster, raw, registry["roster_sheet"], runtime=identity_runtime_root
+            )
         index, _ = shared.roster_index(headers, rows, registry)
         _require("Canvas ID" in headers, "CANVAS_PIN_JOIN_UNAVAILABLE")
         by_canvas: dict[str, str] = {}
