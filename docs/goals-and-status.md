@@ -7,10 +7,17 @@ history, approvals, installed pins and readback receipts remain private.
 
 ## Priorities
 
-The immediate classroom priority is teacher-ready Unit 2 A-day test results.
+The current order is Unit 2 grading and feedback into canonical local EDIT,
+then the remaining accepted Unit 1 packets, then formative participation.
 Use retained evidence and existing domain engines; resolve actual source/policy
-holds and prepare reviewable score/feedback pairs before expanding infrastructure.
-Execution and delivery still require their separate authorization.
+holds and preserve supported partial feedback when a numeric total remains
+unknown. Complete each stage from its durable receipt rather than restarting
+an entire packet.
+
+Grading, paid calls, deployment and live Canvas publication are paused during
+repository closeout. An overnight work order is a draft, not authority to resume.
+Future execution needs current scoped authority and valid source capabilities;
+an expired capability, saved plan or passing source test supplies neither.
 
 For the Unit 2 handback, batch work by stage: admit exact source packets,
 retain literal readings, apply the issued form and sealed policy, then check
@@ -52,9 +59,9 @@ separate delivery evidence. Missing source or identity is a hold, never a zero.
 | Capability | Current boundary |
 | --- | --- |
 | GET-only mirror refresh and native review | Maintained source preserves EDIT content and original Sync baselines. A current matching worker heartbeat and finalized request receipt establish operation-specific readiness and completion. |
-| Authenticated Unit 1 decision to native EDIT | Source-accepted composition, typed owner-result adapter and exact preservation controls exist. One real case has a retained isolated-runtime qualification; that completed operation must not be replayed. |
+| Authenticated Unit 1 decision to native EDIT | Source-accepted composition, typed owner-result adapter and exact preservation controls exist. Bounded local score/full-feedback transfers have separate readback evidence; preserve completed operations and renew expired source capabilities before remaining cases. |
 | Ordinary participation receiver | Qualified locally with the existing source reader, owner, locks and history. The newer draft/provider/current-attempt implementation remains a private operational overlay pending portable source review. |
-| Proposal-preview source | Three commits remain unmerged on the existing remote review branch. That branch does not contain every private operational overlay or establish installed parity. |
+| Proposal-preview source | The retained remote branch contains unmerged proposal-preview work. It does not contain every private operational overlay or establish installed parity; verify the exact current head before creating a reviewed candidate. |
 | Canvas score and comment delivery | Existing publishers have distinct approval, durable-intent and readback gates. EDIT staging and score parity do not verify feedback delivery. |
 | Older accepted-pair RELEASE prototype | Remains an offline, unconnected prototype; it is separate from the implemented native EDIT transfer. |
 
@@ -69,14 +76,19 @@ current work scope. See [transfer methods](teacher-edit-transfer.md),
 
 | Order | Owner | Concrete next action and completion evidence |
 | --- | --- | --- |
-| 1 | GrAss/sdmGrAss source owners and LocalGrAss review owner | Resolve actual Unit 2 source, form/policy, page-completeness and identity holds using retained results, then present teacher-reviewable score/feedback pairs. Attachment-byte membership is not page interpretation or teacher acceptance. |
-| 2 | Canvas and LocalGrAss owners | Resume a separately authorized case from its first unfinished gate in the [restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence). Reuse valid admission and approval; retain completed canaries and uncertain histories without replay. |
-| 3 | Canvas source owner | Keep one review lane for the three unmerged proposal commits. Separate private launcher dependencies and exact owner bindings from portable source, reconcile newer operational documentation, and validate the exact candidate before promotion. |
+| 1 | GrAss/sdmGrAss source owners and the sole Canvas EDIT owner | Under renewed authority, finish the next unfinished Unit 2 stage, qualify current canonical feedback and stage supported score/feedback or feedback-only drafts into local EDIT. Rebase saved plans after any workbook or source change; attachment membership is not page interpretation or teacher acceptance. |
+| 2 | Unit 1 source owner and the sole Canvas EDIT owner | Preserve completed transfers. Renew expired source capabilities for remaining accepted packets, then prepare each against fresh destination, identity, attempt, note and higher-grade checks in the [restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence). |
+| 3 | Formative domain owner and the sole Canvas EDIT owner | After the test backlog, qualify participation through existing source/policy tools. Ordinary participation needs a score; missing or unreadable evidence needs its qualified hold rather than an invented grade. |
+| 4 | Canvas source owner | Retain one source review lane. Separate private launcher dependencies and exact owner bindings from portable source, reconcile newer operational documentation, and validate the exact candidate before promotion. |
 
 Canvas owns exact targets, observations, transport and installed Canvas bindings.
 LocalGrAss owns shared review/workbench tools. Domain owners retain academic
 policy and original evidence. d0t coordinates scope and the shared hub; local
 delegation does not renew authorization or checkpoint budgets.
+The sole EDIT writer must reconcile existing locks and operation history before
+any newly authorized send. Preserve manual Student Info edits, catalog names,
+original evidence, accepted results and restart queues. Never replay a completed
+or uncertain operation to make a queue appear current.
 
 Keep the Unit 2 [domain contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md)
 in its owning repository. Printed forms, policy versions and handwriting
