@@ -12,6 +12,15 @@ Use retained evidence and existing domain engines; resolve actual source/policy
 holds and prepare reviewable score/feedback pairs before expanding infrastructure.
 Execution and delivery still require their separate authorization.
 
+For the Unit 2 handback, batch work by stage: admit exact source packets,
+retain literal readings, apply the issued form and sealed policy, then check
+score and full-feedback proposals. Resume each batch at its first unfinished
+stage and reuse valid saved work. Keep review familiar and inspectable in the
+existing Sheet/workbench while reusing the installed local engines. Qualifying
+an optional front end is separate work. Consider a backend change only when an
+observed workflow need warrants it. Teacher acceptance and delivery remain
+separate gates.
+
 1. Reuse valid saved evidence and results to produce useful proposals without
    repeating paid analysis or reconstructing work from chat history.
 2. Preserve two intake lanes: Canvas submissions and teacher-folder/paper
