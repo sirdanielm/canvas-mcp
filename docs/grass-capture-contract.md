@@ -87,6 +87,5 @@ through LocalGrAss intake, authenticated review and fake-only release; database
 reopen produces no duplicate sends. No real grading/feedback write was needed.
 
 Read [gradebook workflow](sdm-gradebook-workflow.md),
-[workflow integration](grass-workflow-integration.md), and LocalGrAss's
-[connection status](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PILOT_CONNECTIONS_2026-10-01.md)
+[workflow integration](grass-workflow-integration.md), and [teacher EDIT procedures](teacher-edit-transfer.md)
 for the remaining real-policy, source ownership, review and publisher boundaries.

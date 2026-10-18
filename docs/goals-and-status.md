@@ -1,177 +1,90 @@
-# Goals and status
+# Goals, methods and current work
 
-Direction updated October 17, 2026; delivery aggregates retain their October 14
-capture date. The October 17 qualification is dated separately below. This is not
-a live monitor or new permission to grade or publish.
-Detailed identities, source links, approvals and delivery receipts stay in the
-private authenticated workbench.
-
-## Reviewed source acceptance — October 17
-
-[PR29](https://github.com/sirdanielm/canvas-mcp/pull/29) merged as
-`fee655db516a936cbe4efb34452954e99d962614`, from reviewed head
-`a75ed0d4a1a9d5459b605679eaf13072699df92e`. The merged and reviewed trees
-match. Both independent code reviews cleared the unchanged implementation.
-The configured offline suite passed 3,471 tests with 21 optional skips and no
-failures/errors; exact-head hosted Python, code-API, confirmation and security
-checks passed. Ruff and mypy (91 source files) passed.
-
-The reviewed authentication/preservation followup is now source-accepted:
-[LocalGrAss PR46](https://github.com/sirdanielm/LocalGrAss/pull/46), head
-`32f7283adb7b7cfed20926ccc985d366a7ca7806`, merged as `02021af30f2c0e3d48ea798c978b9a80e2f81119`;
-[Canvas PR31](https://github.com/sirdanielm/canvas-mcp/pull/31), head
-`f164e5535911d098c1ba7f801a5388401965e255`, merged as
-`eac0e7c19c1871f336f2c02135b51d5fe97f315b`. It adds the trusted-host application review alternative
-and [exact operator-owned native preservation](teacher-edit-preservation.md).
-The validated text-PIN serialization repair retains canonical identity holds;
-the native same-decision repair prevents duplicate marked feedback after a fresh
-exact permit. The final configured Canvas suite passed 3,508 tests with 21
-optional skips; Ruff and mypy (91 source files) passed. Final Domain validation:
-1,609 run, 1,599 passed, ten optional skips; tracked-file publication guard and final integration review passed. Hosted checks: all exact-head workflows passed, including Python 3.11/3.12/3.13, code-API build/tests, confirmation proofs, lint/types and security.
-
-These are source acceptance and deterministic fictional software checks.
-Existing native grades, custom notes, original baselines, failed reads and
-uncertain history remain protected. Retain genuine exact human approval and
-current authenticated acceptance; do not repeat valid approval because source
-merged. Installation and the separately owned live case/canary use their own
-current receipts. This review performed no service/account action, real EDIT
-send or Canvas write. Use the
-[current source and restart limits](teacher-edit-transfer.md#reviewed-source-and-restart-limits).
-
-## Dated local qualification — October 17
-
-One genuinely accepted Unit 1 case completed **one native EDIT batch**, independently
-verified **26/26**, with zero paid calls and Canvas writes. The old note, prior whole
-cell/history, both original Sync B2 baselines and unrelated EDIT content are preserved.
-The isolated `release-20261017T1058Z` manifest is
-`35861063af3b915146e644512ec2c0e1593a8c7a243917f8ea14a9a50d906add`, using merged PR31/46 heads
-Canvas `f164e5535911d098c1ba7f801a5388401965e255` and Domain
-`32f7283adb7b7cfed20926ccc985d366a7ca7806`. Private owner receipts retain exact evidence.
-This qualifies one case and that isolated runtime; global rollout is separate.
-The completed plan must not be replayed. The operational checkout now uses merged
-main `ee175b1`, retaining reviewed local edits unstaged and full original preimages.
-Independent source readback verified 567 targets, 27 private source files and 14
-baseline/configuration/history witnesses; no service was restarted.
-
-A separate legacy gradebook MCP factory has an existing configuration-pin startup
-hold. It does not classify the curriculum-authoring launcher path; no factory,
-service or canary requalification is part of this documentation/Git task.
-
-## Grading flow
-
-Preserve two intake lanes: **Canvas submissions** and **teacher-folder/paper
-evidence**. Both retain exact source, identity, assignment, form and attempt
-bindings. A paper reassessment label never supplies a Canvas attempt number.
-Reuse valid saved observations and results before commissioning another read.
-
-```text
-Canvas submissions ──────┐
-Teacher folders/papers ──┴─> preserved evidence -> saved result
-                            -> score + feedback proposals
-                            -> local QC/review -> Grader Proposals
-                            -> exact teacher decision -> central EDIT
-                            -> separate Canvas delivery -> independent readback
-```
-
-This is the intended complete path, with distinct implementation boundaries.
-GrAss's protected proposal importer is implemented; the general revision-bound
-teacher-decision-to-EDIT transfer remains a
-[separate integration](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration).
-The [authenticated native transfer composition](teacher-edit-transfer.md) joins
-LocalGrAss teacher/source authority to exact selection, destination preflight,
-one-shot local EDIT execution and semantic readback. The optional authenticated
-`LocalEditApplication`, Canvas `build_application` factory and immutable runtime
-admission are implemented and tested with fictional records and controlled
-transports. Staging defaults to off; configuration/runtime checks create no
-account, database, client or teacher decision.
-
-The typed Unit 1 adapter now preserves independently verified owner results,
-their accepted per-question attempt/mastery policy and authenticated teacher
-corrections in `FORM_POINTS`. An exact section and explicit central mapping are
-required: same-maximum `RAW_IDENTITY`, or the reviewed Unit 1 100-point,
-whole-percent `ROUND_HALF_UP` profile bound to its exact form, source maximum and
-existing policy receipt. No score conversion is inferred. Literal null Canvas
-attempts are retained for observed paper-only work without inventing zero.
-Every real canary requires a currently admitted source and genuine teacher
-acceptance. An existing advisory pair or learner selection does not supply that
-acceptance. Generic fictional scoring and held results remain ineligible.
-Source, installed bindings,
-authenticated acceptance and native canary readback retain separate evidence.
-Score and full feedback derive from the same reviewed result but retain separate
-release permissions, transport state and independent destination verification.
+The aim is dependable grading support that saves teacher time while preserving
+original evidence, exact identity, academic policy and teacher control. This page
+owns the current agenda. Procedures belong in the linked guides; detailed case
+history, approvals, installed pins and readback receipts remain private.
 
 ## Priorities
 
-1. Reliable grades and useful teacher-reviewed score-plus-feedback pairs.
-2. Dependable Canvas → protected GET → preserved EDIT → reviewed Canvas sync,
-   with higher existing grades protected and score/feedback verified separately.
-3. A durable workbench that shows each purpose, owner, evidence, decision,
-   blocker, next action and completion proof without reconstructing chat history.
-4. Evidence-first Unit 2 work: inventory originals and literal answers, bind issued
-   forms/keys and the sealed R1 policy, then review bounded proposals. Keep R2
-   policy questions and grader/provider integration held separately.
+The immediate classroom priority is teacher-ready Unit 2 A-day test results.
+Use retained evidence and existing domain engines; resolve actual source/policy
+holds and prepare reviewable score/feedback pairs before expanding infrastructure.
+Execution and delivery still require their separate authorization.
 
-The on-demand Python/Codex Unit 2 helper exists outside this repository. Its
-[domain contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md)
-records the adopted point allocation, sealed R1 rubric and supervised-pilot
-mechanics. Real handwriting accuracy and classroom throughput remain unverified;
-R2 eligibility/selection and automatic crop/review work remain separate limits.
-Use that maintained contract rather than duplicating policy here. Documentation
-and helper availability grant no automatic grading, paid-call, scheduling or
-Canvas-write authority.
+1. Reuse valid saved evidence and results to produce useful proposals without
+   repeating paid analysis or reconstructing work from chat history.
+2. Preserve two intake lanes: Canvas submissions and teacher-folder/paper
+   evidence. Bind each result to its actual source, assignment, form and attempt.
+3. Keep protected GET observations, teacher-owned EDIT values and original
+   baselines intact through refresh, review and separately authorized delivery.
+4. Show purpose, owner, evidence, decision, hold, next action and completion proof
+   in the existing workbench. Resolve known blockers before adding infrastructure.
 
-## Unit 1 outcome
+## Grading flow
 
-| Result | Verified aggregate |
+Both intake lanes retain their original bytes and provenance. Reuse an existing
+result only when its source, policy, identity and substantive revision still
+match. A paper reassessment label never supplies a Canvas attempt number.
+
+| Work | Review and staging method | Final delivery |
+| --- | --- | --- |
+| Ordinary participation | Source-bound participation proposal and private analysis → local QC/review → UNAPPROVED central EDIT draft | Fresh Canvas comparison, exact teacher approval and separately gated **score-only** publication |
+| Accepted tests | Saved academic result and full feedback → authenticated exact teacher decision → protected central EDIT transfer | Separate score and full-feedback permissions, transport histories and independent readback |
+
+An ordinary draft may be staged before final teacher approval. It remains
+UNAPPROVED and supplies no Canvas publication authority. Participation analysis
+and local provenance notes are private; they are not student comments. Accepted
+test scores and full feedback derive from the same reviewed result and retain
+separate delivery evidence. Missing source or identity is a hold, never a zero.
+
+## Source and installed capability
+
+| Capability | Current boundary |
 | --- | --- |
-| Approved scores confirmed | 166: 41 new verified writes and 125 existing/higher no-ops |
-| Full feedback bodies confirmed | 163: 72 new verified writes and 91 exact existing no-ops |
-| Higher existing scores preserved | 13, including 12 fractional raw values |
-| Historical comment holds | 3: current absence was observed, but original execution history is unavailable |
-| Source/identity holds | 7: four missing-source records, one cut-off page and two identity joins |
+| GET-only mirror refresh and native review | Maintained source preserves EDIT content and original Sync baselines. A current matching worker heartbeat and finalized request receipt establish operation-specific readiness and completion. |
+| Authenticated Unit 1 decision to native EDIT | Source-accepted composition, typed owner-result adapter and exact preservation controls exist. One real case has a retained isolated-runtime qualification; that completed operation must not be replayed. |
+| Ordinary participation receiver | Qualified locally with the existing source reader, owner, locks and history. The newer draft/provider/current-attempt implementation remains a private operational overlay pending portable source review. |
+| Proposal-preview source | Three commits remain unmerged on the existing remote review branch. That branch does not contain every private operational overlay or establish installed parity. |
+| Canvas score and comment delivery | Existing publishers have distinct approval, durable-intent and readback gates. EDIT staging and score parity do not verify feedback delivery. |
+| Older accepted-pair RELEASE prototype | Remains an offline, unconnected prototype; it is separate from the implemented native EDIT transfer. |
 
-Scores and feedback use separate publication/readback evidence. Native GET/EDIT
-point parity alone does not prove feedback delivery. Historical uncertain sends
-require reconciliation of retained execution evidence; absence today is not
-permission to replay an append-only comment.
-
-Whole-percent presentation applies only to the Unit 1 final test. Preserve higher
-existing raw grades even when their display rounds to an integer percentage.
-A source or identity hold is unresolved work, not a zero, a completed grade or
-permission to guess a student match.
-
-## Dated gradebook evidence
-
-The October 14 finalized GET-only refresh covered 173 populated student keys
-across two courses and 24 assignment keys per course. Complete native readback preserved EDIT
-grades, formulas, feedback notes and the original `_Sync!B2` baselines. The local
-GET-only worker and institutional-account workbook menu were verified at the
-operational checkpoint. Current liveness still requires a fresh matching READY
-heartbeat; the Mac must remain awake, online and authenticated.
-
-Maintained source includes separately guarded score/comment publishers and
-recovery paths. Source, installed worker/menu bindings and operational liveness
-require independent verification. Read
-[repository maintenance](repository-maintenance.md) for safe synchronization;
-publishing a branch does not install its code or reconcile private overlays.
+Source publication, installed bindings, service liveness, teacher acceptance and
+delivery are separate facts. A merge, test result, manifest or old checkpoint
+does not establish the others. Paid calls and Canvas writes remain off in the
+current work scope. See [transfer methods](teacher-edit-transfer.md),
+[integration ownership](grass-workflow-integration.md) and the
+[gradebook workflow](sdm-gradebook-workflow.md).
 
 ## Next work and ownership
 
-- Resolve the three historical comment histories and seven source/identity holds
-  through their evidence owners. Do not resend or manufacture missing evidence.
-- Retain the verified checkout adoption and recovery receipt. Reuse the qualified
-  case's completed evidence; no replay. Resolve the existing gradebook startup hold
-  through its owner before a fresh gradebook session.
-  Other cases follow the [activation agenda](teacher-edit-transfer.md#activation-agenda-and-restart-sequence)
-  from their first unfinished gate, including genuine acceptance and exact grade/note
-  preservation. Broader staging, paid calls and Canvas writes remain off.
-- Keep GET-only source and installed overlays aligned through reviewed promotion
-  and exact adopted-source readback before any activation.
-- Continue the durable workbench and Unit 2 evidence/policy work in
-  [LocalGrAss](https://github.com/sirdanielm/LocalGrAss). Canvas owns exact target
-  resolution, observations, publisher gates and installed Canvas bindings.
+| Order | Owner | Concrete next action and completion evidence |
+| --- | --- | --- |
+| 1 | GrAss/sdmGrAss source owners and LocalGrAss review owner | Resolve actual Unit 2 source, form/policy, page-completeness and identity holds using retained results, then present teacher-reviewable score/feedback pairs. Attachment-byte membership is not page interpretation or teacher acceptance. |
+| 2 | Canvas and LocalGrAss owners | Resume a separately authorized case from its first unfinished gate in the [restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence). Reuse valid admission and approval; retain completed canaries and uncertain histories without replay. |
+| 3 | Canvas source owner | Keep one review lane for the three unmerged proposal commits. Separate private launcher dependencies and exact owner bindings from portable source, reconcile newer operational documentation, and validate the exact candidate before promotion. |
+| 4 | Respective checkout owners | Recoverably archive redundant contained or equivalent review checkouts after dependency checks. The export and October 8 closeout branches already have identical-tree equivalents in main; they need no second merge. Preserve the older GET checkout's unique dirty versions instead of bulk-merging them. |
 
-The older accepted-pair/fake-release prototype remains separately unconnected;
-bounded local Unit 1 delivery does not activate that general bridge. See the
-[Unit 1 contract](unit1-pair-preview-contract.md), [gradebook workflow](sdm-gradebook-workflow.md)
-and [integration boundaries](grass-workflow-integration.md).
+Canvas owns exact targets, observations, transport and installed Canvas bindings.
+LocalGrAss owns shared review/workbench tools. Domain owners retain academic
+policy and original evidence. d0t coordinates scope and the shared hub; local
+delegation does not renew authorization or checkpoint budgets.
+
+Keep the Unit 2 [domain contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md)
+in its owning repository. Printed forms, policy versions and handwriting
+qualification must be established before a bounded proposal; helper availability
+does not activate grading, paid providers or publication.
+
+## Evidence and recovery
+
+Use the [documentation map](documentation-map.md) to select a procedure and
+[repository maintenance](repository-maintenance.md) before source or checkout
+changes. Retain failed reads, original baselines, higher existing grades, custom
+notes and unresolved operations. A current absent comment does not prove a
+historical append was never sent; reconcile its original history.
+
+Earlier delivery counts and source qualifications remain dated evidence in the
+[previous guide](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/goals-and-status.md)
+and private owner receipts. They are not current queue counts, service health or
+permission to resume. Public guidance contains no student identities, source
+links, credentials or private receipt contents.

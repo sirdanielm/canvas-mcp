@@ -23,12 +23,14 @@ evidence/result revision. Local tools inspect, reconcile and stage proposals for
 teacher review before the central gradebook's EDIT workflow and separately
 authorized Canvas delivery.
 
-The protected proposal inbox exists; the general revision-bound transfer of a
-teacher decision into EDIT remains a separate integration. Score and feedback
-have distinct delivery gates and independent readback. Read
-[goals and status](docs/goals-and-status.md) for the flow, owners and remaining
-work. Shared local tools belong in LocalGrAss; Canvas observations, publisher
-gates and installed Canvas bindings belong here.
+The authenticated Unit 1 teacher-decision-to-EDIT route is source-accepted and
+has a completed local canary. Ordinary participation drafts are qualified as a
+local overlay pending portable source publication; they remain UNAPPROVED and
+use score-only delivery with private analysis. Broader rollout, teacher approval
+and Canvas delivery retain their own gates and independent readback. Read
+[goals and status](docs/goals-and-status.md) for current priorities. LocalGrAss
+owns shared review tools; Canvas owns observations, publisher gates and installed
+Canvas bindings.
 
 | Task | Start here |
 | --- | --- |

@@ -1,39 +1,24 @@
-# Security review follow-ups (from the 2026-09-06 Codex xhigh review)
+# Known open security and resource-limit work
 
-Status: PLAN, not started. Written by control 2026-09-06 evening.
-Source: branch `codex/review-2026-09-06` (worktree `/Users/vishal/code/canvas-mcp-review`, 5 commits on top of `43497f9`), report `REVIEW-2026-09-06.md` at that branch's root. Suite on the branch: 1,464 passed / 21 skipped (control re-ran it). pip-audit, npm audit, bandit clean.
+These previously reported findings remain visible in the current source. They
+are unresolved maintenance work, not completed fixes or new execution authority.
+Keep them separate from the classroom grading agenda; this documentation change
+does not implement mitigations, enable TypeScript execution or alter HTTP policy.
 
-## 1. Land the branch (decision needed)
+| Finding | Current observation | Follow-up and validation needed |
+| --- | --- | --- |
+| S2: child-output buffering | `execute_typescript` captures stdout and stderr through `process.communicate()` in [code_execution.py](../../../src/canvas_mcp/tools/code_execution.py). A time limit does not cap accumulated host output bytes. | Bound and drain both pipes without deadlock; test overflow, cancellation and retained diagnostics. This concerns installations that explicitly enable code execution. |
+| S4: authenticated HTTP body limit | [server.py](../../../src/canvas_mcp/server.py) bounds the public approval-form body, then forwards authenticated MCP traffic without a universal application-level body cap. | Check the full HTTP path and deployment proxy limits; enforce and test both declared-length and streamed-byte limits before parsing. |
+| S5: caller-supplied regex | Announcement selection in [discussions.py](../../../src/canvas_mcp/tools/discussions.py) calls `re.search` on supplied patterns without a time bound. | Choose a bounded matching contract or timeout-capable implementation; preserve preview/confirmation behavior and test compatibility and slow patterns. |
+| S6: access-key comparisons | `_access_key_ok` in [server.py](../../../src/canvas_mcp/server.py) uses short-circuiting `any()` even though its comment says every key is compared. | Resolve the documented comparison contract and verify behavior across every configured key without short-circuiting. |
+| S7: anonymization cache growth | [anonymization.py](../../../src/canvas_mcp/core/anonymization.py) retains an unbounded process-global mapping cache; an explicit clear helper does not impose a size limit. | Review deterministic-ID and statistics requirements, then remove or bound the cache with identity-compatibility and workload tests. |
 
-The branch is NOT merged because one fix changes public behaviour for HTTP deployments:
+The earlier branch-landing instructions, test counts and optional optimization
+ideas are retained in [fixed history](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/superpowers/plans/2026-09-06-security-review-followups.md).
+Their age does not close the open findings above. No speculative hardening or
+implementation work is included in the current documentation revision.
 
-- `735ca36` **High S1**: over HTTP, `generate_peer_review_report(save_to_file=True)`, `extract_peer_review_dataset(save_locally=True)` and `create_student_anonymization_map` now refuse before any Canvas call instead of writing student records to the server's disk. stdio behaviour unchanged. The two optional-save tools are no longer annotated `readOnlyHint`, so cautious clients may prompt for confirmation.
-- `afb4cc0` Medium S3: URL sanitizer strips user-info, query and fragment before logging (presigned upload credentials were reaching stderr).
-- `63d2037` perf O1: peer-review completion analytics fetches the roster once, not twice.
-- `b72c430` test: fencing registry test corrected for hybrid read/write tools.
-
-Path: open a PR from the branch, note the S1 behaviour change in CHANGELOG under a minor bump, and ask Codex (not the branch author) to review the PR per the fleet rule. Hosted slots: confirm the three tools are not used with save flags by any hosted instructor before release.
-
-## 2. Remaining findings, in priority order
-
-| # | Sev | Finding | Where | Fix shape | Size |
-|---|---|---|---|---|---|
-| S2 | Med | Code-execution tool captures unbounded stdout/stderr with `communicate()`; a caller can exhaust host memory | `src/canvas_mcp/tools/code_execution.py:680-731` | Drain both pipes incrementally, keep a configured cap, kill the child on overflow, return an explicit truncation result. Needs deadlock-free draining tests. Tool is disabled on hosted slots (see CLAUDE.md #157), so self-hosted only | M |
-| S4 | Med | Authenticated MCP HTTP requests have no body size limit; the bounded reader only guards the approval form | `src/canvas_mcp/server.py:85-119` vs `329-410` | Configurable ASGI receive limit for all MCP HTTP requests, enforce Content-Length and streamed bytes, 413 before JSON parsing. Integration test with a chunked oversize body | M |
-| S5 | Med | Caller-supplied regex applied to Canvas titles with no time bound (announcement filters) | `src/canvas_mcp/tools/discussions.py:1416-1462` | Either a timeout-capable regex engine with a short limit, or retire regex for bounded literal/glob matching. Public filter contract changes; add compatibility tests | S-M |
-| S6 | Low | Access-key comparison short-circuits via `any()`, contradicting the comment that every key is compared | `src/canvas_mcp/server.py:123-129` | OR integer results across all keys without short-circuit | S |
-| S7 | Low | Anonymization mapping cache is global and unbounded | `src/canvas_mcp/core/anonymization.py:13-14,188-213` | Pseudonym is deterministic: drop the value cache, or bound it per request/tenant; status statistics need a design call first | S-M |
-
-## 3. Optimizations recommended, not implemented
-
-- O4 (top): HTTP mode builds a new `httpx.AsyncClient` per Canvas call (`core/client.py:458-470,603-607`); hold one authenticated client per MCP request in context and close in middleware. Needs concurrency and credential-isolation tests.
-- O3: `list_groups` and `get_course_content_overview` serialize independent fetches; `asyncio.gather` with order preserved.
-- O2: `generate_report` re-scans assignments already fetched by `get_completion_analytics`; a private collector returning both.
-- O5: uploads read the whole file synchronously on the event loop; stream or bounded worker thread.
-
-## 4. Order of work
-
-1. PR and review of the branch (section 1).
-2. S6 and S5 as small TDD commits.
-3. S4, then O4, both need HTTP integration tests; do them together since both touch the HTTP path.
-4. S2 only if hosted code-exec is ever re-enabled.
+Use the [current goals and owner agenda](../../goals-and-status.md),
+[developer validation rules](../../../CLAUDE.md) and
+[repository maintenance procedure](../../repository-maintenance.md) to scope
+any separately authorized repair.

@@ -1,49 +1,46 @@
 # Documentation map and authority
 
-Use [goals and status](goals-and-status.md) for direction and dated outcomes
-and priorities. Read the relevant guide for procedures, and the current source
-and exact installed bindings for capability. Tests, a Git merge or an old
-checkpoint do not establish current service liveness or publication authority.
+[Goals, methods and current work](goals-and-status.md) is the single current
+agenda. Use the relevant procedure below and inspect actual source and installed
+bindings before claiming a capability. Tests, a merge or an old checkpoint do
+not establish current service liveness or publication authority.
 
-## Maintained references
-
-| Need | Reference |
+| Need | Maintained reference |
 | --- | --- |
-| Dual intake, paired score/feedback outputs and remaining handoffs | [Grading flow](goals-and-status.md#grading-flow), [architecture pointer](GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md) |
-| Start/use the main MCP connection | [README](../README.md), [installation](installation.md), [tool reference](../tools/README.md) |
-| Agent/developer rules | [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [main tool manifest](../tools/TOOL_MANIFEST.json) |
-| GET/EDIT gradebook operation | [Workflow](sdm-gradebook-workflow.md), [worker](sdm-gradebook-worker.md) |
+| Current aims, intake methods and next owner action | [Goals and methods](goals-and-status.md), [current agenda](goals-and-status.md#next-work-and-ownership) |
+| Main MCP connection and tools | [README](../README.md), [installation](installation.md), [tool reference](../tools/README.md) |
+| Agent and developer rules | [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [main tool manifest](../tools/TOOL_MANIFEST.json) |
+| GET/EDIT gradebook operation | [Workflow](sdm-gradebook-workflow.md), [worker and recovery](sdm-gradebook-worker.md) |
+| Accepted decisions and ordinary draft staging | [Transfer methods and restart](teacher-edit-transfer.md), [exact preservation](teacher-edit-preservation.md) |
+| Repository ownership and domain contracts | [Integration boundaries](grass-workflow-integration.md), [architecture pointer](GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md), [capture port](grass-capture-contract.md) |
+| Offline accepted-pair RELEASE prototype | [Unit 1 preview contract](unit1-pair-preview-contract.md) |
 | Curriculum authoring and course archives | [Authoring](sdm-canvas-authoring-workflow.md), [course mirror](course-mirror.md) |
-| Review and publisher ownership | [Integration](grass-workflow-integration.md), [capture port](grass-capture-contract.md), [Unit 1 contract](unit1-pair-preview-contract.md), [teacher decision to EDIT](teacher-edit-transfer.md), [exact preservation](teacher-edit-preservation.md) |
 | Private student copies | [PIN policy](STUDENT-PIN-POLICY.md), [exports](local-pin-exports.md), [post-QC archives](post-qc-pin-archives.md) |
-| Source promotion and recovery | [Maintenance](repository-maintenance.md), [workflow inventory](../.github/workflows/README.md), [release checklist](../internal/release-checklist.md) |
+| Source promotion, checkout retirement and recovery | [Maintenance](repository-maintenance.md), [workflow inventory](../.github/workflows/README.md), [release checklist](../internal/release-checklist.md) |
+| Known unresolved security findings | [Current open resource/authentication work](superpowers/plans/2026-09-06-security-review-followups.md) |
 
-The main server's manifest excludes the separate gradebook server. Shared local
-review/dashboard tooling belongs in [LocalGrAss](https://github.com/sirdanielm/LocalGrAss);
-Canvas services and installed targets remain owned here. Preserve the distinction
-between advisory results, accepted teacher decisions, authorized delivery and
-verified score/comment outcomes.
+The main tool manifest excludes the separate gradebook server. Shared local
+review tooling belongs in LocalGrAss; Canvas services and installed targets are
+owned here. Domain policy stays with its source owner. Advisory results, accepted
+decisions, local drafts, authorized delivery and verified channel outcomes are
+distinct states.
 
-The [GrAss handoff contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
-owns the remaining revision-bound teacher-decision-to-EDIT requirements; the
-proposal inbox and existing Canvas publishers do not connect that step by
-themselves. The [dated local qualification and checkout adoption](goals-and-status.md#dated-local-qualification--october-17)
-separate one completed canary, its isolated runtime and source adoption.
-Domain policy details remain in their owning repositories.
+The authenticated Unit 1 native EDIT transfer is implemented and has bounded
+local qualification. The older accepted-pair RELEASE prototype remains separate.
+The [capability table](goals-and-status.md#source-and-installed-capability)
+distinguishes maintained source from unmerged review commits and private runtime
+overlays; none grants broad rollout authority.
 
-## Historical records
+## History and privacy
 
-Current guides link dated detail to fixed Git revisions. Keep release notes,
-design contracts, private receipts and `internal/project-history.md` as evidence;
-do not read old queue counts, credential holds or deployment claims as current
-status. The [September design-transfer pointer](reviews/grass-next-20260930/README.md)
-retains its successor and archive boundaries.
+Keep historical detail in fixed Git revisions, release notes and private owner
+receipts. Update the existing agenda and procedure rather than adding another
+competing status file. Old queue counts, credential holds and deployment claims
+are dated evidence. The [September design-transfer pointer](reviews/grass-next-20260930/README.md)
+retains its archive boundaries.
 
-## Publication and privacy
-
-This fork is public, including every tracked `internal/` file. `docs/` is also the
-manual website upload root; `.gitignore` alone does not exclude a website upload.
-Keep identities, PIN crosswalks, raw evidence, journals, credentials and backups
-outside Git and that root, with `docs/.assetsignore` as an upload backstop.
-A documentation merge does not upload the website, release a package, restart an
-installed service, approve a score or deliver feedback.
+This fork and every tracked file are public. `docs/` is also the website upload
+root; `.gitignore` alone does not exclude uploads. Keep identities, PIN crosswalks,
+raw evidence, journals, credentials and backups outside Git and that root, with
+`docs/.assetsignore` as an upload backstop. A documentation merge does not upload
+the website, install code, restart a service, approve a grade or deliver feedback.
