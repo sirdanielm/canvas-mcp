@@ -53,14 +53,17 @@ publication. Git maintenance clears no source, teacher-review or delivery hold.
 ## Retention and privacy
 
 The primary checkout holds the common Git directory for linked worktrees.
-Operational checkouts referenced by MCP configuration or LaunchAgents remain
-in place. A review checkout is eligible for retirement only after fresh ancestry
-and file inspection, verified recovery and dependency checks. Preserve ignored
-ledgers, baselines, results and unresolved operations before archiving a managed
-worktree. The archive must preserve unique commits and dirty files, with ignored
-files copied separately and their recovery verified before retirement. Record a
-successor for superseded review checkouts and status documents. Archived receipts
-retain their original bytes and timestamps. Missing upstreams, detached heads and
+Keep the operational authoring checkout as the single dirty runtime overlay;
+private launcher dependencies, exact owner bindings and receipts remain
+separate from portable source review. Operational checkouts referenced by MCP
+configuration or LaunchAgents remain in place. A review checkout is eligible
+for retirement only after fresh ancestry and file inspection, verified recovery
+and dependency checks. Preserve ignored ledgers, baselines, results and
+unresolved operations before archiving a managed worktree. The archive must
+preserve unique commits and dirty files, with ignored files copied separately
+and their recovery verified before retirement. Record a successor for
+superseded review checkouts and status documents. Archived receipts retain
+their original bytes and timestamps. Missing upstreams, detached heads and
 opaque unreachable objects are retention holds, not deletion instructions.
 
 Keep credentials, student data, original evidence, manifests, backup patches and

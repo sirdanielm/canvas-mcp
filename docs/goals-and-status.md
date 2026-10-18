@@ -63,7 +63,6 @@ current work scope. See [transfer methods](teacher-edit-transfer.md),
 | 1 | GrAss/sdmGrAss source owners and LocalGrAss review owner | Resolve actual Unit 2 source, form/policy, page-completeness and identity holds using retained results, then present teacher-reviewable score/feedback pairs. Attachment-byte membership is not page interpretation or teacher acceptance. |
 | 2 | Canvas and LocalGrAss owners | Resume a separately authorized case from its first unfinished gate in the [restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence). Reuse valid admission and approval; retain completed canaries and uncertain histories without replay. |
 | 3 | Canvas source owner | Keep one review lane for the three unmerged proposal commits. Separate private launcher dependencies and exact owner bindings from portable source, reconcile newer operational documentation, and validate the exact candidate before promotion. |
-| 4 | Respective checkout owners | Recoverably archive redundant contained or equivalent review checkouts after dependency checks. The export and October 8 closeout branches already have identical-tree equivalents in main; they need no second merge. Preserve the older GET checkout's unique dirty versions instead of bulk-merging them. |
 
 Canvas owns exact targets, observations, transport and installed Canvas bindings.
 LocalGrAss owns shared review/workbench tools. Domain owners retain academic
