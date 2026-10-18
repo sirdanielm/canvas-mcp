@@ -18,8 +18,9 @@ Canvas owns identity/attempt targeting, GET/EDIT integrity, transport gates and
 installed Canvas services. LocalGrAss owns shared local tools and review;
 GrAss and sdmGrAss retain their domain engines and policy contracts. The
 [grading direction](goals-and-status.md#grading-flow) joins both intake lanes to
-paired score/feedback proposals. Git maintenance does not complete the remaining
-teacher-decision-to-EDIT integration or clear an academic/delivery hold.
+lane-appropriate proposals. The authenticated Unit 1 EDIT transfer is source-accepted;
+the ordinary participation receiver is locally qualified pending portable source
+publication. Git maintenance clears no source, teacher-review or delivery hold.
 
 ## Reviewed promotion
 
@@ -29,10 +30,12 @@ teacher-decision-to-EDIT integration or clear an academic/delivery hold.
    MCP/LaunchAgent runtime paths and active operations before changing a checkout.
 2. Preserve exact tracked/untracked changes, ignored evidence and recoverable
    history separately. Verify the snapshot and retain recovery references.
-3. Create an isolated candidate from the reviewed base. Reconcile intended
-   source differences without overwriting another session's files. Shared local
-   tools are coordinated with LocalGrAss; Canvas services and installed targets
-   remain owned here.
+3. Keep one active promotion candidate from the reviewed base. Compare intended
+   source changes by bytes and behavior, retain unique commits and resolve stale
+   duplicate guidance against current receipts. Separate portable source from
+   private owner bindings and runtime overlays; do not publish ignored dependencies
+   merely to make an operational checkout clean. Shared local tools are coordinated
+   with LocalGrAss; Canvas services and installed targets remain owned here.
 4. Validate the exact candidate with the repository's existing commands, using
    dummy credentials and offline fixtures. Review privacy, documentation and
    source compatibility, then use a reviewed branch and PR.
@@ -54,8 +57,11 @@ Operational checkouts referenced by MCP configuration or LaunchAgents remain
 in place. A review checkout is eligible for retirement only after fresh ancestry
 and file inspection, verified recovery and dependency checks. Preserve ignored
 ledgers, baselines, results and unresolved operations before archiving a managed
-worktree. Missing upstreams, detached heads and opaque unreachable objects are
-retention holds, not deletion instructions.
+worktree. The archive must preserve unique commits and dirty files, with ignored
+files copied separately and their recovery verified before retirement. Record a
+successor for superseded review checkouts and status documents. Archived receipts
+retain their original bytes and timestamps. Missing upstreams, detached heads and
+opaque unreachable objects are retention holds, not deletion instructions.
 
 Keep credentials, student data, original evidence, manifests, backup patches and
 operational receipts outside Git. `docs/` is also the website upload root:
@@ -63,12 +69,21 @@ Git ignore rules alone do not protect website uploads. Maintain corresponding
 `docs/.assetsignore` exclusions and keep private backups outside that tree.
 Report preserved local evidence, published branches and cleanup separately.
 
-## Historical evidence
+## Closeout and restart
 
-The full previous maintenance record remains at immutable revision
-[`d0794b2`](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/repository-maintenance.md),
-including [verified promotions](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/repository-maintenance.md#verified-promotion)
-and the [October 8 closeout](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/repository-maintenance.md#october-8-repository-closeout).
-Historical test counts, checkout inventories and paused scopes remain dated
-evidence. A documentation merge grants no deployment, paid-call or Canvas-write
-authority.
+Record the maintained source revision, remaining operational overlay, installed
+pins, retained recovery paths and unresolved operations separately. Retire
+completed review worktrees after preservation and dependency checks; keep the
+primary Git checkout and every active runtime target. A clean checkout is not a
+reason to discard private work, rewrite receipts or activate source.
+
+The next owner starts from the current source and installed bindings, identifies
+one concrete task and its approval scope, and reuses retained evidence before
+commissioning another read or run. A completed operation is closed; uncertain
+operations use their existing reconciliation path. Paid calls, publication and
+service changes retain their separate explicit gates.
+
+Historical promotions, checkout inventories and paused scopes remain at
+[fixed earlier guidance](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/repository-maintenance.md)
+and in private recovery receipts. A documentation merge grants no deployment,
+paid-call or Canvas-write authority.

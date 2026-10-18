@@ -1,34 +1,36 @@
-# GrAss architecture contract
+# GrAss architecture and ownership
 
-The canonical GrAss architecture and shared local implementation are maintained in
-[LocalGrAss](https://github.com/sirdanielm/LocalGrAss).
+The canonical architecture and shared local implementation are maintained in
+[LocalGrAss](https://github.com/sirdanielm/LocalGrAss). Use this repository's
+[current goals](goals-and-status.md) and [integration boundaries](grass-workflow-integration.md)
+for the active Canvas scope.
 
-Start with this repository's [grading flow](goals-and-status.md#grading-flow)
-and [integration boundaries](grass-workflow-integration.md): Canvas and
-teacher-folder/paper intake produce paired score/feedback proposals through local
-tools and teacher review. The revision-bound transfer into central EDIT remains
-a separate integration; source tests do not establish that complete path.
+Canvas and teacher-folder/paper intake retain exact evidence, identity, assignment,
+form, policy and attempt bindings. GrAss summative results retain score and full
+feedback; ordinary sdmGrAss participation uses score-only delivery with private
+analysis. Shared review tools preserve that distinction through teacher review.
 
-- [Architecture contract](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md)
-- [Implementation plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_NEXT_BUILD_PLAN.md)
-- [Production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/PRODUCTION_CONNECTION_PLAN.md)
+The authenticated Unit 1 transfer into central EDIT is source-accepted and has a
+completed local canary. The ordinary UNAPPROVED participation receiver is a
+qualified local overlay pending portable source publication. Neither establishes
+broad rollout or Canvas publication authority. Read the
+[transfer guide](teacher-edit-transfer.md) for the current procedures and gates.
+
+- [Canonical architecture contract](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md)
+- [Current LocalGrAss goals and ownership](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/SDM-GOALS-AND-WORK-STATUS.md)
 - [Implementation status](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/IMPLEMENTATION_STATUS.md)
-- [Local goals and ownership](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/SDM-GOALS-AND-WORK-STATUS.md)
 
-Shared local tooling is developed in LocalGrAss; Canvas-specific services,
-policies and installed targets remain owned by this repository. Quinn/local AI
-is an optional future adapter. Teacher approval, publication releases and
-verified Canvas readback remain separate requirements.
+LocalGrAss owns shared local review and workflow tooling. GrAss and sdmGrAss own
+their domain engines, evidence and scoring policy. Canvas owns Canvas observations,
+GET/EDIT integrity, identity/attempt targeting, scoped transport and installed
+Canvas bindings. The [capture contract](grass-capture-contract.md) defines the
+private observation/PIN handoff to the local core.
 
-Original design transfers, frozen comparison versions and operator checkpoints
-are preserved in the operator's private archive. They are historical evidence;
-edit the canonical LocalGrAss contract for current design work.
+Current installation, teacher acceptance, final approval and independently
+verified score/comment delivery require their own evidence. Preserve completed
+plans and uncertain history; never replay a send to repeat qualification.
 
-See the [documentation map](documentation-map.md) for current Canvas operator
-guides and the distinction between implementation, installed runtime and live
-publication authority.
-
-The Canvas-owned [capture contract](grass-capture-contract.md) defines the exact
-observation/PIN handoff to the local core. Receipt, local teacher login and
-fake-release tests do not connect the general accepted-pair release bridge.
-Existing guarded Canvas delivery remains a separate capability.
+Superseded design transfers, prototype limitations and frozen plans remain in
+[fixed earlier guidance](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md)
+and private operator archives. They are historical evidence, not the active build
+agenda. See the [documentation map](documentation-map.md) for current guides.

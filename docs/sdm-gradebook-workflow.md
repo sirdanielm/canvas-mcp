@@ -2,7 +2,7 @@
 
 Use this guide for the central FDHS Chemistry workbook, private score reviews,
 and separately authorized Canvas delivery. See [goals and status](goals-and-status.md)
-for the dated operational result, remaining holds and next work. Source availability,
+for current capabilities and next work. Source availability,
 local installation, teacher approval and verified delivery are different states.
 
 ## Everyday use
@@ -35,14 +35,6 @@ The workbook roles are Core/Adv GET, Core/Adv Edit, Student Info, Assignment and
 Grader Proposals, plus hidden course Sync tabs. Exact bindings live in
 `config/sdm-gradebook-workbooks.json`; names do not establish ownership. Preserve
 reference tabs and permanent numbers.
-
-### Historical legacy GET menu error
-
-A legacy **GrAss Submissions** action targeted a different workbench layout.
-Do not clear ownership guards to bypass it. The explanation and original
-activation records remain in the
-[immutable September guide](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/sdm-gradebook-workflow.md#historical-legacy-get-menu-error).
-A Git pull does not update Apps Script, restart the worker or verify its liveness.
 
 ## Permanent PINs for local copies
 
@@ -195,8 +187,8 @@ race between the final GET and PUT.
 ## Separately reviewed student comments
 
 The maintained comment lane is disabled by default and separate from scores.
-It does not connect an academic provider or the LocalGrAss accepted-pair release
-bridge. `--enable-push` does not enable it. An exact comment proposal needs an
+It is distinct from local EDIT staging and requires its own source-bound
+proposal. `--enable-push` does not enable it. An exact comment proposal needs an
 independently retained envelope digest and source/decision evidence; actual
 append also needs `--enable-comments`, the client allowlist and exact approval.
 
@@ -238,23 +230,38 @@ Tests, source synchronization and old activation receipts do not establish live
 READY, fresh source, teacher approval or delivery. Preserve the exact result of
 failed/incomplete verification rather than substituting an older clean receipt.
 
-## Main-workbook migration checkpoint (2026-09-20)
-
-Historical layout, counts and activation logs remain in the
-[immutable baseline](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/sdm-gradebook-workflow.md#main-workbook-migration-checkpoint-2026-09-20).
-They are not current inventory or liveness evidence.
-
-## Receipt-bound LocalGrAss handoff
+## LocalGrAss proposal routes
 
 The [capture contract](grass-capture-contract.md) joins exact Canvas scope and
-permanent PINs through a producer-bound private receipt. The intended flow takes
-Canvas submissions and teacher-folder/paper evidence through the grading
-pipeline, retains paired score and feedback from the same saved result, then
-uses local tools to stage reviewed EDIT proposals. The general transfer from a
-revision-bound teacher decision into EDIT remains integration work. Existing
-protected Grader Proposals intake does not establish that connection.
+permanent PINs through a producer-bound private receipt. Canvas submissions and
+teacher-folder/paper evidence retain their source and policy bindings through
+review. A paper reassessment label never supplies a Canvas upload attempt.
 
-Source/policy, teacher acceptance and scoped release gates remain independently
-owned. A capture, EDIT proposal or Git merge does not establish teacher approval
-or Canvas delivery. See [integration boundaries](grass-workflow-integration.md)
-and the [current goals](goals-and-status.md).
+The authenticated Unit 1 teacher-decision-to-EDIT route is source-accepted and
+has a completed local canary. Genuine authenticated acceptance, exact selection,
+current source/attempt checks and complete native preservation remain required
+for a new case. Retain the completed plan and receipt; do not repeat its send.
+
+Ordinary participation can enter central EDIT as an **UNAPPROVED** draft before
+final teacher acceptance. That receiver is qualified as a local overlay pending
+portable source publication. It reuses the existing owner, locks and history;
+its source, reader, provider and exact-target admission remain scoped. Source
+advisory status stays advisory. An already-satisfied target requires no write.
+
+GrAss summative work retains score and full feedback together. Ordinary
+sdmGrAss participation has outbound policy **SCORE_ONLY**; internal analysis and
+local provenance notes do not become Canvas comments. A ready draft still needs
+fresh Canvas comparison and exact final teacher approval before delivery.
+
+Use the [teacher EDIT guide](teacher-edit-transfer.md) for the current contracts,
+[integration boundaries](grass-workflow-integration.md) for owner responsibilities,
+and [current goals](goals-and-status.md) for the next work. Broader rollout,
+installation and score/comment publication each require their own evidence.
+
+## Historical reference
+
+Earlier workbook migration details, activation diaries and superseded prototype
+limitations remain in the
+[fixed previous guide](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/sdm-gradebook-workflow.md)
+and private owner receipts. They establish neither current inventory nor service
+liveness and do not replace the procedures above.

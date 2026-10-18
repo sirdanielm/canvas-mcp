@@ -1,114 +1,94 @@
 # GrAss integration and authority boundaries
 
-The direction is two intake lanes—Canvas submissions and teacher-folder/paper
-evidence—producing score and feedback from the same saved result. Local tools
-inspect, qualify and stage the pair for teacher review, followed by an exact
-central EDIT handoff and separately authorized Canvas delivery/readback. The
-[grading flow](goals-and-status.md#grading-flow) records which transitions remain
-integration work. The current
-[goals and status](goals-and-status.md) distinguishes maintained source, installed
-tools, completed bounded work and remaining holds. Passing tests, a saved draft
-or a successful request establishes only its own stage.
+Canvas submissions and teacher-folder/paper evidence feed saved results and
+reviewable proposals. Reuse valid evidence and results before commissioning
+another read. Ordinary participation drafts and authenticated accepted tests
+have different staging requirements; both retain exact source and target
+bindings. The [goals and methods](goals-and-status.md#grading-flow) define those
+routes, and the [current agenda](goals-and-status.md#next-work-and-ownership)
+owns next work.
 
 ## Ownership
 
-| Repository | Responsibility |
+| Owner | Responsibility |
 | --- | --- |
-| Canvas MCP | Authenticated Canvas observations, the gradebook mirror and permanent PIN source, target preflight, separately gated score/comment transport and readback |
-| sdmGrAss | Assignment-grader engines, profile policy contracts and fleet lifecycle controls |
-| GrAss | Academic policy, original paper/question evidence, saved results and proposal exports |
-| LocalGrAss | Shared local import/QC tools, review experience, durable drafts, immutable revisions and authenticated final decisions |
+| Canvas MCP | Authenticated observations, permanent PIN source, exact identity/attempt targeting, protected GET/EDIT integrity, local execution, separately gated Canvas score/comment transport and readback |
+| sdmGrAss | Assignment-grader engines, participation/profile policies and fleet lifecycle |
+| GrAss | Academic policy, original paper/question evidence, saved academic results and proposal exports |
+| LocalGrAss | Shared import/QC and review workbench, source-bound drafts, immutable revisions and authenticated final decisions |
+| d0t | Cross-repository coordination, bounded work orders and the shared status hub |
 
-LocalGrAss maintains the canonical [architecture contract](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md)
-and production connection plans. Each repository retains its authority and
-installation boundaries.
-Quinn and local AI are optional future adapters.
+LocalGrAss maintains the canonical
+[architecture](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md).
+Each repository retains its own action gates and installation boundaries.
 
 ## Implemented boundaries
 
-The installed gradebook worker supports explicit GET-only requests. A verified
-refresh establishes captured Canvas observations and preservation of EDIT
-fields; it does not approve proposals or publish feedback notes. A fresh GET can
-contain students or assignments absent from EDIT. That coverage difference
-requires a separately reviewed append plan, with preserved physical axes and
-baselines. See the [gradebook workflow](sdm-gradebook-workflow.md) and
-[worker runbook](sdm-gradebook-worker.md).
+The GET-only worker refreshes protected observations while preserving EDIT
+scores, formulas, notes and original Sync baselines. New Canvas identities or
+assignments require a reviewed append plan; a full-sync operation is not a repair
+for GET/EDIT shape differences. Use the [gradebook workflow](sdm-gradebook-workflow.md)
+and [worker recovery](sdm-gradebook-worker.md).
 
-A bounded, authenticated Unit 1 workflow has dated local-installation evidence
-for scores, full-feedback delivery and independent readback. See the
-[October 14 outcome](goals-and-status.md#unit-1-outcome). Historical feedback and
-missing-source holds remain separate. That
-authorized scope grants no general release authority; its operational adapters
-are not all published in Git.
+GrAss's protected **Grader Proposals** importer preserves teacher-owned review
+fields. The authenticated [native EDIT composition](teacher-edit-transfer.md)
+separately connects an admitted Unit 1 result and genuine teacher decision to
+one exact preserved destination. This transfer is source-accepted and has a
+retained one-case local qualification. It does not automatically connect every
+proposal inbox record or authorize Canvas delivery.
 
-The public [Unit 1 preview and wire contract](unit1-pair-preview-contract.md)
-remains an offline contract. General policy/source admission, an accepted-pair
-exporter and authenticated release connections require their own implementation
-and qualification. The standalone Canvas publishers do not establish teacher
-consent or connect those upstream stages automatically.
+The ordinary participation receiver uses the existing owner, workbook lock and
+history to stage eligible UNAPPROVED score proposals before final approval.
+Its newer provider/current-attempt path is a qualified private local overlay
+pending portable publication. Analysis stays private and outbound participation
+policy is score-only. Refer to the [capability table](goals-and-status.md#source-and-installed-capability)
+before treating a local overlay as maintained or installed source.
 
-GrAss's [local proposal importer](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_LOCAL_IMPORTER.md)
-reconciles saved results into the protected **Grader Proposals** inbox while
-preserving teacher fields and GET/EDIT. It does not transfer a teacher decision
-into EDIT. The
-[revision-bound transfer contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
-defines that remaining connection. Keep the two intake domains' provenance and
-the score/comment channels' release and readback states distinct through it.
+The older [accepted-pair preview and RELEASE contract](unit1-pair-preview-contract.md)
+remains offline and unconnected. Existing publishers do not authenticate a
+teacher decision or complete that prototype by themselves.
 
-## Intended end-to-end handoff
+## Common handoff requirements
 
-1. **Admit the evidence.** Bind original bytes/pages, issued form, rubric,
-   academic policy, producer membership and exact student/assignment identity.
-   Canvas point totals and participation policies require explicit academic
-   authority. Missing context is a hold.
-2. **Review the complete pair.** Show the original paper beside its question,
-   rubric, proposed points, reason and editable full feedback. Question edits
-   roll up to one final assignment decision. Save drafts and Hold reasons
-   against the exact revision; unsaved edits are not durable. Source confirmation,
-   saving and acceptance are distinct.
-   A transfer into EDIT must bind that exact decision, saved result and selected
-   destination, preserving teacher values and holding changed/conflicting targets.
-   A repeated transfer with matching content is a no-op. This general transfer
-   is a contract to implement, not an existing automatic action.
-3. **Approve an exact scope.** Authenticate the teacher decision and separately
-   authorize release of its targets, score/body vector and validity window.
-   Caller-created actor objects, copied hashes and confirmation tokens do not
-   establish human approval. Recheck source and authority before dispatch.
-4. **Preflight and send separately.** Use fresh target, permission, enrollment,
-   protection and attempt observations. Preserve higher grades and existing
-   comments. Record immutable plans and durable send intent before transport.
-   A lost response enters reconciliation; it never authorizes a resend.
-5. **Verify each channel.** A score match does not establish feedback delivery.
-   Verify the exact score independently from comment author, body and retained
-   history. Preserve source, result, policy, identity, decision, operation and
-   readback references through restarts.
+1. **Admit the evidence.** Bind original bytes/pages, producer membership, issued
+   form, question/rubric policy, exact identity, assignment and actual attempt.
+   Missing or conflicting context holds; a numeric zero is an observed value.
+2. **Review and retain.** Preserve a revision-bound proposal and reasons. Ordinary
+   participation may enter EDIT as UNAPPROVED. An accepted test transfer requires
+   authenticated acceptance of its exact score and full feedback. Saving,
+   source confirmation, acceptance and publication approval remain distinct.
+3. **Preserve the destination.** Recheck current target and complete native
+   preimage. Protect higher grades, teacher content and original baselines.
+   Exact reviewed exceptions apply only to their bound case; matching hashes
+   and caller-created actor flags establish no human authority.
+4. **Authorize delivery separately.** Compare current EDIT with Canvas and obtain
+   the exact final approval required for each outbound channel. Retain durable
+   intent before transport; a lost response enters reconciliation, not retry.
+5. **Verify each channel.** Independently confirm score and, when authorized,
+   comment author/body and retained history. Score parity does not prove feedback
+   delivery. Preserve source, result, policy, decision and operation references.
 
-The newest desktop import/QC attempt remains authoritative when held, failed or
-interrupted. Read its aggregate status before older results. QC completion
-authorizes no grading or publication; no automatic Codex hook is implied.
+The newest import/QC attempt remains authoritative when held, failed or
+interrupted. Its execution completion is separate from its diagnostic verdict;
+an older clean receipt cannot clear a newer hold.
 
-## Remaining integration
+## Remaining work
 
-Implement and qualify the teacher-decision-to-EDIT contract using the existing
-proposal inbox and publication policy. Test the domain-owned fleet canary before
-unattended staging; do not add another roster, approval ledger or publisher.
+Promote portable local improvements through one reviewed source lane, keeping
+private owner bindings and runtime dependencies out of public commits. New
+academic cases still require their source owner's admission, mapping and review;
+bounded qualification does not activate unattended staging or broad rollout.
+Broader accepted-pair RELEASE integration and Unit 2 provider/policy qualification
+remain separate owner tasks. Use the existing capture port, journal and publishers;
+do not add another roster, approval ledger or scheduler to duplicate them.
 
-Connect real policy and source providers to the existing
-[receipt/PIN capture port](grass-capture-contract.md) and durable review journal.
-Qualify original-page ownership and legibility, exact saved decisions, scoped
-release and score/comment recovery as one execution path. A restored database
-or quarantined worker remains held until evidence stores, exclusive ownership
-and current authority are verified. Keep archive admission and optional AI
-stages separate from classroom decisions.
+Use the [current agenda](goals-and-status.md#next-work-and-ownership) and
+[restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence)
+from the first unfinished gate. Completed canaries are not replayed. Unknown
+historical sends use existing no-write reconciliation only.
 
-Use the [permanent PIN policy](STUDENT-PIN-POLICY.md) for authorized local copies.
-Originals, crosswalks, student records, credentials and detailed receipts stay
-outside Git and the website tree. Public reports contain aggregate findings.
-
-## Historical evidence
-
-The complete earlier guide is retained at immutable revision
-[`d0794b2`](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/grass-workflow-integration.md),
-including the [October 1 connection checkpoint](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/grass-workflow-integration.md#connection-checkpoint--october-1-2026)
-and [October 2 paper-review coordination](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/grass-workflow-integration.md#paper-review-dashboard-coordination--october-2-2026).
-Those dated receipts do not describe current permissions or readiness.
+Originals, crosswalks, source links and detailed receipts stay private. Follow the
+[permanent PIN policy](STUDENT-PIN-POLICY.md) for authorized local copies. Earlier
+operational counts remain in [dated history](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/grass-workflow-integration.md),
+not in the current task queue. Documentation changes grant no grading, paid-call,
+service or Canvas-write authority.

@@ -2,7 +2,7 @@
 
 Guidance for developing the Canvas MCP server. Agents *using* the server: see [AGENTS.md](./AGENTS.md).
 Design: [internal/architecture.md](internal/architecture.md). Long-form rules and the reasons behind them: [internal/dev-reference.md](internal/dev-reference.md). Completed work: [internal/project-history.md](internal/project-history.md), `CHANGELOG.md`.
-Codex reads `AGENTS.md`, not this file; its "Developing this server" section points here, so keep development rules in this file only. Engineering guidance reconciled on 2026-10-14. Issue numbers and dated session entries below refer to upstream `vishalsachdev/canvas-mcp` unless explicitly identified as this SDM fork; historical issue/advisory status is not a fresh operational check.
+Codex reads `AGENTS.md`, not this file; its "Developing this server" section points here, so keep development rules in this file only. Historical upstream issue references belong to `vishalsachdev/canvas-mcp` unless explicitly identified as this SDM fork. Use current source and operator receipts for operational status.
 
 ## Commands
 - Install `uv pip install -e .`; run `canvas-mcp-server` (`--test`, `--config`); `.env` holds `CANVAS_API_TOKEN` and `CANVAS_API_URL`.
@@ -12,7 +12,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Use a reviewed branch and PR for changes to this SDM fork, including documentation. Follow an already authorized workflow without asking again; otherwise clarify only consequential scope or target ambiguity. Prefixes: `feature/`, `fix/`, `docs/`, `refactor/`.
 - `main` is the maintained SDM branch; keep the installation-compatible `feature/sdm-authoring` synchronized after reviewed promotion. The primary checkout retains the shared Git directory, and the operational authoring checkout must remain available to installed services. See [repository maintenance](docs/repository-maintenance.md).
 - Keep concurrent changes isolated in suitable worktrees. Before retiring a completed review checkout, inspect ancestry and actual files, preserve unique changes and ignored evidence, and verify recovery. Archive managed worktrees through Codex; do not automatically delete branches or operational checkouts.
-- As checked on 2026-10-14, GitHub reports this fork's `main` as **protected**. The October 1 unprotected observation is historical. PR review and green applicable CI remain the SDM workflow policy; inspect the exact active rules before claiming which checks GitHub enforces. Do not bypass failed checks or change repository protection during ordinary development.
+- Use PR review and passing applicable CI for promotion to this fork's `main`. Inspect current GitHub rules before claiming which checks are enforced. Do not bypass failed checks or change repository protection during ordinary development.
 - Integrate current base changes without overwriting another session's work, then rerun the relevant validation. Before a release, test the exact merged candidate in an isolated environment; never borrow live credentials merely to make tests pass.
 - Run `./scripts/install-hooks.sh` once per clone. `fixes|closes|resolves #N` mid-sentence in a commit or PR body closes the issue on merge: rephrase (`closed [issue 172]`) or set `ALLOW_CLOSING_KEYWORD=1`. A trailer that opens a line (`Closes #173`) is allowed.
 - Release steps and publish-race fixes: [internal/release-checklist.md](internal/release-checklist.md). Breaking changes need a minor bump. A merged SDM change is not a package release or deployment.
@@ -55,24 +55,29 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 
 ## Current SDM focus
 
-Follow [goals and verified status](docs/goals-and-status.md). Reliable gradebook
-sync and useful teacher-reviewed score-plus-feedback pairs lead the work. Support
-both Canvas and teacher-folder/paper intake, retaining source identity and policy.
-Reuse saved results to produce score and feedback together, then reconcile them
-through local tools and the protected proposal inbox. The general exact
-teacher-decision-to-EDIT transfer remains a bounded integration to build; staging
-is not acceptance or delivery. Shared review/workbench tools belong in
-LocalGrAss; Canvas observations, scoped writers and installed bindings remain
-owned here. Keep source publication, installation, QC, teacher acceptance and
-score/comment delivery evidence separate.
+Follow [goals and status](docs/goals-and-status.md). Reuse preserved evidence and
+saved results, support Canvas and teacher-folder/paper intake, and retain exact
+identity, source, form, policy and attempt bindings. GrAss summative work retains
+score and full feedback together; ordinary sdmGrAss participation delivers a
+score while keeping its analysis private.
 
-Bounded local Unit 1 delivery has verified outcomes and remaining historical/source
-holds. The older accepted-pair exporter and authenticated general RELEASE bridge
-remain unconnected. Unit 2 starts with original evidence, exact forms/keys and a
-sealed policy before advisory scoring; no provider or publisher activation follows
-from documentation work.
+The authenticated Unit 1 teacher-decision-to-EDIT route is source-accepted and
+has a completed local canary. Preserve its terminal receipts; qualify each new
+adapter and installed scope separately. The ordinary UNAPPROVED participation
+route is qualified as a local overlay; portable source publication and broader
+rollout remain separate work. Stage, teacher acceptance and Canvas delivery are
+different states. Use the [transfer guide](docs/teacher-edit-transfer.md) for the
+current route and [integration boundaries](docs/grass-workflow-integration.md)
+for ownership.
 
-Historical upstream issue lists, release snapshots and deferred ideas are retained
-in [project history](internal/project-history.md), [CHANGELOG](CHANGELOG.md) and the
-[pre-trim development guide](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/CLAUDE.md).
+LocalGrAss owns shared review/workbench tools. Canvas owns exact observations,
+GET/EDIT integrity, scoped writers and installed Canvas bindings. Prioritize
+source consolidation, eligible proposal review and exact target admission;
+retain original evidence and existing teacher edits. Unit 2 requires its issued
+forms, keys and sealed policy before advisory scoring. Documentation work enables
+no provider, paid call, service restart or publisher.
+
+Historical plans, prototype limitations and test diaries remain in
+[project history](internal/project-history.md), [CHANGELOG](CHANGELOG.md) and
+[fixed earlier guidance](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/CLAUDE.md).
 Private session history stays in gitignored `internal/session-history.md`.

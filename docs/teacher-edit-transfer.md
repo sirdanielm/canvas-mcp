@@ -1,334 +1,179 @@
-# Exact teacher decision to local EDIT
+# Exact decisions and ordinary drafts to local EDIT
 
-`gradebook/teacher_edit_transfer.py` implements an **unregistered, offline
-planner and readback classifier** for one exact decision. It prepares no Canvas
-operation and executes no Sheets request. The authenticated LocalGrAss
-composition below exercises the generic Canvas-capture/native-point contract
-with fictional records and controlled transports. Source implementation,
-installed qualification, production admission and one real local canary are
-separate gates; current operational outcomes belong to their dated owner receipts.
+This guide describes two local staging routes. The authenticated Unit 1 route is
+maintained source with a retained one-case runtime qualification. The newer
+ordinary participation receiver is a qualified private local overlay awaiting
+portable source review. Inspect the [capability table](goals-and-status.md#source-and-installed-capability)
+before selecting a route. Neither route grants Canvas publication authority.
+The [current agenda](goals-and-status.md#next-work-and-ownership) owns next work;
+this page owns procedures and their gates.
 
 ## Reviewed source and restart limits
 
-[PR29](https://github.com/sirdanielm/canvas-mcp/pull/29) merged on October 17,
-2026 as `fee655db516a936cbe4efb34452954e99d962614`. Its exact reviewed head
-`a75ed0d4a1a9d5459b605679eaf13072699df92e` and merged tree
-`565b03cdd8dca84daeb5be9170aa6fffed2ba91c` are identical. Two independent
-reviews found no blocking defects; no source repair or speculative hardening
-was needed. Accepted LocalGrAss PR41/43 source supplies the compatible source
-and mapped-preview interfaces.
+`teacher_edit_transfer.py` is an unregistered offline planner and readback
+classifier. It executes no Sheets request or Canvas operation. The existing
+LocalGrAss source, Canvas owner and executor compose it into one fixed-workbook
+operation. Source acceptance, installed code, academic admission, teacher
+acceptance, local staging and delivery each require their own evidence.
 
-The fresh configured Python 3.12 suite ran 3,492 tests: 3,471 passed, 21 optional
-skips, zero failures/errors. Cross-repository transfer tests ran within that
-suite against exact accepted LocalGrAss source; they were not repeated as a
-second success count. Ruff, mypy across 91 source files and whitespace checks
-passed. Exact-head hosted checks passed Python 3.11/3.12/3.13, the TypeScript
-code API, confirmation proofs and security jobs. Four existing pytest temporary
-cleanup warnings remain in the saved log. An optional bootstrap formatter check
-reported one style-only line wrap; required checks passed and the reviewed
-runtime bytes were preserved. These are offline software checks, not grading
-accuracy, an installed promotion or a successful real canary.
+Reuse valid existing admission, mapping and exact human approval when their
+substantive bindings still match. A source merge is not a reason to repeat valid
+approval. A completed operation is retained, never replayed. A possible send
+permits reconciliation of its existing operation evidence only.
 
-Reuse the current owner case admission, reviewed mapping and genuine exact human
-approval when their bindings still match; source publication does not require
-repeating them. The separately reviewed authentication/preservation followup is
-accepted through [LocalGrAss PR46](https://github.com/sirdanielm/LocalGrAss/pull/46)
-(head `32f7283adb7b7cfed20926ccc985d366a7ca7806`, merge `02021af30f2c0e3d48ea798c978b9a80e2f81119`) and
-[Canvas PR31](https://github.com/sirdanielm/canvas-mcp/pull/31)
-(head `f164e5535911d098c1ba7f801a5388401965e255`, merge
-`eac0e7c19c1871f336f2c02135b51d5fe97f315b`). Its final configured Canvas suite passed 3,508 tests
-with 21 optional skips; Ruff and mypy across 91 source files passed. Domain
-validation: 1,609 run, 1,599 passed, ten optional skips; tracked-file publication guard and final integration review passed. Hosted checks: all exact-head workflows passed, including Python 3.11/3.12/3.13, code-API build/tests, confirmation proofs, lint/types and security.
+## Ordinary unapproved participation drafts
 
-The existing password review remains supported. Trusted application code may
-instead use the reviewed
-[host-review adapter](https://github.com/sirdanielm/LocalGrAss/blob/02021af30f2c0e3d48ea798c978b9a80e2f81119/localgrass/teacher_host_review.py)
-with an injected genuine human/message verifier, an exact unexpired claim and
-its application credentials. It retains the immutable accepted draft and current
-source checks; it creates no password account or browser login and imports no
-arbitrary chat receipt. The [exact preservation contract](teacher-edit-preservation.md)
-retains original teacher content and the specified narrow baseline exception.
-The reviewed same-decision no-op repair preserves a completed marked feedback
-block after a fresh exact permit. These are source checks; installed/runtime
-qualification and any separately owned canary require their own receipts.
+The local `LocalGrAssDraftEditConnection` composes the qualified participation
+reader with the existing Canvas owner, workbook lock, staging history and
+executor. It stages source-bound score proposals as **UNAPPROVED** before final
+teacher approval. It creates no teacher decision, scorer, controller or publisher.
+Native V2 assigned-question participation policy determines the proposal;
+academic analytical `RAW_IDENTITY` totals do not establish participation credit.
 
-The [dated one-case qualification](goals-and-status.md#dated-local-qualification--october-17)
-is complete in an isolated runtime. Operational-checkout adoption to merged main
-`ee175b1` is verified with local edits retained unstaged, original preimages saved and
-private sources/baselines/configuration/history unchanged. Keep the recovery receipt;
-future invocations use the adopted source, while existing services were not restarted.
-No merge or checkpoint starts a service, stages EDIT, grants paid calls or publishes Canvas.
+Trusted configuration pins the source module, existing workspace, selected record
+references, canonical PIN registry and central assignment mapping. An optional
+reader-bundle route requires its complete four-part bundle/policy/artifact binding;
+a partial binding holds. Every source check reruns the qualified reader and
+holds source, membership, policy, artifact or revision drift. Advisory results
+remain advisory and unresolved native evidence is not silently confirmed.
 
-The [GrAss acceptance contract](https://github.com/sirdanielm/GrAss/blob/main/docs/CENTRAL_GRADE_HANDOFF.md#teacher-decision-to-edit-remaining-integration)
-owns academic source/result/policy admission. The existing **Grader Proposals**
-inbox remains the review surface, including teacher-owned M:O. This adapter adds
-no roster, approval table, publisher, scheduler or retry ledger.
+The owner reads raw current assignment metadata. External tools remain held by
+the global gate. The private draft receiver can honor an operator-reviewed exact
+Google Assignments permit only for its bound source record/revision/queue,
+course/assignment and truthful provider metadata. It is restricted to
+`LOCAL_UNAPPROVED_EDIT_ONLY`, `SDMGRASS_FORMATIVE`, `SCORE_ONLY` and
+`publication_allowed: false`. Edpuzzle, other providers, absent permits and drift
+remain held. A permit hash alone establishes no authority. Scoped first-submission
+admission likewise binds the actual current attempt and native preimage; it does
+not rebase the original baseline or broaden the generic comparison policy.
+
+Preserve higher grades and teacher content. The local draft may retain a
+provenance note and private analysis; neither becomes a Canvas comment. A target
+already satisfied by its exact retained content produces zero writable requests.
+Completed native drafts remain terminal local evidence; final Canvas approval
+and publication are separate.
 
 ## Source and decision authority
 
-The planner retains the selected evaluation's source key, source/result hashes,
-evaluation ID, policy, section, literal four-digit PIN, exact Canvas IDs,
-paper attempt, observed Canvas attempt, form, raw score/maximum and bound
-consumer proposal/scale. A paper `R1` or `R2` label never supplies a Canvas attempt.
-The typed Unit 1 source can retain a literally observed null attempt when there
-is no submitted timestamp. It records that observation explicitly; a missing
-attempt or a null attempt paired with a submission timestamp remains held.
+The authenticated route retains the exact evaluation, source/result and policy
+revisions, section, literal canonical PIN, Canvas target, form, paper attempt,
+observed Canvas attempt, raw total and explicit scale. Paper `R1`/`R2` labels never
+supply Canvas attempts. A typed paper source may retain an observed null attempt
+only with no submitted timestamp; missing observations or inconsistent states hold.
 
-The separate final decision binds the same evaluation, source/result and policy,
-a substantive decision revision, explicit final Canvas points/maximum and full
-teacher feedback. The raw result and consumer projection are retained; this
-module does not rescore or round either. Teacher-final points can differ from
-the advisory proposal when that exact decision is authenticated.
+The final decision binds that same result and an immutable decision revision to
+explicit final Canvas points, maximum and full teacher feedback. Teacher-final
+points may differ from the advisory proposal when the exact correction is
+authenticated. This transfer does not rescore the saved academic result.
 
-`source_check(selected, decision, pin_binding)` is trusted owner configuration,
-never MCP input. It must independently assert the current saved evidence,
-result/supersession, policy, central identity/assignment/section/attempt and
-actual teacher final decision in the existing review surface. An arbitrary
-M-column string, `is_final: true`, matching hash or participation approval does
-not establish that authority. There is no established M-column acceptance
-vocabulary to infer. A held Unit 2 result is ineligible.
-
-The callback must return `None` synchronously and fail closed on changes. It
-receives copies, so it cannot mutate the planner's inputs. The shared central
-Student Info registry remains the PIN authority; its current registry/roster
-hashes and unique PIN-to-Canvas join must be revalidated by the owner.
+Trusted `source_check` configuration independently validates current evidence,
+result/supersession, academic policy, identity/assignment/section/attempt and the
+actual decision. It fails closed on change. An arbitrary proposal-cell string,
+boolean final flag, caller-created actor or copied hash is not teacher acceptance.
+The central Student Info registry remains the PIN authority; ambiguous or changed
+joins hold. Held Unit 2 results and fictional scoring policies are ineligible.
 
 ## Native destination checks
 
-The existing native Edit extractor verifies the original trusted baseline,
-bindings, protected GET/Sync structure and exact mapped identity axes. The
-transfer additionally checks current course/section, explicit attempt, grading
-schema, visible/current grade, excusal and higher-score preservation. Unknown
-or changed target state holds the transfer.
+The native extractor verifies the original baseline, protected GET/Sync structure
+and exact mapped axes. Current section, attempt, points maximum, grade, visibility,
+excusal and protection must agree. Unknown or conflicting state holds.
 
-The resulting batch changes only one Working score and its note, using the
-`userEnteredValue,note` mask. The complete teacher feedback is retained with an
-exact selection marker. Existing teacher score conflicts or custom notes hold by
-default. Only an operator-owned, hash-pinned private
-[exact preservation permit](teacher-edit-preservation.md) can admit its named
-numeric preimage; original notes remain verbatim before the marked full feedback.
-Canonical baseline notes likewise remain as a prefix. All other cells, helpers,
-formats, validations, tabs, GET state, proposal M:O and Sync baselines remain in
-the complete expected native readback.
-
-The same decision plus its exact score and full marked feedback produces zero
-requests. A score that merely happens to match is not evidence that its feedback
-or the decision was transferred. Harmless fetch/report timestamps are excluded
-from the substantive selection and target basis.
-
-## Owner integration and interruption
-
-1. Authenticate the source and teacher decision through the domain owner and
-   read the native destination/current Canvas target through existing owners.
-2. Call `prepare_transfer`. Retain the complete plan with the existing immutable
-   `Store.save("review", plan)` and keep its externally pinned digest.
-3. At an authorized idle checkpoint, call `revalidate_transfer` with that digest,
-   current source/PIN authority and fresh native/target evidence. It recomputes
-   the narrow plan and requires the complete destination preimage unchanged.
-4. The existing local owner may execute that exact batch once only when separately
-   authorized. This pure preflight is not an atomic server-side comparison or
-   a transport lock; concurrent workbook use still requires owner coordination.
-5. Classify a captured complete native readback using `classify_readback` and the
-   pinned digest. Planned output, unchanged preimage and divergence are distinct.
-   Every result returns `retry_writes: false`. After an uncertain send, an unchanged
-   preimage alone never authorizes replay; reconcile the existing owner's retained
-   operation evidence first.
-
-The plan and readback expressly deny score/comment delivery authority and do not
-claim Canvas delivery verification. Existing publication policy and publishers
-continue to gate score, feedback and exact lowering exceptions independently.
-Unknown historical append operations remain held; this module does not examine,
-clear or replay them. The existing unapproved participation staging adapter is a
-different operation and is not converted into a teacher-final decision here.
-
-The offline tests use fictional records and native fixtures. They verify exact
-revision/PIN/attempt and scale handling, source holds, existing teacher content,
-full feedback, preservation, repeat no-ops and interruption classification.
+An authenticated accepted-result batch changes only the selected Working score
+and note with `userEnteredValue,note`, retaining full feedback and its exact
+selection marker. Complete expected readback preserves every unrelated cell,
+helper, format, validation, tab, proposal review field and original `_Sync!B2`.
+Existing teacher content conflicts hold by default. Only the private operator-owned
+[exact preservation permit](teacher-edit-preservation.md) admits its reviewed
+preimage, retaining original notes and the complete before-state. Matching scores
+alone do not prove feedback or the decision was transferred.
 
 ## Authenticated LocalGrAss composition
 
-`localgrass_teacher_edit.LocalGrAssEditConnection` joins the existing
-LocalGrAss `AuthenticatedDecisionSource` to this planner. The source verifies
-the current authenticated review capability, CSRF, immutable acceptance receipt,
-current draft and result/dependency heads, current canonical identity and the
-actual original file bytes. The existing password review and reviewed trusted-host
-application adapter use this same interface. Host-only capabilities cannot bind
-the browser login server. A proposal flag or browser input supplies no decision.
+`LocalGrAssEditConnection` uses the existing authenticated source to verify the
+review capability, immutable acceptance, current draft/result/dependency heads,
+canonical identity and original evidence bytes. Password-review sessions use
+CSRF; the trusted-host alternative requires an injected genuine human/message
+verifier and an exact unexpired claim. It imports no arbitrary chat receipt and
+creates no account or acceptance. Browser input cannot select an owner or target.
 
-The first lane's contract requires a generic `COMPUTED` Canvas-capture result
-with an explicit `RAW_IDENTITY` point binding. Paper/form-specific results, held
-Unit 2 totals and unspecified score transforms remain ineligible. Capture,
-current Canvas attempt/submission time, assignment and literal PIN must agree.
-The authenticated source takes an explicit `identity_runtime_root` for the
-canonical identity implementation; it is distinct from the evidence source root
-and must match the existing staging configuration. Neither path is inferred from
-request content or the source workspace.
+`LocalGrAssEditOwner` uses the fixed-workbook Sheets client, GET-only Canvas
+client, private Store and RefreshJournal. Its pinned configuration must agree on
+workbook, assignment bindings, registry, worker state and original staging history.
+A new output directory cannot replace old send history. The optional application
+factory requires existing review/intake records and matching identity runtime;
+staging defaults to disabled.
 
-`localgrass_edit_owner.LocalGrAssEditOwner` composes that connection with the
-existing GET-only `GradebookClient`, fixed-workbook `GoogleSheets`, private
-`Store` and `RefreshJournal`. Trusted application configuration supplies these
-objects, the existing participation configuration path and its pinned SHA-256,
-and the existing workbook binding. No MCP input constructs an owner or callback.
-The pinned configuration must resolve to the same registered workbook,
-assignment bindings, PIN registry, worker state directory and existing staging
-history root. A new output directory cannot replace prior send history.
-
-`prepare()` takes the existing workbook lock, refuses unresolved refresh history,
-loads the original trusted baseline from native `_Sync!B2`, reads current source
-and destination evidence, and saves one immutable review plan. Native sheet IDs
-are normalized before persistence, so save/reopen/revalidate and repeated
-preparation retain the same substantive plan, including multi-digit sheet IDs.
-
-`execute(plan_id)` defaults to disabled without network calls or new receipts.
-An authorized application can explicitly enable local EDIT staging at an idle
-workbook checkpoint. The existing workbook lock spans preflight, the shared
-participation lock, durable `SENDING`, one `send_preflighted_batch`, and complete
-native readback. It does not use `GoogleSheets.batch`, which performs another
-metadata/authentication read after the send checkpoint.
-
-Any retained receipt forces native readback only. Post-send verification and
-explicit reconciliation read Sheets without requiring a new Canvas snapshot or
-a still-active teacher session. A Canvas outage cannot convert reconciliation
-into a new send. Unknown/divergent output remains held; neither owner releases
-or replays an uncertain operation. A validated completed operation retains its
-historical terminal receipt when later teacher edits change the workbook;
-`VERIFIED_HISTORY_RETAINED` reports current drift separately and creates no new
-uncertain receipt. The existing refresh lock cannot exclude a human browser
-editor, so owner coordination still requires an idle workbook.
-
-Cross-repository qualification is explicit: set `LOCALGRASS_TEST_ROOT` to the
-reviewed LocalGrAss source and run the joined tests. They use real authenticated
-fictional stores and mocked HTTP transports; default CI skips that external
-checkout dependency. No installed service, account, workbook or grading policy
-is changed by importing these modules or by a passing fixture run.
-
-## Authenticated application and immutable runtime
-
-The optional LocalGrAss `LocalEditApplication` extends the existing authenticated
-review server for one fixed decision, source receipt and section. Browser requests
-carry the existing session/CSRF and a single-use preview token; they do not select
-an owner, import path or arbitrary target. Preparing rechecks source and session,
-and executing consumes the preview before further work. An uncertain response
-requires reconciliation of the retained owner operation, never another send.
-
-`localgrass_application.build_application` composes that controller from already
-opened `TeacherReview`, `SourceIntake`, Canvas/Sheets clients, `Store` and
-`RefreshJournal`. It requires the same registry, existing intake/acceptance rows,
-pinned private configuration, original staging history and workbook ownership.
-Missing real records hold before owner construction; the factory creates no
-schema or acceptance. Staging defaults to `enabled=False`.
-
-The immutable runtime bootstrap supplies a retained `Admission` guard before
-imports and on source reentry. It verifies the exact manifest, Python executable,
-complete Canvas/domain code closure and external identity-reader dependencies.
-Extra files, symlinks or changed pins hold. Admission checks are code-integrity
-checks, not a sandbox for malicious trusted code. Application configuration and
-bootstrap `--check` modes create no clients, accounts, database or teacher session,
-make no network call and leave staging off. A successful check does not establish
-an admitted academic case or authorize a local send.
-
-The current generic scorer accepts only `FICTIONAL_EXPLICIT_POINTS_V1`. The
-application explicitly rejects fictional policy, including after valid login.
-Consequently no admitted generic production result route exists for a real
-positive canary. Creating a teacher account or filling acceptance fields cannot
-repair that generic scoring gap. The separate typed Unit 1 adapter below reuses
-the established owner-result policy. Missing assignment section or
-explicit `RAW_IDENTITY` scale also holds; existing participation records cannot
-supply those semantics by inference.
+The immutable runtime guard verifies the manifest, interpreter, complete adopted
+Canvas/domain closure and external identity dependencies. Changed pins, extra
+files or symlinks hold. Configuration and bootstrap checks create no clients,
+accounts, database or decision and make no network call. Integrity checks do not
+admit an academic case or establish live worker readiness.
 
 ## Typed Unit 1 owner-result adapter
 
-`AuthenticatedUnit1DecisionSource` reads one existing
-`GRASS_UNIT1_VERIFIED_OWNER_RESULT_V1` result, registered independent paper source
-and authenticated teacher acceptance. It retains the accepted
-`QUESTION_ATTEMPT_MASTERY_50_50` policy, original form and paper attempt. It creates
-no Canvas-capture intake and does not rescore a saved result. The configured
-identity runtime is shared by original-source reads and the actual teacher
-acceptance checks.
+`AuthenticatedUnit1DecisionSource` reuses an existing verified owner result,
+registered independent paper source and authenticated acceptance under
+`QUESTION_ATTEMPT_MASTERY_50_50`. It preserves the original form and paper attempt,
+creates no synthetic capture and does not rescore the result. The identity runtime
+must match across evidence reads and actual acceptance checks.
 
-Canvas selects exactly one academic-assignment/track/course/section mapping.
-`RAW_IDENTITY` requires equal form and native maxima. The explicit
-`UNIT1_WHOLE_PERCENT_100` profile supports the existing Unit 1 100-point policy:
-divide form points by the exact form maximum, multiply by 100, then round to a
-whole percent using decimal `ROUND_HALF_UP`. Its pinned mapping must name the
-exact `form_id`, `source_maximum`, native `maximum: 100` and a
-`scale_policy_ref: sha256:<64 hexadecimal characters>` bound to the reviewed
-existing policy receipt. The trusted mapping owner verifies that receipt's
-authority; its hash alone grants none. Other scales remain held.
+An exact academic-assignment/track/course/section mapping is required.
+`RAW_IDENTITY` requires equal maxima. The explicit `UNIT1_WHOLE_PERCENT_100` profile
+maps form points to a 100-point maximum using decimal `ROUND_HALF_UP`, bound to
+the exact form, source maximum and reviewed scale-policy receipt. A policy hash
+alone grants no academic authority. Other transforms hold.
 
-The raw advisory total, original maximum, mapped proposal and mapped
-teacher-final correction remain separate. Full feedback is unchanged. The actual
-current Canvas attempt, including observed zero or literal null for paper-only
-work, is retained independently of the paper attempt; later attempt or
-submission-time changes hold the plan.
-Existing higher-grade, custom-note, baseline and complete native preservation
-checks still apply. An existing edited grade or nonbaseline note is not cleared
-by a compatible scale or source admission; preserve it and review the exact
-delta before any separately authorized staging.
-
-Trusted application configuration selects `LOCALGRASS_EDIT_UNIT1_APPLICATION_V1`.
-It uses the existing fixed-scope fields except `source_root`; `source_receipt_id`
-is the registered independent evidence revision. Pass `None` for generic
-`SourceIntake`, and supply the already configured review/workflow/paper reader and
-the existing Canvas owners. The workflow's explicit identity runtime must match.
-No database, academic packet, teacher account or acceptance is created by this
-factory. The runtime includes the unchanged pinned native Unit 1 verifier asset.
-
-This source integration is qualified with authenticated fictional fixtures and
-controlled native transports. A real advisory pair marked `NOT_RECORDED` for
-teacher acceptance remains held. A production canary requires actual current
-source/policy/identity admission, reviewed mapping and genuine teacher acceptance.
+Retain the raw advisory total, mapped proposal and mapped final correction
+separately; full feedback is unchanged. Observe the actual Canvas attempt and
+submission time independently from the paper attempt. A compatible scale never
+clears higher-grade, custom-note, baseline or unresolved-history conflicts.
+The generic fictional scorer remains ineligible for real production results;
+the typed adapter supplies the established Unit 1 owner-result route.
 
 ## Activation agenda and restart sequence
 
-1. **Preserve and inspect.** Record exact source and installed revisions, manifest,
-   interpreter and configuration digests, original baseline and operation history.
-   Preserve dirty/private work and teacher EDIT scores, notes and formulas. Use one
-   destination writer and coordinate an idle browser checkpoint.
-2. **Qualify installation and history.** Install only the reviewed code closure
-   through its owner; verify the immutable bootstrap with staging off. Resolve
-   interpreter drift through reviewed installation rather than replacing a hash
-   solely to pass. Inspect existing GET-only status and native queue; require
-   current readiness when needed. Use [mode-bound recovery](sdm-gradebook-worker.md#coordination-and-crash-recovery)
-   for a preserved request. A possible send permits readback reconciliation only.
-   Release a proven pre-SENDING hold only after fixing and reviewing its cause.
-3. **Reuse or admit one current Unit 1 case.** Start with existing owner receipts
-   and retain completed admission and mapping when their current bindings match.
-   If admission is absent, the domain owner must independently validate and
-   register the actual source and result, accepted policy and current canonical
-   identity required by the completed `AuthenticatedUnit1DecisionSource`. Preserve
-   original evidence, exact revisions and academic holds. Review exactly one
-   academic-assignment/track/course/section mapping with explicit same-maximum
-   `RAW_IDENTITY` or the reviewed Unit 1 whole-percent profile before teacher
-   acceptance. Do not relabel fictional
-   policy, infer a scale, manufacture a result or convert participation approval
-   into academic acceptance.
-4. **Authenticate one accepted case.** Retain genuine exact human approval and
-   its current immutable accepted draft; do not repeat valid approval or fabricate
-   an account/session. Use a current password-review session/CSRF or the reviewed
-   trusted-host application capability/CSRF backed by its actual verifier and
-   exact claim. Recheck the original bytes, current draft/result/policy heads,
-   canonical identity, section, assignment and observed Canvas attempt. The
-   application must pass its real-policy gate before any local selection or plan;
-   authentication alone does not pass that gate.
-5. **Prepare and qualify one canary.** The trusted application prepares one
-   immutable review plan through the existing owner. Review its exact score/note
-   delta and complete preimage. Where needed, require the separately approved
-   [exact preservation permit](teacher-edit-preservation.md) from pinned trusted
-   configuration; never erase teacher notes, higher grades or the original
-   baseline to pass preflight. Under current scoped authority, consume the one
-   preview and stage that same plan once. Require complete native readback of
-   score and marked full feedback, with all other EDIT/GET/formula/protection and
-   Sync state preserved. A completed identical decision is a no-op. No paid call
-   or Canvas write is part of this canary.
-6. **Reconcile and close out.** Any retained attempt uses native readback only via
-   `owner.execute(plan_id, reconcile_only=True)`. Preserve SENDING and terminal
-   history; absence or changed teacher content never authorizes replay. Save
-   aggregate outcomes, checks, exact revisions/digests, effects, owned resources,
-   remaining holds and the first unfinished task. Stop after the scoped canary;
-   unattended staging and Canvas publication require their own qualification.
+1. **Inspect and preserve.** Select the route and first unfinished gate from the
+   current agenda. Verify source versus installed bindings, manifest/interpreter,
+   original baselines and operation history. Preserve dirty/private work and
+   teacher content. Coordinate one destination writer and an idle workbook.
+2. **Resolve existing operations first.** Use [mode-bound recovery](sdm-gradebook-worker.md#coordination-and-crash-recovery).
+   Any retained send uses no-write reconciliation. Never release or replay an
+   uncertain operation, refresh a baseline to hide drift or repeat a completed
+   canary. Qualify a changed installation through its owner with staging off.
+3. **Admit the exact source and mapping.** Reuse valid saved evidence. Domain
+   owners resolve source, policy, membership, page completeness and identity holds.
+   Ordinary participation needs its pinned reader/provider/attempt bindings; an
+   accepted test additionally needs genuine revision-bound teacher acceptance.
+4. **Prepare and inspect.** Under the existing workbook lock, capture fresh target
+   and complete native state, retain one immutable review plan and pin its digest.
+   Show any required exact score/feedback or preservation delta. Existing valid
+   approval is reused only when its scope and substantive bindings still match.
+5. **Execute only the authorized local plan.** Revalidation must reproduce the
+   pinned plan against current source and the unchanged destination preimage.
+   The existing owner holds its locks through durable SENDING, one native batch
+   and complete readback. The lock cannot exclude a human browser editor.
+6. **Classify and retain.** Planned output, unchanged preimage and divergence are
+   distinct. Every interruption path denies write retry. A verified operation
+   retains its terminal receipt when later teacher edits drift; report that drift
+   separately instead of fabricating a new send. Unknown output stays held.
+7. **Publish separately when authorized.** Freshly compare EDIT with Canvas and
+   obtain exact final approval for the intended score and permitted feedback
+   channel. Use existing publishers and independently verify each channel.
+   Local participation drafts remain score-only; paid calls and Canvas writes
+   remain off unless the human expressly authorizes that new action.
 
-Resume from the first unfinished gate using saved evidence whose bytes still
-match. Revalidate current authority and destination state when required. A Git
-merge, source sync, installed check or checkpoint starts no runtime and grants
-no academic acceptance, model spending or Canvas delivery permission.
+## Validation and retained evidence
+
+Use fictional authenticated stores and controlled transports for source changes.
+Joined tests explicitly select the reviewed LocalGrAss source; a skipped external
+checkout dependency is not joined qualification. Follow the repository's existing
+validation commands and retain failures as well as successes. Tests do not prove
+handwriting accuracy, service liveness, real acceptance or classroom delivery.
+
+Earlier source reviews, test counts and operational qualifications remain in
+[fixed history](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/teacher-edit-transfer.md)
+and private receipts. Keep original evidence, permits, baselines, plans and
+transport history outside Git and the website tree. The older accepted-pair
+[RELEASE prototype](unit1-pair-preview-contract.md) retains its separate offline
+limits; this native EDIT path does not activate it.
