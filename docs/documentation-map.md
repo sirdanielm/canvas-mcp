@@ -17,6 +17,7 @@ not establish current service liveness or publication authority.
 | Curriculum authoring and course archives | [Authoring](sdm-canvas-authoring-workflow.md), [course mirror](course-mirror.md) |
 | Private student copies | [PIN policy](STUDENT-PIN-POLICY.md), [exports](local-pin-exports.md), [post-QC archives](post-qc-pin-archives.md) |
 | Source promotion, checkout retirement and recovery | [Maintenance](repository-maintenance.md), [workflow inventory](../.github/workflows/README.md), [release checklist](../internal/release-checklist.md) |
+| Known unresolved security findings | [Current open resource/authentication work](superpowers/plans/2026-09-06-security-review-followups.md) |
 
 The main tool manifest excludes the separate gradebook server. Shared local
 review tooling belongs in LocalGrAss; Canvas services and installed targets are
