@@ -61,6 +61,7 @@ SUBMISSION_FIELDS = (
     "late",
     "missing",
     "in_closed_grading_period",
+    "seconds_late",
 )
 Scalar = str | int | float | bool | None
 
@@ -584,8 +585,8 @@ def parse_exact_observation(
     holds = _observation_holds(assignment, submission, comment_only=comment_only)
     if coverage is not True:
         holds.append("comment_coverage_unverified")
-    # The complete original non-comment metadata is retained as a digest only.
-    # Whitelisting fields for private inspection must never hide remote drift.
+    # Full non-comment metadata retains every field. The comment comparison's
+    # digest separates timestamps and the derived late clock, each checked below.
     metadata = {
         key: value for key, value in submission.items() if key != "submission_comments"
     }
@@ -599,7 +600,7 @@ def parse_exact_observation(
             {
                 key: value
                 for key, value in metadata.items()
-                if key not in {"updated_at", "posted_at"}
+                if key not in {"updated_at", "posted_at", "seconds_late"}
             }
         ),
         digest(
@@ -912,6 +913,27 @@ def _comment_timestamps_match(
     return start <= posted <= end
 
 
+def _comment_clock_matches(
+    before: ExactObservation,
+    after: ExactObservation,
+    maximum_advance: int | float,
+) -> bool:
+    """Allow only bounded elapsed time, retaining unknown-state equality."""
+    old, new = (value.submission_field("seconds_late") for value in (before, after))
+    if old.present != new.present:
+        return False
+    if not old.present:
+        return True
+    if old.value is None or new.value is None:
+        return old.value is None and new.value is None
+    return (
+        type(old.value) is int
+        and type(new.value) is int
+        and 0 <= old.value <= new.value
+        and new.value - old.value <= maximum_advance
+    )
+
+
 def compare_comment_readback(
     spec: FormRequestSpec,
     before: ExactObservation,
@@ -920,6 +942,7 @@ def compare_comment_readback(
     publisher_author_id: str,
     response_received: bool,
     response_comment_id: str | None = None,
+    max_clock_advance_seconds: int | float = 0,
 ) -> CommentReadback:
     """Pure comment evidence comparison, never permission or automatic recovery.
 
@@ -927,8 +950,19 @@ def compare_comment_readback(
     new comment can establish stored state, while a lost response remains merely
     OBSERVED_APPLIED. Both retain publication_authorized=False. No second request
     can be generated here, and no historical delivery receipt is fabricated.
+    A caller may supply a bound derived from actual elapsed observation time;
+    the default permits no counter advance and establishes no write authority.
     """
     _validate_spec(spec)
+    _need(
+        (
+            type(max_clock_advance_seconds) is int
+            or type(max_clock_advance_seconds) is float
+            and math.isfinite(max_clock_advance_seconds)
+        )
+        and max_clock_advance_seconds >= 0,
+        "COMMENT_CLOCK_BOUND_INVALID",
+    )
     _need(
         spec.channel == "COMMENT"
         and type(response_received) is bool
@@ -975,14 +1009,15 @@ def compare_comment_readback(
         or tuple(
             value
             for value in before.submission_fields
-            if value[0] not in {"updated_at", "posted_at"}
+            if value[0] not in {"updated_at", "posted_at", "seconds_late"}
         )
         != tuple(
             value
             for value in after.submission_fields
-            if value[0] not in {"updated_at", "posted_at"}
+            if value[0] not in {"updated_at", "posted_at", "seconds_late"}
         )
         or not _comment_timestamps_match(before, after)
+        or not _comment_clock_matches(before, after, max_clock_advance_seconds)
     ):
         return result("CONFLICT", ("remote_target_or_state_drift",))
     if (
