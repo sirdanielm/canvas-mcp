@@ -913,8 +913,10 @@ def _comment_timestamps_match(
         and _timestamp(new_update.value)
     )
     if valid_updates:
-        start = datetime.fromisoformat(old_update.value.replace("Z", "+00:00"))
-        end = datetime.fromisoformat(new_update.value.replace("Z", "+00:00"))
+        start = datetime.fromisoformat(
+            cast(str, old_update.value).replace("Z", "+00:00")
+        )
+        end = datetime.fromisoformat(cast(str, new_update.value).replace("Z", "+00:00"))
         if start <= posted <= end:
             return True
     if posting_observation_window is None or old_update != new_update:
