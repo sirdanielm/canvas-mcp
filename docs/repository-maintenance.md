@@ -66,6 +66,15 @@ superseded review checkouts and status documents. Archived receipts retain
 their original bytes and timestamps. Missing upstreams, detached heads and
 opaque unreachable objects are retention holds, not deletion instructions.
 
+Before consolidation, save and verify an all-reference Git bundle plus exact
+staged/unstaged patches and untracked-file copies outside Git. Record original
+ref names and object IDs so a removed branch can be recreated. A branch is safe
+to prune only after exact ancestry or reviewed patch/tree equivalence proves
+its work retained; a similar title or closed PR alone is insufficient. Archive
+Codex-managed worktrees through their owning task. If that attachment is
+unavailable, retain the checkout and record the blocker. Preserve ignored
+evidence in place unless its separate recovery has been verified.
+
 Keep credentials, student data, original evidence, manifests, backup patches and
 operational receipts outside Git. `docs/` is also the website upload root:
 Git ignore rules alone do not protect website uploads. Maintain corresponding

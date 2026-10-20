@@ -71,11 +71,13 @@ current route and [integration boundaries](docs/grass-workflow-integration.md)
 for ownership.
 
 LocalGrAss owns shared review/workbench tools. Canvas owns exact observations,
-GET/EDIT integrity, scoped writers and installed Canvas bindings. Prioritize
-source consolidation, eligible proposal review and exact target admission;
-retain original evidence and existing teacher edits. Unit 2 requires its issued
-forms, keys and sealed policy before advisory scoring. Documentation work enables
-no provider, paid call, service restart or publisher.
+GET/EDIT integrity, scoped writers and installed Canvas bindings. The current
+order is Unit 2 feedback into canonical local EDIT, remaining accepted Unit 1
+packets, then formative participation. Preserve completed transfers and exact
+restart queues; renew expired source capabilities before remaining cases. Unit 2
+requires its issued forms, keys and sealed policy before advisory scoring.
+Grading, paid calls, deployment and live Canvas publication are paused during
+closeout. An overnight draft or documentation merge does not resume them.
 
 Historical plans, prototype limitations and test diaries remain in
 [project history](internal/project-history.md), [CHANGELOG](CHANGELOG.md) and
