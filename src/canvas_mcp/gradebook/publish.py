@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import math
 import os
 import re
 from dataclasses import asdict
@@ -31,6 +32,59 @@ from .unit1_canvas_protocol import (
 )
 
 COMMENT_PLAN = "GRADEBOOK_COMMENT_PUSH_V1"
+
+
+def comment_clock_limit(observed_at: str) -> int:
+    """Bound a derived Canvas clock to actual elapsed time, without renewing approval."""
+    try:
+        start = datetime.fromisoformat(observed_at)
+        if start.tzinfo is None:
+            raise ValueError
+        elapsed = (datetime.now(UTC) - start).total_seconds()
+        if not math.isfinite(elapsed) or elapsed < 0:
+            raise ValueError
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise GradebookError("Comment observation time is invalid; nothing sent.") from exc
+    return math.ceil(elapsed) + 5
+
+
+def comment_target_unchanged(
+    expected: dict[str, Any], fresh: dict[str, Any], *, max_clock_advance_seconds: int
+) -> bool:
+    """Compare original observations; permit only bounded derived late-clock advance.
+
+    Raw observations are retained unchanged. Assignment bytes, GET wrappers and
+    every other submission value remain bound to the preview.
+    """
+    if type(max_clock_advance_seconds) is not int or max_clock_advance_seconds < 0:
+        return False
+    try:
+        if set(expected) != set(fresh) or any(
+            expected[k] != fresh[k] for k in expected if k != "submission"
+        ):
+            return False
+        old_get, new_get = expected["submission"], fresh["submission"]
+        if set(old_get) != set(new_get) or any(
+            old_get[k] != new_get[k] for k in old_get if k != "body"
+        ):
+            return False
+        old, new = (json.loads(value["body"]) for value in (old_get, new_get))
+        if ("seconds_late" in old) != ("seconds_late" in new):
+            return False
+        if "seconds_late" in old:
+            old_clock, new_clock = old["seconds_late"], new["seconds_late"]
+            if not (
+                old_clock is None and new_clock is None
+                or type(old_clock) is int
+                and type(new_clock) is int
+                and 0 <= old_clock <= new_clock <= old_clock + max_clock_advance_seconds
+            ):
+                return False
+        return digest({k: v for k, v in old.items() if k != "seconds_late"}) == digest(
+            {k: v for k, v in new.items() if k != "seconds_late"}
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
 
 
 def comment_envelope(value: dict[str, Any], origin: str, course_id: str) -> None:
@@ -564,8 +618,21 @@ push can make grades visible under the course's existing Canvas posting policy.<
 
 
 class Publisher:
-    def __init__(self, client: GradebookClient, store: Store, ledger: Ledger) -> None:
+    def __init__(
+        self,
+        client: GradebookClient,
+        store: Store,
+        ledger: Ledger,
+        *,
+        comment_approval_seconds: int = 600,
+    ) -> None:
+        if (
+            type(comment_approval_seconds) is not int
+            or not 600 <= comment_approval_seconds <= 1800
+        ):
+            raise GradebookError("Comment approval window must be 600–1800 seconds.")
         self.client, self.store, self.ledger = client, store, ledger
+        self.comment_approval_seconds = comment_approval_seconds
 
     async def prepare(self, course_id: str, review_id: str) -> dict[str, Any]:
         review = self.store.load("review", review_id)
@@ -798,12 +865,14 @@ class Publisher:
             plan_id,
             [target_key(self.client.origin, course_id, envelope)],
             comment_delivery_ids=[spec.component_sha256],
+            comment_approval_seconds=self.comment_approval_seconds,
         )
         return {
             "ready_for_confirmation": True,
             "operation_id": operation_id,
             "confirmation_token": token,
-            "expires_in_seconds": 600,
+            "expires_in_seconds": self.comment_approval_seconds,
+            "expires_at": self.ledger.operation(operation_id)["expires"],
             "review_file": display,
             "changes": 1,
             "canvas_writes": 0,
@@ -847,9 +916,13 @@ class Publisher:
                         "Publisher identity changed after preview; nothing sent."
                     )
                 fresh = await comment_state(self.client, target)
+                preflight_at = datetime.now(UTC).isoformat()
                 before, spec = comment_spec(target, fresh, envelope, plan["author"])
                 if (
-                    fresh != plan["expected"]
+                    not comment_target_unchanged(
+                        plan["expected"], fresh,
+                        max_clock_advance_seconds=comment_clock_limit(plan["created_at"]),
+                    )
                     or spec.component_sha256 != plan["delivery_id"]
                 ):
                     raise GradebookError(
@@ -866,6 +939,7 @@ class Publisher:
                     return self.ledger.finish(operation_id)
                 self.ledger.save_comment_response(operation_id, 0, cid)
                 after_state = await comment_state(self.client, target)
+                observed_at = datetime.now(UTC).isoformat()
                 result = compare_comment_readback(
                     spec,
                     before,
@@ -873,6 +947,8 @@ class Publisher:
                     publisher_author_id=plan["author"],
                     response_received=True,
                     response_comment_id=cid,
+                    max_clock_advance_seconds=comment_clock_limit(preflight_at),
+                    posting_observation_window=(preflight_at, observed_at),
                 )
                 receipt_id, _ = self.store.save(
                     "receipt",
@@ -883,6 +959,10 @@ class Publisher:
                         "source_envelope_sha256": plan["envelope_sha256"],
                         "response_comment_id": cid,
                         "before": plan["expected"],
+                        "send_preflight": fresh,
+                        "send_preflight_at": preflight_at,
+                        "comparison_before": "send_preflight",
+                        "posting_observation_window": [preflight_at, observed_at],
                         "after": after_state,
                         "comparison": asdict(result),
                         "at": datetime.now(UTC).isoformat(),
@@ -928,6 +1008,16 @@ class Publisher:
                 target, plan["expected"], envelope, plan["author"]
             )
             after_state = await comment_state(self.client, target)
+            observed_at = datetime.now(UTC)
+            # Bound recognition of the automatic posting side effect to this
+            # operation's original window plus the existing 300-second tool
+            # drain. This is GET-only evidence, never renewed write admission.
+            posting_window = (
+                plan["created_at"],
+                min(
+                    observed_at, datetime.fromtimestamp(operation["expires"] + 300, UTC)
+                ).isoformat(),
+            )
             cid = operation["items"][0]["response_comment_id"]
             result = compare_comment_readback(
                 spec,
@@ -936,6 +1026,8 @@ class Publisher:
                 publisher_author_id=plan["author"],
                 response_received=cid is not None,
                 response_comment_id=cid,
+                max_clock_advance_seconds=comment_clock_limit(plan["created_at"]),
+                posting_observation_window=posting_window,
             )
             receipt_id, _ = self.store.save(
                 "receipt",
@@ -945,6 +1037,7 @@ class Publisher:
                     "delivery_id": spec.component_sha256,
                     "response_comment_id": cid,
                     "after": after_state,
+                    "posting_observation_window": list(posting_window),
                     "comparison": asdict(result),
                     "at": datetime.now(UTC).isoformat(),
                 },

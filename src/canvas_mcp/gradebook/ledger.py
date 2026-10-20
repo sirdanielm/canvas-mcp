@@ -92,7 +92,17 @@ class Ledger:
         targets: list[str],
         *,
         comment_delivery_ids: list[str] | None = None,
+        comment_approval_seconds: int = 600,
     ) -> tuple[str, str]:
+        if (
+            type(comment_approval_seconds) is not int
+            or not 600 <= comment_approval_seconds <= 1800
+            or (comment_delivery_ids is None and comment_approval_seconds != 600)
+        ):
+            raise GradebookError(
+                "Comment approval window must be 600–1800 seconds; "
+                "score windows remain 600 seconds."
+            )
         if not targets or len(targets) > 25 or len(set(targets)) != len(targets):
             raise GradebookError("Push requires 1–25 distinct reviewed targets.")
         if comment_delivery_ids is not None and (
@@ -114,7 +124,7 @@ class Ledger:
                     operation_id,
                     plan_id,
                     hashlib.sha256(token.encode()).hexdigest(),
-                    now + 600,
+                    now + comment_approval_seconds,
                     "prepared",
                     now,
                 ),

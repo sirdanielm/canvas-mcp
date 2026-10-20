@@ -28,9 +28,14 @@ def create_server(
     enable_push: bool = False,
     enable_comments: bool = False,
     get_refresh_control: Any | None = None,
+    comment_approval_seconds: int = 600,
 ) -> FastMCP:
     server = FastMCP("canvas-gradebook")
-    publisher = Publisher(client, store, Ledger(store.root))
+    publisher_options = (
+        {} if type(comment_approval_seconds) is int and comment_approval_seconds == 600
+        else {"comment_approval_seconds": comment_approval_seconds}
+    )
+    publisher = Publisher(client, store, Ledger(store.root), **publisher_options)
 
     def resolve(course: str) -> str:
         if course not in courses:

@@ -199,6 +199,14 @@ private inbox; pass filenames/digests, not student rows. The supported categorie
 and complete fictional schema remain in the
 [baseline contract](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/docs/sdm-gradebook-workflow.md#separately-reviewed-student-comments).
 
+The launcher option `--comment-approval-seconds 1800` gives future comment
+previews a 30-minute approval window. The default remains 600 seconds; accepted
+values are 600–1800. Preview results report the actual durable `expires_at`
+Unix timestamp. This option changes neither request timeouts nor the 600-second
+score-push window. Existing operations retain their original expiry. After
+expiry, prepare a fresh review; never reuse an old token. Activate launcher
+changes through the host's supported server lifecycle controls.
+
 Confirmation holds changed identities, attempts, source bytes or grading context.
 It sends only approved text, non-group intent and the uploaded attempt when
 applicable; paper work never acquires an invented upload attempt. Readback must
