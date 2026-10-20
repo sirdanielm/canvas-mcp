@@ -1,10 +1,10 @@
 """Automatic posting may leave submission.updated_at unchanged; never resend."""
 
-from datetime import UTC, datetime, timedelta
 import json
+from datetime import UTC, datetime, timedelta
 
-import pytest
 import httpx
+import pytest
 from test_gradebook_publish import comment_system as comment_system
 from test_gradebook_publish import prepared_comment
 from test_gradebook_publish import snapshot as snapshot
