@@ -564,8 +564,21 @@ push can make grades visible under the course's existing Canvas posting policy.<
 
 
 class Publisher:
-    def __init__(self, client: GradebookClient, store: Store, ledger: Ledger) -> None:
+    def __init__(
+        self,
+        client: GradebookClient,
+        store: Store,
+        ledger: Ledger,
+        *,
+        comment_approval_seconds: int = 600,
+    ) -> None:
+        if (
+            type(comment_approval_seconds) is not int
+            or not 600 <= comment_approval_seconds <= 1800
+        ):
+            raise GradebookError("Comment approval window must be 600–1800 seconds.")
         self.client, self.store, self.ledger = client, store, ledger
+        self.comment_approval_seconds = comment_approval_seconds
 
     async def prepare(self, course_id: str, review_id: str) -> dict[str, Any]:
         review = self.store.load("review", review_id)
@@ -798,12 +811,14 @@ class Publisher:
             plan_id,
             [target_key(self.client.origin, course_id, envelope)],
             comment_delivery_ids=[spec.component_sha256],
+            comment_approval_seconds=self.comment_approval_seconds,
         )
         return {
             "ready_for_confirmation": True,
             "operation_id": operation_id,
             "confirmation_token": token,
-            "expires_in_seconds": 600,
+            "expires_in_seconds": self.comment_approval_seconds,
+            "expires_at": self.ledger.operation(operation_id)["expires"],
             "review_file": display,
             "changes": 1,
             "canvas_writes": 0,

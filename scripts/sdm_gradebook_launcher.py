@@ -53,7 +53,13 @@ def main() -> int:
         action="store_true",
         help="Register the separately confirmed comment-only tool; does not enable grades",
     )
+    parser.add_argument(
+        "--comment-approval-seconds", type=int, default=600,
+        help="Future comment preview approval window (600–1800 seconds); score windows stay 600.",
+    )
     args = parser.parse_args()
+    if not 600 <= args.comment_approval_seconds <= 1800:
+        parser.error("--comment-approval-seconds must be between 600 and 1800")
     # Prevent unrelated .env files from enabling features or logging identities.
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
     from canvas_mcp.gradebook.client import GradebookClient, GradebookError
@@ -117,6 +123,7 @@ def main() -> int:
                 enable_push=args.enable_push,
                 enable_comments=args.enable_comments,
                 get_refresh_control=get_control,
+                comment_approval_seconds=args.comment_approval_seconds,
             )
             if args.call:
                 from fastmcp import Client
