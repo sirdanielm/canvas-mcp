@@ -1,10 +1,12 @@
 # Exact decisions and ordinary drafts to local EDIT
 
 This guide describes two local staging routes. The authenticated Unit 1 route is
-maintained source with a retained one-case runtime qualification. The newer
+maintained source with retained local runtime qualification. The newer
 ordinary participation receiver is a qualified private local overlay awaiting
 portable source review. Inspect the [capability table](goals-and-status.md#source-and-installed-capability)
 before selecting a route. Neither route grants Canvas publication authority.
+Match each case to its exact private source, installed binding and readback
+receipt; earlier successful transfers do not qualify a new adapter or case.
 The [current agenda](goals-and-status.md#next-work-and-ownership) owns next work;
 this page owns procedures and their gates.
 

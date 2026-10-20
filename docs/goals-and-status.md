@@ -45,22 +45,37 @@ match. A paper reassessment label never supplies a Canvas attempt number.
 
 | Work | Review and staging method | Final delivery |
 | --- | --- | --- |
-| Ordinary participation | Source-bound participation proposal and private analysis → local QC/review → UNAPPROVED central EDIT draft | Fresh Canvas comparison, exact teacher approval and separately gated **score-only** publication |
-| Accepted tests | Saved academic result and full feedback → authenticated exact teacher decision → protected central EDIT transfer | Separate score and full-feedback permissions, transport histories and independent readback |
+| Summative tests | Canvas or paper/folder intake → literal key-free reading → policy-bound scoring → clean itemized feedback → local review and central EDIT through its qualified route | Separately authorized score/full-feedback publication, each with its own transport history and readback |
+| Formative participation | Canvas or paper/folder intake → source-bound participation proposal and private analysis → local QC/review → UNAPPROVED central EDIT draft | Fresh Canvas comparison, exact teacher approval and separately authorized **score-only** publication |
 
 An ordinary draft may be staged before final teacher approval. It remains
 UNAPPROVED and supplies no Canvas publication authority. Participation analysis
 and local provenance notes are private; they are not student comments. Accepted
 test scores and full feedback derive from the same reviewed result and retain
-separate delivery evidence. Missing source or identity is a hold, never a zero.
+separate delivery evidence. Feedback-only drafts may preserve supported readable
+work while a whole numeric total remains held. Missing source or identity is a
+hold, never a zero.
+
+The maintained accepted-result transfer requires an authenticated teacher
+decision before EDIT staging. Unit 2 advisory and feedback-only drafts use
+separately qualified private adapters; staging supplies no teacher acceptance.
+
+Human feedback versions describe the saved body: v1 is the original, v2 removes
+internal wrappers and shows deductions and unreadable holds, and v3 adds only the
+shortest useful accurate FRQ key cue (at most 20 characters). Preserve the full
+private key, original feedback and scoring evidence. At the October 20 pause,
+cleaned v2 notes had bounded local EDIT readback; the v3 formatter candidate was
+partly qualified and uninstalled, with no saved v3 notes. Internal schema names,
+version labels and a formatter test do not establish the saved body or delivery.
 
 ## Source and installed capability
 
 | Capability | Current boundary |
 | --- | --- |
 | GET-only mirror refresh and native review | Maintained source preserves EDIT content and original Sync baselines. A current matching worker heartbeat and finalized request receipt establish operation-specific readiness and completion. |
-| Authenticated Unit 1 decision to native EDIT | Source-accepted composition, typed owner-result adapter and exact preservation controls exist. Bounded local score/full-feedback transfers have separate readback evidence; preserve completed operations and renew expired source capabilities before remaining cases. |
+| Authenticated Unit 1 decision to native EDIT | Source-accepted composition, typed owner-result adapter and exact preservation controls exist. Retained local readback qualifies only its bound operation; preserve completed transfers and renew expired source capabilities before remaining cases. |
 | Ordinary participation receiver | Qualified locally with the existing source reader, owner, locks and history. The newer draft/provider/current-attempt implementation remains a private operational overlay pending portable source review. |
+| Unit 2 numeric and feedback-only drafts | Private operational adapters and saved local EDIT receipts exist. They are not all in maintained source; candidate tests, installed bindings, saved drafts and blocked cases require their separate owner evidence. |
 | Proposal-preview source | The retained remote branch contains unmerged proposal-preview work. It does not contain every private operational overlay or establish installed parity; verify the exact current head before creating a reviewed candidate. |
 | Canvas score and comment delivery | Existing publishers have distinct approval, durable-intent and readback gates. EDIT staging and score parity do not verify feedback delivery. |
 | Older accepted-pair RELEASE prototype | Remains an offline, unconnected prototype; it is separate from the implemented native EDIT transfer. |
