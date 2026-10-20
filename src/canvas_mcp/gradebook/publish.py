@@ -939,6 +939,7 @@ class Publisher:
                     return self.ledger.finish(operation_id)
                 self.ledger.save_comment_response(operation_id, 0, cid)
                 after_state = await comment_state(self.client, target)
+                observed_at = datetime.now(UTC).isoformat()
                 result = compare_comment_readback(
                     spec,
                     before,
@@ -947,6 +948,7 @@ class Publisher:
                     response_received=True,
                     response_comment_id=cid,
                     max_clock_advance_seconds=comment_clock_limit(preflight_at),
+                    posting_observation_window=(preflight_at, observed_at),
                 )
                 receipt_id, _ = self.store.save(
                     "receipt",
@@ -960,6 +962,7 @@ class Publisher:
                         "send_preflight": fresh,
                         "send_preflight_at": preflight_at,
                         "comparison_before": "send_preflight",
+                        "posting_observation_window": [preflight_at, observed_at],
                         "after": after_state,
                         "comparison": asdict(result),
                         "at": datetime.now(UTC).isoformat(),
@@ -1005,6 +1008,16 @@ class Publisher:
                 target, plan["expected"], envelope, plan["author"]
             )
             after_state = await comment_state(self.client, target)
+            observed_at = datetime.now(UTC)
+            # Bound recognition of the automatic posting side effect to this
+            # operation's original window plus the existing 300-second tool
+            # drain. This is GET-only evidence, never renewed write admission.
+            posting_window = (
+                plan["created_at"],
+                min(
+                    observed_at, datetime.fromtimestamp(operation["expires"] + 300, UTC)
+                ).isoformat(),
+            )
             cid = operation["items"][0]["response_comment_id"]
             result = compare_comment_readback(
                 spec,
@@ -1014,6 +1027,7 @@ class Publisher:
                 response_received=cid is not None,
                 response_comment_id=cid,
                 max_clock_advance_seconds=comment_clock_limit(plan["created_at"]),
+                posting_observation_window=posting_window,
             )
             receipt_id, _ = self.store.save(
                 "receipt",
@@ -1023,6 +1037,7 @@ class Publisher:
                     "delivery_id": spec.component_sha256,
                     "response_comment_id": cid,
                     "after": after_state,
+                    "posting_observation_window": list(posting_window),
                     "comparison": asdict(result),
                     "at": datetime.now(UTC).isoformat(),
                 },

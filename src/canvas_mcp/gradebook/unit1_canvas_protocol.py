@@ -867,7 +867,9 @@ def _validate_spec(spec: FormRequestSpec) -> None:
 
 
 def _comment_timestamps_match(
-    before: ExactObservation, after: ExactObservation
+    before: ExactObservation,
+    after: ExactObservation,
+    posting_observation_window: tuple[str, str] | None = None,
 ) -> bool:
     """Allow only bounded comment side effects; preserve missing and null state."""
     old_update, new_update = (
@@ -901,16 +903,33 @@ def _comment_timestamps_match(
         or not _timestamp(new_post.value)
         or not posting.present
         or posting.value is not False
-        or type(old_update.value) is not str
-        or type(new_update.value) is not str
-        or not _timestamp(old_update.value)
-        or not _timestamp(new_update.value)
     ):
         return False
-    start = datetime.fromisoformat(old_update.value.replace("Z", "+00:00"))
     posted = datetime.fromisoformat(new_post.value.replace("Z", "+00:00"))
-    end = datetime.fromisoformat(new_update.value.replace("Z", "+00:00"))
-    return start <= posted <= end
+    valid_updates = (
+        type(old_update.value) is str
+        and type(new_update.value) is str
+        and _timestamp(old_update.value)
+        and _timestamp(new_update.value)
+    )
+    if valid_updates:
+        start = datetime.fromisoformat(old_update.value.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(new_update.value.replace("Z", "+00:00"))
+        if start <= posted <= end:
+            return True
+    if posting_observation_window is None or old_update != new_update:
+        return False
+    # Some serializers omit updated_at. Preserve that exact absence and use
+    # independent observation times; explicit null or malformed values stay held.
+    if old_update.present and not valid_updates:
+        return False
+    observed_start, observed_end = (
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+        for value in posting_observation_window
+    )
+    return (posted - observed_start).total_seconds() >= -5 and (
+        posted - observed_end
+    ).total_seconds() <= 5
 
 
 def _comment_clock_matches(
@@ -943,6 +962,7 @@ def compare_comment_readback(
     response_received: bool,
     response_comment_id: str | None = None,
     max_clock_advance_seconds: int | float = 0,
+    posting_observation_window: tuple[str, str] | None = None,
 ) -> CommentReadback:
     """Pure comment evidence comparison, never permission or automatic recovery.
 
@@ -952,6 +972,8 @@ def compare_comment_readback(
     can be generated here, and no historical delivery receipt is fabricated.
     A caller may supply a bound derived from actual elapsed observation time;
     the default permits no counter advance and establishes no write authority.
+    An optional actual observation window permits automatic null-to-posted state
+    with an unchanged valid update timestamp, retaining five seconds of clock skew.
     """
     _validate_spec(spec)
     _need(
@@ -963,6 +985,21 @@ def compare_comment_readback(
         and max_clock_advance_seconds >= 0,
         "COMMENT_CLOCK_BOUND_INVALID",
     )
+    if posting_observation_window is not None:
+        _need(
+            type(posting_observation_window) is tuple
+            and len(posting_observation_window) == 2
+            and all(
+                type(value) is str and _timestamp(value)
+                for value in posting_observation_window
+            ),
+            "COMMENT_POSTING_WINDOW_INVALID",
+        )
+        start, end = (
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+            for value in posting_observation_window
+        )
+        _need(start <= end, "COMMENT_POSTING_WINDOW_INVALID")
     _need(
         spec.channel == "COMMENT"
         and type(response_received) is bool
@@ -1016,7 +1053,7 @@ def compare_comment_readback(
             for value in after.submission_fields
             if value[0] not in {"updated_at", "posted_at", "seconds_late"}
         )
-        or not _comment_timestamps_match(before, after)
+        or not _comment_timestamps_match(before, after, posting_observation_window)
         or not _comment_clock_matches(before, after, max_clock_advance_seconds)
     ):
         return result("CONFLICT", ("remote_target_or_state_drift",))
