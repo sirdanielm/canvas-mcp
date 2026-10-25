@@ -123,11 +123,7 @@ jobs:
       # Temporary candidate generation; remove once the resulting lock is committed.
       - name: Refresh only the advisory-affected locked packages
         run: |
-          uv lock --upgrade-package black==26.10.1 \\
-            --upgrade-package certifi==2026.10.19 \\
-            --upgrade-package fastmcp==4.1.2 \\
-            --upgrade-package fastmcp-slim==4.1.2 \\
-            --upgrade-package opentelemetry-api==1.45.1
+          uv lock --upgrade-package black==26.10.1 --upgrade-package certifi==2026.10.19 --upgrade-package fastmcp==4.1.2 --upgrade-package fastmcp-slim==4.1.2 --upgrade-package opentelemetry-api==1.45.1
           uv lock --check
 
       - name: Export locked dependencies
@@ -146,6 +142,13 @@ jobs:
             --ignore-vuln CVE-2025-69872 \
             --format json --output pip-audit-report.json
       
+      - name: Validate the exact frozen lock candidate with the full Python suite
+        env:
+          FASTMCP_MCP_CAMELCASE_COMPAT: "false"
+        run: |
+          uv sync --frozen --all-extras
+          uv run --frozen python -m pytest tests/ -q
+
       - name: Run Safety check (informational)
         run: |
           safety check --json --output safety-report.json || true
