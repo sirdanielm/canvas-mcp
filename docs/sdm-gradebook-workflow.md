@@ -46,6 +46,31 @@ renumber or recycle a PIN. Missing or conflicting joins remain held. See the
 [Student PIN policy](STUDENT-PIN-POLICY.md); originals and private crosswalks stay
 outside Git and public reports.
 
+## Timing and freshness
+
+These are different source contracts, not one universal permission window:
+
+| Mechanism | Maintained source behavior | Boundary |
+| --- | --- | --- |
+| General MCP confirmation | Default 300 seconds | Process/request-bound; distinct from the gradebook ledger. A token is not human approval. |
+| Gradebook score preview | 600 seconds; at most 25 changes | Exact review, one-use confirmation and fresh per-target checks. |
+| Gradebook comment preview | Default 600 seconds; configurable integer 600–1800 | One exact comment target; durable `expires_at` governs. Existing operations retain their original expiry. |
+| Worker request / refresh plan | 600 / 300 seconds | Admission/dispatch freshness, separate from publication approval. |
+| GET-only READY | No more than 90 seconds old, advertising GET_ONLY | Readiness is not the request’s finalized completion receipt. |
+| Client/tool/request timeout | Specific to the client and transport | Neither an approval lifetime nor proof that an interrupted write was unsent. |
+
+The comment option below changes only future comment previews. This source does
+not establish a two-hour score/comment window. Verify the owner’s loaded
+configuration before describing installed behavior; a requested setting or
+source merge is not activation. Keep exact source, target, attempt and decision
+checks even within an unexpired window.
+
+On expiry, preserve the original operation and inspect whether anything could
+have been sent. Reconcile possible sends through that operation’s read-only
+recovery path. Prepare a fresh preview only when the original history permits
+it; never edit expiry, clear claims or use a new token to bypass uncertainty.
+Do not blame a timeout on approval expiry without the exact operation evidence.
+
 ## Available tools
 
 These belong to the separate gradebook connection, rather than the general

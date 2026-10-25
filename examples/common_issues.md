@@ -46,12 +46,16 @@ uv pip install -e .
 **Problem**: Canvas API token is invalid or expired.
 
 **Solution**:
-1. Go to Canvas → Account → Settings
-2. Scroll to "Approved Integrations"
-3. Delete the old token if present
-4. Create a new access token (see below if your institution gates this)
-5. Update your `.env` file with the new token
-6. Restart your MCP client
+1. Identify the exact connection and whether Canvas rejected authentication
+   (401) or permission for the requested action (403).
+2. Follow the institution's supported renewal/permission process. Preserve the
+   existing credential until an authorized replacement has been verified; do not
+   change accounts or broaden grants to bypass a hold.
+3. Use the owning launcher's credential path. SDM launchers validate a proposed
+   Keychain replacement before storing it; a generic `.env` edit is not their setup.
+4. Reconnect only the affected idle connection through its supported lifecycle.
+   Preserve active operations and previews; a restart can invalidate process-bound
+   tokens and interrupt work. See the [gradebook recovery guide](../docs/sdm-gradebook-worker.md#coordination-and-crash-recovery).
 
 Note that many institutions now issue short-lived tokens — Instructure pushed a 30-day
 default in 2026 — so "it worked last month" does not mean the token is still valid.
@@ -115,8 +119,13 @@ Most institutions will enable this for legitimate educational purposes.
 - Shows progress: "⏳ Rate limited (429). Retrying in 4s..."
 
 **If it still fails**:
-- Wait a few minutes before trying again
-- For bulk operations, the code execution API is more efficient
+- For a read, use the transport's supported bounded backoff; retain incomplete
+  results as incomplete.
+- For a possible write, inspect the original operation and independent destination
+  readback. A timeout or failed result does not prove nothing was sent. Never
+  blindly repeat a grade, comment, message or content mutation.
+- Code execution is not a throttling workaround and does not inherit the
+  gradebook publisher's durable recovery contracts.
 
 ### "Tool not showing up in Claude Desktop"
 
@@ -157,9 +166,10 @@ Most institutions will enable this for legitimate educational purposes.
    }
    ```
 
-2. **Restart your MCP client completely**:
-   - Quit the application (not just close the window)
-   - Reopen it
+2. **Reconnect the affected connection when idle**:
+   - Preserve any active/uncertain operation and inspect its owner/status first
+   - Use the client's supported reconnect; do not restart unrelated shared services
+   - A missing tool may be deliberate role/feature/allowlist policy, not a failure
 
 3. **Check for errors**:
    - For Claude Desktop: Look in the developer console
@@ -205,10 +215,10 @@ Then restart your MCP client.
    - Solution: Check your Canvas role and permissions
 
 2. **Archived courses**: Old courses might be archived
-   - Solution: Unarchive in Canvas if needed
+   - Solution: Verify concluded-course scope and actual access; changing course state requires separate authorization
 
 3. **Pagination issue**: Very large datasets might not load completely
-   - Solution: Be more specific (e.g., "Show assignments in CS 101" instead of "Show all assignments")
+   - Solution: Check explicit pagination errors and exact requested scope; a narrower successful query does not prove the original inventory complete
 
 ## Performance Issues
 

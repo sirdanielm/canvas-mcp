@@ -68,6 +68,13 @@ teacher decision or complete that prototype by themselves.
    comment author/body and retained history. Score parity does not prove feedback
    delivery. Preserve source, result, policy, decision and operation references.
 
+Reuse existing exact human authorization while its scope and substantive
+bindings still match. Routine progress under that bounded scope does not require
+another project-level confirmation. This does not create teacher acceptance,
+renew paid authority, remove a mandatory tool/platform confirmation or clear a
+denied/uncertain operation. Ordinary drafts remain UNAPPROVED and score-only;
+accepted-test transfer and Canvas delivery retain their distinct gates.
+
 The newest import/QC attempt remains authoritative when held, failed or
 interrupted. Its execution completion is separate from its diagnostic verdict;
 an older clean receipt cannot clear a newer hold.

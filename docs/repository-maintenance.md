@@ -22,6 +22,25 @@ lane-appropriate proposals. The authenticated Unit 1 EDIT transfer is source-acc
 the ordinary participation receiver is locally qualified pending portable source
 publication. Git maintenance clears no source, teacher-review or delivery hold.
 
+## Settings evidence
+
+Use the existing operator/d0t settings ledger for actual observations; do not
+create a second runtime or approval registry. Public source references are:
+
+| Evidence class | Source and limit |
+| --- | --- |
+| GitHub governance | Read the fork’s current active rules; a branch’s protected flag or a workflow comment does not establish enforced checks. |
+| Optional automation | [Workflow inventory](../.github/workflows/README.md) and its definitions describe triggers/effects, not available credentials or permission to run paid review, publication or deployment. |
+| General MCP defaults | [Environment template](../env.template) and [overlay limitations](../config/overlays/README.md); unsupported flags implement no control. |
+| Gradebook limits and timing | [Worker limits](sdm-gradebook-worker.md#limits-and-tradeoffs), [reference allocation](gradebook-reference-limits.md), [timing](sdm-gradebook-workflow.md#timing-and-freshness). Constructor defaults and launcher overrides can differ. |
+| Persisted and loaded installation | Retain the owner’s exact configuration revision and loaded-process evidence privately. A file, startup hash or old receipt alone does not prove current loaded settings or liveness. |
+
+Record verification time, source revision, evidence class, owner and explicit
+unknowns. Attribute a failure to a limit only when the exact operation’s evidence
+supports it. Changing a client timeout does not renew a security token, stop a
+possible remote write or clear an uncertain operation. Settings changes retain
+their own review and authorization; documentation reconciliation changes none.
+
 ## Reviewed promotion
 
 1. Read current branches, worktrees, upstream containment and actual dirty

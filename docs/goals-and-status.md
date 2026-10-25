@@ -85,6 +85,21 @@ does not activate grading, paid providers or publication.
 
 ## Evidence and recovery
 
+The current coordinator’s bounded work order and existing domain/destination
+owners determine which Unit 2 reconciliation stage is eligible. This public
+agenda does not dispatch workers, clear academic holds or authorize publication.
+Within an already explicit bounded assignment, eligible Sheet projection and
+ordinary UNAPPROVED EDIT drafts do not need another project-level confirmation
+merely to advance a stage. Preserve independent QC, exact source/attempt/target
+checks, teacher fields and readback. Teacher acceptance, real tool/platform gates,
+actual denials, uncertain operations and paid/publication limits remain separate.
+
+Retain distinct evidence for source revision, installed pin/owner, real-case
+qualification, teacher-decision revision, EDIT readback, score outcome and comment
+outcome. A dated one-case qualification is evidence for that case; retain its
+private receipt and do not treat it as current service liveness or a broad rollout.
+Keep case-level references and payloads with their existing private owner.
+
 Use the [documentation map](documentation-map.md) to select a procedure and
 [repository maintenance](repository-maintenance.md) before source or checkout
 changes. Retain failed reads, original baselines, higher existing grades, custom

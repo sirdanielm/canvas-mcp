@@ -31,6 +31,22 @@ The [capability table](goals-and-status.md#source-and-installed-capability)
 distinguishes maintained source from unmerged review commits and private runtime
 overlays; none grants broad rollout authority.
 
+## Status, workflow and settings owners
+
+This repository uses the existing guides below rather than separate root
+`STATUS.md`, `WORKFLOW.md` or `REPO-SETTINGS.md` files:
+
+| Role | Maintained owner |
+| --- | --- |
+| Status and next work | [Goals and current agenda](goals-and-status.md) |
+| Agent/developer rules | [AGENTS](../AGENTS.md), [CLAUDE](../CLAUDE.md) |
+| Workflow and recovery | [Integration](grass-workflow-integration.md), [gradebook](sdm-gradebook-workflow.md), [worker](sdm-gradebook-worker.md), [EDIT transfer](teacher-edit-transfer.md), [authoring](sdm-canvas-authoring-workflow.md) |
+| Settings evidence | [Repository maintenance](repository-maintenance.md#settings-evidence), [workflow definitions](../.github/workflows/README.md), [supported versus placeholder overlays](../config/overlays/README.md) |
+
+Source defaults, persisted configuration and loaded process settings are
+different evidence. Keep current private operation counts and detailed receipts
+with their existing owner rather than creating another public queue or ledger.
+
 ## History and privacy
 
 Keep historical detail in fixed Git revisions, release notes and private owner

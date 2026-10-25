@@ -67,6 +67,8 @@ that a human approved it.
 Canvas MCP server; the separate gradebook server retains its own exact-preview,
 explicit-enable and durable readback controls.
 
+See the [gradebook timing and recovery boundaries](docs/sdm-gradebook-workflow.md#timing-and-freshness) before interpreting an expiry or timeout.
+
 See the [gradebook workflow](docs/sdm-gradebook-workflow.md#available-tools) for
 the separate local `canvas-gradebook` server. Its four optional GET/review
 controls are registered only with a configured local worker controller and are
@@ -419,16 +421,16 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| 401 Unauthorized | Invalid/expired token | Generate new Canvas API token |
+| 401 Unauthorized | Invalid/expired token | Inspect the authorized connection and use the institution's supported renewal path |
 | 403 Forbidden | Insufficient permissions | Check Canvas role permissions |
 | 404 Not Found | Invalid course/assignment ID | Verify IDs exist |
 | 422 Unprocessable | Invalid parameters | Check parameter format |
 | 429 Too Many Requests | Rate limit exceeded | Reduce request frequency |
 
 ### Recovery Strategies
-1. **Auth errors (401/403):** Stop and report - cannot recover without user action
+1. **Auth errors (401/403):** Stop the failed action; resolve the actual credential/permission hold under existing authority. Do not substitute accounts or broaden grants to bypass it.
 2. **Not found (404):** Verify resource exists, check for typos in identifiers
-3. **Rate limits (429):** Wait and retry with exponential backoff
+3. **Rate limits (429):** Use the transport's bounded read backoff. For a possible write, inspect the original operation and independent readback before another attempt; uncertainty is not proof of no effect.
 4. **Validation (422):** Check parameter types and required fields
 
 ## Tool Discovery
@@ -477,10 +479,10 @@ Enable identity anonymization for FERPA-conscious workflows:
 ENABLE_DATA_ANONYMIZATION=true
 ```
 
-This converts student names to anonymous IDs (e.g., `Student_a8f7e23d`) before data reaches the AI. A local mapping file allows educators to correlate IDs with real students.
+Supported identity fields use pseudonyms before results reach the AI client; operational IDs and sensitive free text can remain. Response masking does not automatically create a mapping file. `create_student_anonymization_map` is a separately authorized local stdio export, distinct from the registry-bound permanent SDM PIN source. Keep both mappings and student-linked results private.
 
 ### For Students
-No anonymization needed - students only access their own data via Canvas "self" endpoints.
+Personal grades and submissions remain private. Student-specific tools use Canvas "self" endpoints; shared course content follows the account’s actual permissions and can contain peers’ information. Do not disable privacy controls merely because the caller has a student role.
 
 ## Additional Resources
 
@@ -504,14 +506,11 @@ The rules live in those files only; they are not repeated here. The two sections
 
 ## Claude Memory Lookup
 
-When prior context may matter, search Claude memories at runtime instead of copying memory content into this repo. Use this as a nudge, not a mandatory step for every tiny edit.
-
-- Safe local roots: /Users/vishal/code, /Users/vishal/teaching, /Users/vishal/research, /Users/vishal/admin, /Users/vishal/vault.
-- Do not search Box, iCloud, or other cloud-sync folders for this purpose.
-- Start with global memory: /Users/vishal/.claude/memory/MEMORY.md and /Users/vishal/.claude/projects/-Users-vishal/memory/MEMORY.md.
-- For the current project, derive the likely Claude memory folder from the path. Example: /Users/vishal/code/AgentLab -> /Users/vishal/.claude/projects/-Users-vishal-code-AgentLab/memory/.
-- If the topic could cross projects, search relevant memory files with rg across /Users/vishal/.claude/projects/*/memory/*.md.
-- Prefer memory pointers and summaries over duplicating long memory content here.
+Use only the current operator's explicitly available memory and source roots.
+Upstream operator home paths are not SDM lookup instructions. Do not search
+unrelated or cloud-synced folders, copy private history into this repository, or
+treat an old memory as current runtime or action authority. Prefer relevant
+source pointers and summaries over duplicating long memory content.
 
 ## External Actions Require Explicit Approval
 
@@ -521,7 +520,7 @@ This includes LinkedIn, email, Slack/Teams, Canvas, GitHub PRs/issues/comments, 
 
 Drafting is allowed. Composing into a browser editor is allowed only when asked. Stop before the final action button.
 
-Before any external action, ask: "Do you want me to [exact action] now?" Only proceed after a clear yes to that exact action. Do not treat "looks good," "ok," or "use this" as permission to publish, send, delete, deploy, submit, schedule, purchase, or post.
+Require explicit human authorization for the exact consequential action. Reuse existing authorization when its scope, targets and substantive bindings still match; do not ask for duplicate project confirmation merely to advance an already authorized stage. Ask when authority is missing or the proposed action changes scope. A token, work order or passing test does not prove human approval. Actual tool/platform confirmations, denials, expiries and uncertain sends remain binding; never rewrite or reroute them to continue.
 
 For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."
 
@@ -573,6 +572,6 @@ The user-owned local d0t hub coordinates current contracts, named owners and dat
 - `perform d0t sync` means a selective local document refresh, preserving user edits, prior history and unresolved holds. It is distinct from Git synchronization and this repository's domain-specific operations.
 - `Perform repo closeout, then perform d0t sync` is serial: complete the closeout disposition and durable receipt before recording its result in d0t. Source closeout can finish after an exact checkout freeze while separately owned live work continues; report that work as active.
 
-Assign files and checkouts before edits. Preserve every unrelated dirty/untracked change and active pin; never reset, stash, clean, force-push or absorb it to simplify closeout. Use isolated branches/checkouts and the established review/PR/CI process for eligible artifacts. Keep source publication, installation/deployment, live execution, academic acceptance and delivery as separate outcomes. Documentation work grants no paid call, source-identity change, protected-source mutation, deployment, scheduler operation, grade write or external message authority. Report exact blockers promptly and use dated progress checkpoints during active authorized work.
+Assign files and checkouts before edits. Preserve every unrelated dirty/untracked change and active pin; never reset, stash, clean, force-push or absorb it to simplify closeout. Use isolated branches/checkouts and the established review/PR/CI process for eligible artifacts. Keep source publication, installation/deployment, live execution, academic acceptance and delivery as separate outcomes. Documentation work grants no paid call, source-identity change, protected-source mutation, deployment, scheduler operation, grade write or external message authority. Keep durable task state and report meaningful blockers, decisions and major outcomes. Honor a human-specified cadence or deadline; an internal timebox or completed stage does not expire existing authority.
 
-For the newest teacher decisions, exact candidate holds and implementation distinctions, read [the October 4 operating contract](internal/SDM-OPERATING-CONTRACT-20261004.md). This dated record supplements existing architecture/operator guides; it does not make proposed source installed or supersede protected-source and teacher-authority rules.
+Use [current goals and ownership](docs/goals-and-status.md), [teacher EDIT procedures](docs/teacher-edit-transfer.md) and the current owner’s private evidence for the first unfinished gate. The [October 4 operating contract](internal/SDM-OPERATING-CONTRACT-20261004.md) is historical reference; it does not establish current decisions, installed behavior or delivery.

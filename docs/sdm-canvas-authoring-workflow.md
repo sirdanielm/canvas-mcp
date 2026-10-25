@@ -134,8 +134,8 @@ Do not store API tokens, student data or full Canvas responses in Git.
 ## Tool limitations and safe defaults
 
 - `create_assignment` already defaults to `published=false`.
-- This branch changes `create_module` to default to `published=false`.
-- This branch adds a `published` option to `add_module_item` so callers can declare visibility during creation.
+- Maintained source defaults `create_module` to `published=false`.
+- Maintained source exposes `published` on `add_module_item`; pass the intended state explicitly and verify the item and linked content. Source availability does not prove which revision an installed connection loaded.
 - The server includes `update_rubric`, but the tracked SDM authoring allowlist does not expose it. If an explicitly authorized native-rubric edit requires it, preserve every criterion/rating ID and the exact association ID, submit the complete replacement set, show the preview, then confirm with its single-use token. Structural additions/removals belong in the Canvas UI. There is no dedicated native-rubric deletion tool. The normal SDM workflow uses description-embedded tables.
 - Deleting assignments, modules or module items uses the upstream preview-and-confirm flow. Treat confirmation tokens as single-use and target-specific.
 
