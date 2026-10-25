@@ -120,6 +120,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install uv pip-audit safety
       
+      # Temporary candidate generation; remove once the resulting lock is committed.
+      - name: Refresh only the advisory-affected locked packages
+        run: |
+          uv lock --upgrade-package black==26.10.1 \\
+            --upgrade-package certifi==2026.10.19 \\
+            --upgrade-package fastmcp==4.1.2 \\
+            --upgrade-package fastmcp-slim==4.1.2 \\
+            --upgrade-package opentelemetry-api==1.45.1
+          uv lock --check
+
       - name: Export locked dependencies
         run: |
           # Audit the exact pinned dependency set that actually ships (uv.lock),
@@ -149,6 +159,7 @@ jobs:
           path: |
             pip-audit-report.json
             safety-report.json
+            uv.lock
       
       - name: Generate dependency summary
         if: always()
