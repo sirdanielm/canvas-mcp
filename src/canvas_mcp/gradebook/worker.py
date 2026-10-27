@@ -14,9 +14,10 @@ import os
 import re
 import sqlite3
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -766,9 +767,20 @@ class RefreshWorker:
             raise GradebookError("Refresh reconciliation artifact is unavailable.")
         manifest = self.store.load("refresh", op["payload"]["manifest_id"])
         mode = self._operation_mode(op)
-        if mode == "GET_ONLY":
+        get_only_mode = mode == "GET_ONLY"
+        native_postcondition: dict[str, Any] = {}
+        verify: Callable[
+            [dict[str, Any], dict[str, Any], Any, Store, dict[str, Any]], None
+        ]
+        if get_only_mode:
             from .get_only_refresh import verify_get_only_output
-        elif mode != "FULL_SYNC":
+
+            verify = partial(
+                verify_get_only_output, postcondition_report=native_postcondition
+            )
+        elif mode == "FULL_SYNC":
+            verify = verify_native_output
+        else:
             raise GradebookError("Refresh manifest has an unsupported mode.")
         if (
             manifest["binding_digest"] != digest(self.bindings)
@@ -803,18 +815,11 @@ class RefreshWorker:
             }
         if op["status"] not in {"VERIFYING", "VERIFIED"}:
             op = self.journal.update(op["id"], "VERIFYING")
-        native_postcondition: dict[str, Any] = {}
         try:
             with self.diagnostics.stage("verify", op["id"]):
-                if mode == "GET_ONLY":
-                    verify_get_only_output(
-                        manifest["before"], after, manifest["plans"],
-                        self.store, self.bindings, postcondition_report=native_postcondition,
-                    )
-                else:
-                    verify_native_output(
-                        manifest["before"], after, manifest["plans"], self.store, self.bindings,
-                    )
+                verify(
+                    manifest["before"], after, manifest["plans"], self.store, self.bindings,
+                )
         except Exception as exc:
             if op["status"] != "VERIFIED":
                 self.journal.update(
@@ -842,9 +847,9 @@ class RefreshWorker:
                 "students": len(current["students"]),
                 "assignments": len(current["assignments"]),
                 "pending_edits": (
-                    None if mode == "GET_ONLY" else len(plan["pending_edits"])
+                    None if get_only_mode else len(plan["pending_edits"])
                 ),
-                **({"edit_preserved": True} if mode == "GET_ONLY" else {}),
+                **({"edit_preserved": True} if get_only_mode else {}),
             }
         receipt_id, _ = self.store.save(
             "receipt",
@@ -855,7 +860,7 @@ class RefreshWorker:
                 "verified_at": stamp(),
                 "summary": summary,
                 "canvas_writes": 0,
-                **({"native_postcondition": native_postcondition} if mode == "GET_ONLY" else {}),
+                **({"native_postcondition": native_postcondition} if get_only_mode else {}),
             },
         )
         if op["status"] != "VERIFIED":

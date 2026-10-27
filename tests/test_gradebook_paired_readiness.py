@@ -15,10 +15,10 @@ from canvas_mcp.gradebook.paired_readiness import (
 
 
 @pytest.fixture
-def proposal():
+def proposal(tmp_path):
     body = "Exact feedback <script>send()</script> α"
     encoded = body.encode()
-    ref = {"path": "/private/source.json", "sha256": "a" * 64}
+    ref = {"path": str(tmp_path / "source.json"), "sha256": "a" * 64}
     records = []
     for i in range(166):
         records.append({
@@ -76,9 +76,9 @@ def test_duplicate_target_holds(proposal):
         build_paired_readiness(proposal, proposal_sha256="a" * 64)
 
 
-def test_source_scope_is_documentary_and_retained(proposal):
+def test_source_scope_is_documentary_and_retained(proposal, tmp_path):
     scope = {"latest_independent_review_ref": {
-        "path": "/private/independent.json", "sha256": "b" * 64,
+        "path": str(tmp_path / "independent.json"), "sha256": "b" * 64,
         "bytes": 10, "json_pointer": "/record",
     }, "scope_class": "Saved scope only"}
     proposal["records_private"][0]["independent_scope_ref"] = scope
@@ -124,3 +124,9 @@ def test_pinned_read_rejects_wrong_sha_and_symlink(proposal, tmp_path):
     link.symlink_to(path)
     with pytest.raises(GradebookError):
         load_paired_proposal(link, expected)
+
+
+def test_source_reference_uses_native_absolute_fixture_path(proposal, tmp_path):
+    reference = proposal["records_private"][0]["grade_source_ref"]
+    assert reference["path"] == str(tmp_path / "source.json")
+    assert Path(reference["path"]).is_absolute()

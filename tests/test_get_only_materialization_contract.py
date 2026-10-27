@@ -165,3 +165,42 @@ async def test_full_sync_receipts_do_not_claim_get_postconditions(full_worker_sc
     operation = worker.journal.get(request["id"])
     receipt = worker.store.load("receipt", operation["payload"]["receipt_id"])
     assert "native_postcondition" not in receipt
+
+
+@pytest.mark.parametrize("get_only", [False, True])
+async def test_reconcile_verifier_and_receipt_follow_saved_mode_during_option_drift(
+    worker_scenario: Any, full_worker_scenario: Any, get_only: bool,
+) -> None:
+    worker, google, source, request, _ = (
+        worker_scenario if get_only else full_worker_scenario
+    )
+    read_workbook = google.read_workbook
+
+    async def read_with_changed_worker_option() -> Any:
+        observed = await read_workbook()
+        if google.grade_batches:
+            # A current option cannot reinterpret an already applied operation.
+            worker.get_only = not get_only
+        return observed
+
+    google.read_workbook = read_with_changed_worker_option
+
+    result = await worker.step()
+
+    assert result["state"] == "VERIFIED" and result["canvas_writes"] == 0
+    assert worker.get_only is not get_only
+    operation = worker.journal.get(request["id"])
+    assert operation["payload"]["finalized"] is True
+    manifest = worker.store.load("refresh", operation["payload"]["manifest_id"])
+    assert manifest["refresh_mode"] == ("GET_ONLY" if get_only else "FULL_SYNC")
+    receipt = worker.store.load("receipt", operation["payload"]["receipt_id"])
+    if get_only:
+        assert receipt["native_postcondition"]["contract"] == "GET_ONLY_MATERIALIZATION_V1"
+        assert all(summary["pending_edits"] is None and summary["edit_preserved"] is True
+                   for summary in receipt["summary"].values())
+    else:
+        assert "native_postcondition" not in receipt
+        assert all(type(summary["pending_edits"]) is int and "edit_preserved" not in summary
+                   for summary in receipt["summary"].values())
+    assert len(google.grade_batches) == 1
+    assert source.requests and all(request.method == "GET" for request in source.requests)

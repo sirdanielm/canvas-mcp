@@ -71,7 +71,7 @@ def add_get_controls(config_path: Path) -> str:
         return "Protected GET controls already enabled; no settings changed."
     new_tools = [*enabled, *added]
     table = re.search(
-        r"(?ms)^\[mcp_servers\.canvas-gradebook\]\n.*?(?=^\[|\Z)", original.decode()
+        r"(?ms)^\[mcp_servers\.canvas-gradebook\]\r?\n.*?(?=^\[|\Z)", original.decode()
     )
     if table is None:
         raise ValueError("Cannot locate exact gradebook table.")
@@ -130,6 +130,8 @@ def install(config_path: Path, upgrade: bool = False) -> str:
     parsed = tomllib.loads(original.decode())
     addition = (ROOT / "config" / "sdm-gradebook.toml.example").read_text()
     desired = tomllib.loads(addition)["mcp_servers"]["canvas-gradebook"]
+    newline = "\r\n" if b"\r\n" in original else "\n"
+    formatted_addition = addition.replace("\n", newline)
     existing = parsed.get("mcp_servers", {}).get("canvas-gradebook")
     if existing is not None:
         if existing == desired:
@@ -148,8 +150,8 @@ def install(config_path: Path, upgrade: bool = False) -> str:
                 "An existing canvas-gradebook connection differs; no settings changed."
             )
         updated, replacements = re.subn(
-            r"(?ms)^\[mcp_servers\.canvas-gradebook\]\n.*?(?=^\[|\Z)",
-            lambda _: addition + "\n",
+            r"(?ms)^\[mcp_servers\.canvas-gradebook\]\r?\n.*?(?=^\[|\Z)",
+            lambda _: formatted_addition + newline,
             original.decode(),
             count=1,
         )
@@ -158,7 +160,7 @@ def install(config_path: Path, upgrade: bool = False) -> str:
         replacement = updated.encode()
         parsed["mcp_servers"].pop("canvas-gradebook")
     else:
-        replacement = original + b"\n" + addition.encode()
+        replacement = original + newline.encode() + formatted_addition.encode()
     check = tomllib.loads(replacement.decode())
     check["mcp_servers"].pop("canvas-gradebook")
     if check != parsed:
