@@ -28,6 +28,7 @@ import httpx
 from .client import GradebookError
 
 SCOPE = "https://www.googleapis.com/auth/spreadsheets"
+READ_ONLY_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 DEFAULT_CLASP_PROJECT = "1072944905499-"
@@ -254,10 +255,16 @@ async def authorize(
     credential_path: Path,
     profile: str = "gradebook",
     *,
+    read_only: bool = False,
     timeout: float = 180,
     browser_open: Callable[[str], bool] = webbrowser.open,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> dict[str, Any]:
+    if type(read_only) is not bool:
+        raise GradebookError("Explicit Google read-only authorization mode required.")
+    if read_only and profile != "unit2-typed-capture":
+        raise GradebookError("Read-only typed capture requires its dedicated profile.")
+    requested_scope = READ_ONLY_SCOPE if read_only else SCOPE
     if (
         not profile
         or not all(c.isascii() and (c.isalnum() or c in "_-") for c in profile)
@@ -293,7 +300,7 @@ async def authorize(
                     "client_id": client["client_id"],
                     "redirect_uri": receiver.redirect_uri,
                     "response_type": "code",
-                    "scope": SCOPE,
+                    "scope": requested_scope,
                     "access_type": "offline",
                     "prompt": "consent",
                     "include_granted_scopes": "false",
@@ -343,7 +350,7 @@ async def authorize(
         if (
             not isinstance(token, dict)
             or not isinstance(token.get("scope"), str)
-            or set(token["scope"].split()) != {SCOPE}
+            or set(token["scope"].split()) != {requested_scope}
         ):
             raise GradebookError(
                 "Google OAuth did not grant exactly the requested Sheets scope."
@@ -368,7 +375,7 @@ async def authorize(
         return {
             "state": "AUTHORIZED",
             "profile": profile,
-            "scope": SCOPE,
+            "scope": requested_scope,
             "canvas_writes": 0,
             "sheets_writes": 0,
         }

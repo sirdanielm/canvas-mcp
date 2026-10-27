@@ -430,6 +430,15 @@ def _apply_requests(
                 < current["gridProperties"]["columnCount"]
             ):
                 _fail("Automatic refresh must not shrink existing columns.")
+            # Sheets materializes 100px metadata for newly appended columns.
+            # Existing dimensions remain exact; later explicit width requests
+            # still override this default through the normal request projector.
+            old_columns = current["gridProperties"]["columnCount"]
+            new_columns = props["gridProperties"]["columnCount"]
+            for column in range(old_columns, new_columns):
+                state["sheets"][sid]["columnMetadata"][str(column)] = {
+                    "pixelSize": 100
+                }
             _masked(current, props, data["fields"])
         elif kind in {"repeatCell", "setDataValidation"}:
             sheet, rows, cols = _range(state, data["range"], allowed)

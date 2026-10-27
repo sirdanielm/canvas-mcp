@@ -768,11 +768,7 @@ class RefreshWorker:
         mode = self._operation_mode(op)
         if mode == "GET_ONLY":
             from .get_only_refresh import verify_get_only_output
-
-            verify = verify_get_only_output
-        elif mode == "FULL_SYNC":
-            verify = verify_native_output
-        else:
+        elif mode != "FULL_SYNC":
             raise GradebookError("Refresh manifest has an unsupported mode.")
         if (
             manifest["binding_digest"] != digest(self.bindings)
@@ -807,15 +803,18 @@ class RefreshWorker:
             }
         if op["status"] not in {"VERIFYING", "VERIFIED"}:
             op = self.journal.update(op["id"], "VERIFYING")
+        native_postcondition: dict[str, Any] = {}
         try:
             with self.diagnostics.stage("verify", op["id"]):
-                verify(
-                    manifest["before"],
-                    after,
-                    manifest["plans"],
-                    self.store,
-                    self.bindings,
-                )
+                if mode == "GET_ONLY":
+                    verify_get_only_output(
+                        manifest["before"], after, manifest["plans"],
+                        self.store, self.bindings, postcondition_report=native_postcondition,
+                    )
+                else:
+                    verify_native_output(
+                        manifest["before"], after, manifest["plans"], self.store, self.bindings,
+                    )
         except Exception as exc:
             if op["status"] != "VERIFIED":
                 self.journal.update(
@@ -856,6 +855,7 @@ class RefreshWorker:
                 "verified_at": stamp(),
                 "summary": summary,
                 "canvas_writes": 0,
+                **({"native_postcondition": native_postcondition} if mode == "GET_ONLY" else {}),
             },
         )
         if op["status"] != "VERIFIED":

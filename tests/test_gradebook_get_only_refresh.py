@@ -294,3 +294,38 @@ async def test_missing_renderer_bindings_hold_before_canvas_read(scenario, field
     with pytest.raises(GradebookError, match="workbook binding differs"):
         await prepare_get_only_refresh(canvas, store, "core", invalid, before)
     assert not canvas.reads
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["observed_default", "wrong_new_width", "new_hidden", "old_width"])
+async def test_google_materialized_new_get_column_width(scenario, change):
+    """Observed Sheets response on 26-to-27 expansion, independent of projection."""
+    before, canvas, store, binding = scenario
+    original = canvas.current["assignments"][0]
+    for assignment_id in range(22, 46):
+        canvas.current["assignments"].append(
+            {**original, "id": str(assignment_id), "name": "Fictional assignment"}
+        )
+        canvas.current["cells"][f"101:{assignment_id}"] = copy.deepcopy(
+            canvas.current["cells"]["101:21"]
+        )
+    plan = await prepare_get_only_refresh(canvas, store, "core", binding, before)
+    state = native._state(before)
+    native._apply_requests(state, plan["batch_update"]["requests"], binding)
+    assert state["sheets"][1]["properties"]["gridProperties"]["columnCount"] == 27
+    # Actual native Sheets readback materializes the appended column's width.
+    state["sheets"][1]["columnMetadata"]["26"] = {"pixelSize": 100}
+    if change == "wrong_new_width":
+        state["sheets"][1]["columnMetadata"]["26"]["pixelSize"] = 150
+    elif change == "new_hidden":
+        state["sheets"][1]["columnMetadata"]["26"]["hiddenByUser"] = True
+    elif change == "old_width":
+        state["sheets"][1]["columnMetadata"]["25"] = {"pixelSize": 100}
+    after = raw_from_state(state)
+    if change == "observed_default":
+        verify_get_only_output(before, after, [plan], store, {"core": binding})
+        assert native._state(before)["sheets"][2] == native._state(after)["sheets"][2]
+        assert literal(before, 3, "B2") == literal(after, 3, "B2")
+    else:
+        with pytest.raises(GradebookError, match="native readback differs"):
+            verify_get_only_output(before, after, [plan], store, {"core": binding})
