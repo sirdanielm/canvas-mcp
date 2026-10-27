@@ -34,8 +34,8 @@ one-shot executor. The EDIT note explicitly says **UNAPPROVED**; neither score
 nor comment publication is authorized by staging.
 
 The existing `localgrass_application.build_owner_factory` accepts explicit
-`LOCALGRASS_PROPOSAL_EDIT_APPLICATION_V1` and
-`LOCALGRASS_PROPOSAL_EDIT_UNIT1_APPLICATION_V1` configurations, using exact
+`LOCALGRASS_PROPOSAL_EDIT_APP_V1` and
+`LOCALGRASS_PROPOSAL_EDIT_U1_APP_V1` configurations, using exact
 `result_id` instead of `decision_id`. The operator composes the existing factory,
 then `owner.prepare()` and `owner.execute(..., enabled=True)` under the current
 local-staging authorization. No new account, acceptance receipt or publisher is

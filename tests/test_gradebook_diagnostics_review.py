@@ -1,9 +1,11 @@
 """Regression probes derived from the independent review, fictional data only."""
 
 import os
+import select
 import sqlite3
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
@@ -98,6 +100,59 @@ async def test_recovered_claim_response_does_not_mask_prepare_failure(
     assert operation["payload"]["failure_stage"] == "prepare_advanced"
 
 
+def _run_fifo_probe(import_code, operation_code, *, startup_timeout=30):
+    """Bound imports separately; retain the two-second FIFO-operation guard."""
+    code = (
+        "import sys\n" + import_code + "\n"
+        "print('READY', flush=True)\n"
+        "if sys.stdin.readline() != 'RUN\\n':\n"
+        "    raise RuntimeError('Probe was not released')\n" + operation_code + "\n"
+    )
+    with subprocess.Popen(
+        [sys.executable, "-c", code],
+        cwd=ROOT,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(ROOT / "src"),
+            "PYTHON_DOTENV_DISABLED": "1",
+        },
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ) as process:
+        try:
+            assert process.stdout is not None
+            deadline = time.monotonic() + startup_timeout
+            response = b""
+            while b"\n" not in response:
+                remaining = deadline - time.monotonic()
+                ready, _, _ = select.select([process.stdout], [], [], max(0, remaining))
+                if remaining <= 0 or not ready:
+                    pytest.fail("FIFO probe startup timed out before operation began")
+                chunk = os.read(process.stdout.fileno(), 64)
+                if not chunk:
+                    break
+                response += chunk
+                if len(response) > 64:
+                    pytest.fail(
+                        "FIFO probe startup emitted an invalid readiness response"
+                    )
+            if response != b"READY\n":
+                _, error = process.communicate(timeout=5)
+                pytest.fail("FIFO probe startup failed: " + error[-2000:])
+            try:
+                _, error = process.communicate(input="RUN\n", timeout=2)
+            except subprocess.TimeoutExpired:
+                pytest.fail("FIFO operation blocked after readiness")
+            if process.returncode:
+                pytest.fail("FIFO operation failed: " + error[-2000:])
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=5)
+
+
 @pytest.mark.parametrize("operation", ["emit", "inspect"])
 @pytest.mark.parametrize("fifo_reader", [False, True])
 def test_fifo_log_never_blocks_writer_or_inspection(tmp_path, operation, fifo_reader):
@@ -106,29 +161,67 @@ def test_fifo_log_never_blocks_writer_or_inspection(tmp_path, operation, fifo_re
     log = root / "diagnostics.jsonl"
     os.mkfifo(log, 0o600)
     reader = os.open(log, os.O_RDONLY | os.O_NONBLOCK) if fifo_reader else None
-    code = (
-        f"from pathlib import Path; from canvas_mcp.gradebook.diagnostics import Diagnostics; d=Diagnostics(Path({str(log)!r})); d.emit('loop', state='HELD'); assert d.dropped > 0"
+    import_code = (
+        "from pathlib import Path; from canvas_mcp.gradebook.diagnostics import Diagnostics"
         if operation == "emit"
-        else f"from pathlib import Path; from canvas_mcp.gradebook.diagnostics import inspect_journal; inspect_journal(Path({str(tmp_path)!r}), 'fictional-workbook')"
+        else "from pathlib import Path; from canvas_mcp.gradebook.diagnostics import inspect_journal"
+    )
+    operation_code = (
+        f"d=Diagnostics(Path({str(log)!r})); d.emit('loop', state='HELD'); assert d.dropped > 0"
+        if operation == "emit"
+        else f"inspect_journal(Path({str(tmp_path)!r}), 'fictional-workbook')"
     )
     try:
-        subprocess.run(
-            [sys.executable, "-c", code],
-            cwd=ROOT,
-            env={
-                **os.environ,
-                "PYTHONPATH": str(ROOT / "src"),
-                "PYTHON_DOTENV_DISABLED": "1",
-            },
-            timeout=2,
-            capture_output=True,
-            check=True,
-        )
-    except subprocess.TimeoutExpired:
-        pytest.fail(f"{operation} blocked on FIFO")
+        _run_fifo_probe(import_code, operation_code)
     finally:
         if reader is not None:
             os.close(reader)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "startup_failure",
+        "startup_timeout",
+        "partial_startup_timeout",
+        "operation_timeout",
+    ],
+)
+def test_fifo_probe_bounds_startup_and_operation_and_reaps_child(monkeypatch, failure):
+    created = []
+    original = subprocess.Popen
+
+    def track(*args, **kwargs):
+        process = original(*args, **kwargs)
+        created.append(process)
+        return process
+
+    monkeypatch.setattr(subprocess, "Popen", track)
+    startup = (
+        "raise RuntimeError('fictional startup failure')"
+        if failure == "startup_failure"
+        else "import time"
+    )
+    if failure == "startup_timeout":
+        startup += "; time.sleep(10)"
+    if failure == "partial_startup_timeout":
+        startup = "import sys,time; sys.stdout.write('REA'); sys.stdout.flush(); time.sleep(10)"
+    operation = "time.sleep(10)" if failure == "operation_timeout" else "pass"
+    expected = {
+        "startup_failure": "startup failed",
+        "startup_timeout": "startup timed out",
+        "partial_startup_timeout": "startup timed out",
+        "operation_timeout": "operation blocked",
+    }[failure]
+    with pytest.raises(pytest.fail.Exception, match=expected):
+        _run_fifo_probe(
+            startup,
+            operation,
+            startup_timeout=(
+                0.2 if failure in ("startup_timeout", "partial_startup_timeout") else 30
+            ),
+        )
+    assert len(created) == 1 and created[0].poll() is not None
 
 
 def test_active_wal_is_refused_without_touching_database_or_sidecars(tmp_path):

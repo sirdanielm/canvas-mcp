@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import copy
 import importlib
-from pathlib import Path
 from typing import Any
 
 from .client import GradebookError
@@ -25,7 +24,6 @@ from .proposal_edit_transfer import (
     prepare_proposal_transfer,
     revalidate_proposal_transfer,
 )
-from .store import Store
 
 CONTRACT = "LOCALGRASS_UNAPPROVED_EDIT_V1"
 
@@ -35,18 +33,9 @@ class LocalGrAssProposalEditConnection(LocalGrAssEditConnection):
 
     contract = CONTRACT
 
-    def __init__(
-        self,
-        source: Any,
-        canvas_store: Store,
-        *,
-        assignment_bindings_path: Path,
-        expected_assignment_bindings_sha256: str,
-        section: str,
-        registry_path: Path,
-        shared_tool: Path,
-        preservation: dict[str, Any] | None = None,
-    ) -> None:
+    @staticmethod
+    def _source_files(source: Any) -> Any:
+        """Keep proposal authority distinct; inherit all native owner setup."""
         try:
             authority = importlib.import_module("localgrass.teacher_edit_proposal")
             files = importlib.import_module("localgrass.teacher_edit_files")
@@ -56,24 +45,7 @@ class LocalGrAssProposalEditConnection(LocalGrAssEditConnection):
             isinstance(source, authority.AuthenticatedProposalSource),
             "AUTHENTICATED_PROPOSAL_SOURCE_REQUIRED",
         )
-        _need(isinstance(canvas_store, Store), "EXISTING_CANVAS_STORE_REQUIRED")
-        _need(
-            all(
-                isinstance(p, Path) and p.is_absolute()
-                for p in (assignment_bindings_path, registry_path, shared_tool)
-            ),
-            "EXPLICIT_LOCAL_BINDINGS_REQUIRED",
-        )
-        _need(type(section) is str and section.strip(), "EXPLICIT_SECTION_REQUIRED")
-        self.source, self.store, self.files = source, canvas_store, files
-        self.assignment_path = assignment_bindings_path
-        self.assignment_sha256 = expected_assignment_bindings_sha256
-        self.preservation = copy.deepcopy(preservation)
-        self.section, self.registry_path, self.shared_tool = (
-            section,
-            registry_path,
-            shared_tool,
-        )
+        return files
 
     def _project(
         self,
@@ -98,6 +70,16 @@ class LocalGrAssProposalEditConnection(LocalGrAssEditConnection):
             )
             record = self._project_unit1_record(snapshot, current, pin_binding)
         else:
+            academic = self.source.review.registry.get_revision(
+                importlib.import_module("localgrass.admission").Scope(
+                    **payload["dependencies"]["scope"]
+                )
+            )
+            kind = academic.get("scoring_policy", {}).get("policy_kind")
+            _need(
+                type(kind) is str and kind and not kind.startswith("FICTIONAL"),
+                "LOCAL_EDIT_REAL_POLICY_REQUIRED",
+            )
             record = self._project_record(snapshot, current, pin_binding)
         maximum = (
             100

@@ -101,6 +101,18 @@ def integrated_source(tmp_path, snapshot, binding, monkeypatch, *, proposal=Fals
             result_id=domain.result["result_id"],
             identity_runtime_root=domain.root,
         )
+        # The generic scorer remains fictional. The joined native test declares
+        # a controlled policy boundary; this is not production qualification.
+        domain.unqualified_revision = domain.registry.get_revision
+
+        def qualified_revision(scope):
+            value = copy.deepcopy(domain.unqualified_revision(scope))
+            value["scoring_policy"]["policy_kind"] = (
+                "OFFLINE_DECLARED_NATIVE_POINTS_FIXTURE"
+            )
+            return value
+
+        monkeypatch.setattr(domain.registry, "get_revision", qualified_revision)
 
     def explicit_identity(runtime):
         assert runtime == domain.source.identity_runtime_root

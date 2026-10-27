@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +20,9 @@ from test_localgrass_teacher_edit import integrated_source
 from canvas_mcp.gradebook import native
 from canvas_mcp.gradebook.client import GradebookError
 from canvas_mcp.gradebook.localgrass_edit_execution import execute_local_edit_once
+from canvas_mcp.gradebook.localgrass_proposal_edit import (
+    LocalGrAssProposalEditConnection,
+)
 from canvas_mcp.gradebook.localgrass_teacher_edit import LocalGrAssEditConnection
 from canvas_mcp.gradebook.model import digest
 from canvas_mcp.gradebook.teacher_edit_transfer import prepare_transfer
@@ -309,7 +313,7 @@ def test_accepted_browser_application_cannot_adopt_proposal_configuration(
     from canvas_mcp.gradebook import localgrass_application as application
 
     _, _, _, kwargs, owners = proposal_configured
-    with pytest.raises(GradebookError, match="PROPOSAL_CONFIG_REQUIRES_OWNER_WORKFLOW"):
+    with pytest.raises(GradebookError, match="PROPOSAL_REQUIRES_OWNER_WORKFLOW"):
         application.build_application(*owners(), **kwargs())
 
 
@@ -330,3 +334,48 @@ def test_proposal_configuration_rejects_decision_alias_and_missing_case(
     with pytest.raises(GradebookError, match="LOCAL_EDIT_CASE_OR_CONFIG_HELD"):
         factory(c.domain.token, c.domain.csrf)
     assert c.calls["posts"] == []
+
+
+def test_unqualified_fictional_generic_policy_cannot_stage(proposed, monkeypatch):
+    connection, context, domain, *_ = proposed
+    monkeypatch.setattr(domain.registry, "get_revision", domain.unqualified_revision)
+    with pytest.raises(GradebookError, match="LOCAL_EDIT_REAL_POLICY_REQUIRED"):
+        connection.prepare(**context)
+
+
+def test_shared_connection_setup_retains_exact_bindings_and_copies_preservation(
+    proposed,
+):
+    connection, _, _, _, _, kwargs, store = proposed
+    preservation = {"retained": {"note": "Original teacher note"}}
+    prepared = LocalGrAssProposalEditConnection(
+        connection.source, store, **kwargs, preservation=preservation
+    )
+    assert prepared.source is connection.source
+    assert prepared.store is store
+    assert prepared.assignment_path == kwargs["assignment_bindings_path"]
+    assert prepared.assignment_sha256 == kwargs["expected_assignment_bindings_sha256"]
+    assert prepared.registry_path == kwargs["registry_path"]
+    assert prepared.shared_tool == kwargs["shared_tool"]
+    assert prepared.section == kwargs["section"]
+    preservation["retained"]["note"] = "Changed after construction"
+    assert prepared.preservation == {"retained": {"note": "Original teacher note"}}
+    with pytest.raises(GradebookError, match="AUTHENTICATED_SOURCE_REQUIRED"):
+        LocalGrAssEditConnection(connection.source, store, **kwargs)
+
+
+@pytest.mark.parametrize("change", ["store", "path", "section", "source"])
+def test_shared_connection_setup_rejects_invalid_native_owner_inputs(proposed, change):
+    connection, _, _, _, _, kwargs, store = proposed
+    source = connection.source
+    kwargs = dict(kwargs)
+    if change == "store":
+        store = object()
+    elif change == "path":
+        kwargs["registry_path"] = Path("relative-registry.json")
+    elif change == "section":
+        kwargs["section"] = " "
+    else:
+        source = {"source_verified": True, "approval_state": "UNAPPROVED"}
+    with pytest.raises(GradebookError):
+        LocalGrAssProposalEditConnection(source, store, **kwargs)

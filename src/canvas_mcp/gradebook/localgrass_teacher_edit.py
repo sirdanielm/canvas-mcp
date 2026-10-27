@@ -70,6 +70,20 @@ class LocalGrAssEditConnection:
 
     contract = CONTRACT
 
+    @staticmethod
+    def _source_files(source: Any) -> Any:
+        """Authenticate the concrete source contract before shared initialization."""
+        try:
+            authority = importlib.import_module("localgrass.teacher_edit_source")
+            files = importlib.import_module("localgrass.teacher_edit_files")
+        except ImportError:
+            raise GradebookError("LOCAL_SOURCE_NOT_CONFIGURED") from None
+        _need(
+            isinstance(source, authority.AuthenticatedDecisionSource),
+            "AUTHENTICATED_SOURCE_REQUIRED",
+        )
+        return files
+
     def __init__(
         self,
         source: Any,
@@ -82,15 +96,7 @@ class LocalGrAssEditConnection:
         shared_tool: Path,
         preservation: dict[str, Any] | None = None,
     ) -> None:
-        try:
-            authority = importlib.import_module("localgrass.teacher_edit_source")
-            files = importlib.import_module("localgrass.teacher_edit_files")
-        except ImportError:
-            raise GradebookError("LOCAL_SOURCE_NOT_CONFIGURED") from None
-        _need(
-            isinstance(source, authority.AuthenticatedDecisionSource),
-            "AUTHENTICATED_SOURCE_REQUIRED",
-        )
+        files = self._source_files(source)
         _need(isinstance(canvas_store, Store), "EXISTING_CANVAS_STORE_REQUIRED")
         _need(
             all(

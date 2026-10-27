@@ -27,8 +27,8 @@ from .worker import RefreshJournal
 
 CONTRACT = "LOCALGRASS_EDIT_APPLICATION_V1"
 UNIT1_CONTRACT = "LOCALGRASS_EDIT_UNIT1_APPLICATION_V1"
-PROPOSAL_CONTRACT = "LOCALGRASS_PROPOSAL_EDIT_APPLICATION_V1"
-UNIT1_PROPOSAL_CONTRACT = "LOCALGRASS_PROPOSAL_EDIT_UNIT1_APPLICATION_V1"
+PROPOSAL_CONTRACT = "LOCALGRASS_PROPOSAL_EDIT_APP_V1"
+UNIT1_PROPOSAL_CONTRACT = "LOCALGRASS_PROPOSAL_EDIT_U1_APP_V1"
 HASH = re.compile(r"[a-f0-9]{64}\Z")
 FIELDS = {
     "contract",
@@ -399,7 +399,7 @@ def build_application(
     config, _, _ = load_configuration(config_path, expected_config_sha256)
     _need(
         config["contract"] not in {PROPOSAL_CONTRACT, UNIT1_PROPOSAL_CONTRACT},
-        "PROPOSAL_CONFIG_REQUIRES_OWNER_WORKFLOW",
+        "PROPOSAL_REQUIRES_OWNER_WORKFLOW",
     )
     factory = build_owner_factory(
         review,
