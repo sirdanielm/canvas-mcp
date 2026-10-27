@@ -85,7 +85,9 @@ def test_add_get_controls_preserves_existing_independent_comment_gate(tmp_path, 
 
 def test_repeated_action_flags_are_held_without_config_changes(tmp_path):
     p = config(tmp_path, push=True)
-    p.write_text(p.read_text().replace('"--enable-push"]', '"--enable-push", "--enable-push"]'))
+    p.write_text(
+        p.read_text().replace('"--enable-push"]', '"--enable-push", "--enable-push"]')
+    )
     original = p.read_bytes()
     with pytest.raises(ValueError):
         module.add_get_controls(p)
@@ -157,3 +159,40 @@ def test_known_previous_timeout_upgrades_without_changing_action_gates(tmp_path)
     assert after["mcp_servers"]["canvas-gradebook"]["tool_timeout_sec"] == 300
     after["mcp_servers"]["canvas-gradebook"]["tool_timeout_sec"] = 180
     assert after == before
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        [],
+        ["--enable-push"],
+        ["--enable-comments"],
+        ["--enable-push", "--enable-comments"],
+        ["--enable-comments", "--comment-approval-seconds", "1800"],
+    ],
+)
+def test_batch_controls_preserve_channels_and_unrelated_configuration(tmp_path, flags):
+    import json
+
+    p = config(tmp_path)
+    text = p.read_text()
+    if flags:
+        text = text.replace(
+            'sdm_gradebook_launcher.py"]',
+            'sdm_gradebook_launcher.py", ' + ", ".join(map(json.dumps, flags)) + "]",
+        )
+    p.write_text(text)
+    before = tomllib.loads(p.read_text())
+    module.add_batch_controls(p)
+    after = tomllib.loads(p.read_text())
+    tools = after["mcp_servers"]["canvas-gradebook"]["enabled_tools"]
+    assert set(module.BATCH_REVIEW_TOOLS) <= set(tools)
+    enabled = "--enable-push" in flags or "--enable-comments" in flags
+    assert all((t in tools) is enabled for t in module.BATCH_WRITE_TOOLS)
+    after["mcp_servers"]["canvas-gradebook"]["enabled_tools"] = before["mcp_servers"][
+        "canvas-gradebook"
+    ]["enabled_tools"]
+    assert after == before
+    once = p.read_bytes()
+    module.add_batch_controls(p)
+    assert p.read_bytes() == once

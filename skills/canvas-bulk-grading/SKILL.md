@@ -50,7 +50,7 @@ output. Hold uncertain eligibility until separately verified.
 
 ### Step 3: Choose a Grading Strategy
 
-Use this decision tree based on the number of submissions to grade:
+Reuse the assignment and scope already specified. Hold uncertain targets separately and continue independent eligible submissions. Choose among tools that are actually enabled; class size alone never requires general code execution:
 
 ```
 How many submissions need grading?
@@ -58,12 +58,12 @@ How many submissions need grading?
 +-- 1-9 submissions
 |   Use grade_with_rubric (one call per submission)
 |
-+-- 10-29 submissions
++-- Multiple submissions, including large classes
 |   Use bulk_grade_submissions (concurrent batch processing)
 |   Set max_concurrent: 5, rate_limit_delay: 1.0
 |   Run with dry_run: true first (Safety Rule 1)
 |
-+-- 30+ submissions OR custom grading logic needed
++-- Custom logic that warrants enabled, authorized code execution
     Use execute_typescript with bulkGrade function
     Grading logic runs locally; only selected output returns to the model
     Pass dryRun: true on the first run
@@ -89,9 +89,9 @@ grade_with_rubric(
 )
 ```
 
-### Strategy B: Bulk Grading (10-29 submissions)
+### Strategy B: Bulk Grading (any supported batch size)
 
-**Always dry run first.** Build the grades dictionary mapping each user ID to their grade data, then validate before submitting:
+**Validate a new substantive payload before sending.** Build the grades dictionary mapping each user ID to its grade data. Use `dry_run: true` for the nonwriting validation; reuse valid unchanged results while retaining fresh target checks:
 
 ```
 bulk_grade_submissions(
@@ -115,11 +115,11 @@ bulk_grade_submissions(
 )
 ```
 
-Show the dry-run results to the instructor and obtain explicit approval for the exact grades and feedback before re-running with `dry_run: false`. A successful dry run is not approval.
+Review the dry-run results and apply only grades/feedback covered by the instructor’s actual publication authorization. If the exact payload is already approved, reuse that approval across unchanged bounded batches; do not ask for another generic plan approval. Ask when final academic acceptance or publication authority is missing, or targets/values/feedback materially change. A successful dry run is not approval.
 
-### Strategy C: Code Execution (30+ submissions)
+### Strategy C: Enabled Code Execution for Custom Logic
 
-For large classes or custom grading logic, code execution can keep per-item processing out of the conversation context.
+For custom logic, enabled code execution can keep per-item processing out of the conversation context. Prefer `bulk_grade_submissions` for ordinary batches of any supported size, splitting into bounded batches if necessary. If code execution is absent, continue through an available supported bulk path.
 
 `execute_typescript` is off by default and disabled in the supplied hosted deployment
 configuration. Enabling it requires separately reviewed operator configuration.
@@ -136,8 +136,8 @@ results to the conversation; do not assume local processing anonymizes stdout.
 `bulkGrade({dryRun: true, ...})` skips its own grade submission, but still runs
 your callback. It does not validate the returned grades against Canvas or a rubric,
 and cannot prevent a callback from making its own writes. Keep preview callbacks
-free of side effects, review the exact intended changes, and obtain explicit
-instructor approval before applying. A `graded` count during dry run means
+free of side effects and review the exact intended changes. Apply only within
+existing instructor authorization or obtain it when missing. A `graded` count during dry run means
 would-be results, not saved grades. Use `grade` for a direct score or
 `rubricAssessment` for rubric scoring; top-level `points` is deprecated and ignored.
 
@@ -159,7 +159,6 @@ execute_typescript(code: `
       if (!notebook) return null; // skip ungraded
 
       return {
-        points: 100,
         rubricAssessment: { "_8027": { points: 100 } }
         // No `comment` here on purpose -- see Safety Rule 6. Add one only when
         // the instructor asked for written feedback, and make it feedback.
@@ -178,18 +177,18 @@ The three strategies have very different token costs:
 | Strategy | When | Token Cost | Why |
 |----------|------|------------|-----|
 | `grade_with_rubric` | 1-9 submissions | Low | Few round-trips, small payloads |
-| `bulk_grade_submissions` | 10-29 submissions | Medium | One call with batch data |
-| `execute_typescript` | 30+ submissions | Workload-dependent | Grading logic runs locally; only the code and selected output need to enter model context |
+| `bulk_grade_submissions` | Multiple submissions, any supported size | Medium | Bounded calls with batch data |
+| `execute_typescript` | Enabled, authorized custom logic | Workload-dependent | Grading logic runs locally; only the code and selected output need to enter model context |
 
 The key insight: as submission count grows, sending grading logic to the server can use less model context than bringing all submission data into the conversation.
 
 ## Safety Rules
 
-1. **Always dry run first.** For `bulk_grade_submissions`, set `dry_run: true` before the real run. Review the output for correctness.
+1. **Validate substantive payloads.** Use `dry_run: true` for each new bulk payload; review it and reuse unchanged validation when still valid. Keep callbacks side-effect free and revalidate current targets before sending.
 2. **Verify the rubric before grading.** Confirm criterion IDs, point ranges, and rating IDs match the assignment rubric. Use every criterion, including zero scores. Partial assessments can be written and then reported unconfirmed; inspect Canvas before retrying.
-3. **Spot-check before bulk.** For Strategy B and C, grade 1-2 submissions manually with `grade_with_rubric` first. Verify in Canvas that the grade and rubric feedback appear correctly.
+3. **Qualify changed integrations.** A new or materially changed adapter/installed scope may need a bounded canary under the same publication authority. Do not require live test writes before every unchanged batch. Read back actual approved deliveries.
 4. **Respect rate limits.** Use `max_concurrent: 5` and `rate_limit_delay: 1.0` (1 second between batches). Canvas rate limits are approximately 700 requests per 10 minutes.
-5. **Do not grade without explicit instructor confirmation.** Always present the grading plan (rubric mapping, point values, number of students affected) and wait for approval before submitting grades.
+5. **Use actual instructor authority.** Retain required teacher acceptance of final academic results and authorization for exact publication effects. Reuse valid approval across unchanged approved rows/batches. Ask only for missing authority or a substantive change; do not repeat plan and payload approval as separate ceremonies.
 6. **Never attach a comment the instructor did not ask for.** A submission comment is visible to the student in SpeedGrader, it *appends* on every call rather than replacing, and it cannot be un-sent. "Assign grade 8" means the grade only. Never generate a comment that restates the grade or narrates that grading happened (e.g. "Graded via automated review") — that reads to the student as a bot mark on their work and carries no feedback. Include a comment only when the instructor asked for written feedback, and then make it feedback about the work.
 
 ## Example Prompts
@@ -205,7 +204,7 @@ The key insight: as submission count grows, sending grading logic to the server 
 
 | Error | Cause | Action |
 |-------|-------|--------|
-| 401 Unauthorized | Token expired or invalid | Regenerate Canvas API token |
+| 401 Unauthorized | Token expired or invalid | Inspect the affected authorized connection and use its supported renewal path; continue independent work |
 | 403 Forbidden | Not an instructor/TA for this course | Verify Canvas role |
 | 404 Not Found | Wrong course, assignment, or rubric ID | Re-check IDs with `list_assignments` or `list_rubrics` |
 | 422 Unprocessable | Invalid rubric assessment format | Verify criterion IDs and point ranges match the rubric |

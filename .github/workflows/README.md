@@ -63,9 +63,10 @@ Their presence or GitHub `active` status does not authorize invoking them.
 
 `auto-update-docs.yml` and `auto-claude-review.yml` are not present in this
 checkout or the fork's current workflow inventory. There is no automatic
-workflow that patches documentation for each tool change. Update `AGENTS.md`,
-`tools/README.md` and `tools/TOOL_MANIFEST.json` with the implementation, and
-review relevant entry-point documentation.
+workflow that patches documentation for each tool change. Update the relevant
+`docs/agent-usage.md`, `tools/README.md` and `tools/TOOL_MANIFEST.json` guidance
+with the implementation. Change `AGENTS.md` only when its operating rules or task
+routing change, and review relevant entry-point documentation.
 
 ## Troubleshooting
 

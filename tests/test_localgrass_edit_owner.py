@@ -26,8 +26,7 @@ from canvas_mcp.gradebook.model import digest
 from canvas_mcp.gradebook.worker import RefreshJournal, RefreshJournalBusy
 
 
-@pytest.fixture
-def composed(integrated, tmp_path, monkeypatch):
+def composed_source(integrated, tmp_path, monkeypatch):
     connection, context, domain, _, _, _, store = integrated
     # The canonical PIN join runs against the same fictional registry adapter
     # used by the authenticated capture fixture, not a second identity source.
@@ -174,6 +173,11 @@ def composed(integrated, tmp_path, monkeypatch):
     )
     asyncio.run(canvas.close())
     asyncio.run(google.close())
+
+
+@pytest.fixture
+def composed(integrated, tmp_path, monkeypatch):
+    yield from composed_source(integrated, tmp_path, monkeypatch)
 
 
 def artifacts(root):

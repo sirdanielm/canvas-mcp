@@ -50,7 +50,9 @@ jobs:
 
             If tool files (src/canvas_mcp/tools/) or server.py were modified,
             also check whether documentation needs updating (README.md,
-            AGENTS.md, tools/README.md, tools/TOOL_MANIFEST.json).
+            docs/agent-usage.md, tools/README.md, tools/TOOL_MANIFEST.json).
+            AGENTS.md stays a concise working agreement and task router;
+            update it only when those operating rules or routes change.
 
             Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
 

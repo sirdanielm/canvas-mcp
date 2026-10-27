@@ -50,6 +50,25 @@ publication. Git maintenance clears no source, teacher-review or delivery hold.
    [worker runbook](sdm-gradebook-worker.md); never restart shared MCP processes
    blindly or clear a delivery hold through Git operations.
 
+Routine development under an existing request covers isolated branches,
+worktrees, local commits and the requested PR workflow without repeated approval.
+Begin independent files immediately; notify owners and wait only for an actual
+overlapping writer or an essential unresolved decision. A held runtime or private
+case does not prevent independent source fixes and reviewed closeout.
+
+## Optional session briefing
+
+GitHub activity is not a startup or resume prerequisite. The tracked Claude
+settings install no automatic network hook. When recent issue/PR context is
+relevant, run `python3 scripts/github_session_brief.py --print` on demand, reuse a current
+briefing, or inspect the exact issue/PR directly. A briefing failure holds only
+that optional context fetch; continue work supported by available source.
+
+An operator who wants an automatic briefing may enable the existing command in
+their private client hook configuration. Keep it bounded and optional, avoid
+running it on every resume, and retain actual tool/network policy. This source
+change does not edit an installed client's private configuration.
+
 ## Retention and privacy
 
 The primary checkout holds the common Git directory for linked worktrees.

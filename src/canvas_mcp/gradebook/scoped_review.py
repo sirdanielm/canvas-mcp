@@ -11,30 +11,50 @@ from .publish import write_review_html
 from .store import Store
 
 
-def select_ready_batch(
-    store: Store, course_id: str, origin: str, review_id: str, batch_index: int = 0
-) -> dict[str, Any]:
-    if type(batch_index) is not int or batch_index < 0:
-        raise GradebookError("Review batch index must be a nonnegative integer.")
+def validated_review(
+    store: Store, course_id: str, origin: str, review_id: str
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Validate a review against its immutable evidence; do not clear owner holds."""
     parent = store.load("review", review_id)
     if "unit1_pair_score_intent" in parent:
-        raise GradebookError("Source-owned intents already have their exact approved batch.")
-    required = {"schema_version", "course_id", "baseline_id", "current_id",
-                "created_at", "changes", "counts", "canvas_writes"}
-    if (not required.issubset(parent) or type(parent.get("schema_version")) is not int
-            or parent["schema_version"] != 1 or parent["course_id"] != course_id
-            or type(parent.get("canvas_writes")) is not int or parent["canvas_writes"] != 0
-            or not isinstance(parent.get("changes"), list) or len(parent["changes"]) > 10_000
-            or not isinstance(parent.get("counts"), dict)
-            or any(not isinstance(c, dict) or not {"user_id", "assignment_id", "proposed"}.issubset(c)
-                   for c in parent["changes"])):
+        raise GradebookError(
+            "Source-owned intents already have their exact approved batch."
+        )
+    required = {
+        "schema_version",
+        "course_id",
+        "baseline_id",
+        "current_id",
+        "created_at",
+        "changes",
+        "counts",
+        "canvas_writes",
+    }
+    if (
+        not required.issubset(parent)
+        or type(parent.get("schema_version")) is not int
+        or parent["schema_version"] != 1
+        or parent["course_id"] != course_id
+        or type(parent.get("canvas_writes")) is not int
+        or parent["canvas_writes"] != 0
+        or not isinstance(parent.get("changes"), list)
+        or len(parent["changes"]) > 10_000
+        or not isinstance(parent.get("counts"), dict)
+        or any(
+            not isinstance(c, dict)
+            or not {"user_id", "assignment_id", "proposed"}.issubset(c)
+            for c in parent["changes"]
+        )
+    ):
         raise GradebookError("Parent review metadata differs from its read-only scope.")
     try:
         created_at = datetime.fromisoformat(parent["created_at"])
     except (TypeError, ValueError) as exc:
         raise GradebookError("Parent review source time is invalid.") from exc
-    if (created_at.tzinfo is None
-            or (datetime.now(UTC) - created_at).total_seconds() < -30):
+    if (
+        created_at.tzinfo is None
+        or (datetime.now(UTC) - created_at).total_seconds() < -30
+    ):
         raise GradebookError("Parent review source time is invalid.")
     baseline = store.load("snapshot", parent["baseline_id"])
     current = store.load("snapshot", parent["current_id"])
@@ -60,6 +80,25 @@ def select_ready_batch(
         raise GradebookError(
             "Parent review classification differs from its captured evidence."
         )
+    return parent, baseline, current, checked
+
+
+def select_ready_batch(
+    store: Store, course_id: str, origin: str, review_id: str, batch_index: int = 0
+) -> dict[str, Any]:
+    if type(batch_index) is not int or batch_index < 0:
+        raise GradebookError("Review batch index must be a nonnegative integer.")
+    parent, _, _, checked = validated_review(store, course_id, origin, review_id)
+    required = {
+        "schema_version",
+        "course_id",
+        "baseline_id",
+        "current_id",
+        "created_at",
+        "changes",
+        "counts",
+        "canvas_writes",
+    }
     ready = [
         c
         for c in checked["changes"]

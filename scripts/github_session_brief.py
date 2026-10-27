@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Session-start brief: open issues, PRs and discussions for this repo.
 
-Wired as a Claude Code ``SessionStart`` hook in ``.claude/settings.json`` so
-every session opens with the current GitHub state already in context, instead
-of relying on whoever opened it to remember to look. Prints the JSON hook
+Run on demand with ``--print`` when current GitHub context matters. The tracked
+``.claude/settings.json`` enables no automatic startup/resume hook. An operator
+may opt in through private client configuration. Hook mode prints the JSON
 response Claude Code expects; ``additionalContext`` carries a compact brief.
 
 Constraints, each measured on the web (remote) environment:
@@ -17,7 +17,7 @@ Constraints, each measured on the web (remote) environment:
   note, never a failed hook: a session must always open.
 - Stdlib only. The hook runs before any virtualenv is guaranteed to exist.
 - Every fetched title, login and label is third-party text from a public repo,
-  injected into the model's context unasked on every session start. That is
+  potentially injected into the model's context by an opted-in hook. That is
   the threat shape issue 239 fenced for Canvas content, so the same shape is
   applied here: each section sits between explicit provenance markers, and
   bracket runs inside the text are collapsed so no title can open or close a
@@ -31,13 +31,11 @@ Constraints, each measured on the web (remote) environment:
   run costs up to nine. The brief says so when no token is present; set
   ``GITHUB_TOKEN`` (or ``GH_TOKEN``) for reliable briefs across many sessions.
 
-Trust model, written down because this file runs unasked: ``.claude/settings.json``
-is tracked, so a change to the hook command or to this script runs on any
-maintainer's machine the next time they start or resume a session on a checkout
-carrying it. Treat edits to either file as code execution on every maintainer's
-machine and review them that way; Claude Code's own trust prompt for a changed
-settings file is the only other gate. The script makes read-only GitHub calls
-and sends the token, if any, to api.github.com only.
+Trust model: enabling a hook makes its command run on the operator's machine at
+the selected lifecycle event. Review that opt-in and changes to the script as
+code execution, and retain the client's own trust controls. Fetch failures are
+optional-context failures, never a prerequisite for source work. The script
+makes read-only GitHub calls and sends the token, if any, to api.github.com only.
 
 Usage:
     github_session_brief.py            # hook mode: JSON on stdout

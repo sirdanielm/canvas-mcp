@@ -27,6 +27,8 @@ from .worker import RefreshJournal
 
 CONTRACT = "LOCALGRASS_EDIT_APPLICATION_V1"
 UNIT1_CONTRACT = "LOCALGRASS_EDIT_UNIT1_APPLICATION_V1"
+PROPOSAL_CONTRACT = "LOCALGRASS_PROPOSAL_EDIT_APPLICATION_V1"
+UNIT1_PROPOSAL_CONTRACT = "LOCALGRASS_PROPOSAL_EDIT_UNIT1_APPLICATION_V1"
 HASH = re.compile(r"[a-f0-9]{64}\Z")
 FIELDS = {
     "contract",
@@ -156,16 +158,23 @@ def load_configuration(
     """Read pinned configuration and existing paths only; never open a DB."""
     try:
         config = _read(path, expected_sha256, private=True)
-        unit1 = config.get("contract") == UNIT1_CONTRACT
+        unit1 = config.get("contract") in {UNIT1_CONTRACT, UNIT1_PROPOSAL_CONTRACT}
+        proposal = config.get("contract") in {
+            PROPOSAL_CONTRACT,
+            UNIT1_PROPOSAL_CONTRACT,
+        }
+        fields = FIELDS - {"decision_id"} | {"result_id"} if proposal else FIELDS
+        identity_key = "result_id" if proposal else "decision_id"
         _need(
-            set(config) == (FIELDS - {"source_root"} if unit1 else FIELDS)
-            and config["contract"] in {CONTRACT, UNIT1_CONTRACT},
+            set(config) == (fields - {"source_root"} if unit1 else fields)
+            and config["contract"]
+            in {CONTRACT, UNIT1_CONTRACT, PROPOSAL_CONTRACT, UNIT1_PROPOSAL_CONTRACT},
             "LOCAL_EDIT_CONFIGURATION_INVALID",
         )
         _need(
             all(
                 type(config[k]) is str and HASH.fullmatch(config[k])
-                for k in ("decision_id", "source_receipt_id", "staging_config_sha256")
+                for k in (identity_key, "source_receipt_id", "staging_config_sha256")
             )
             and type(config["section"]) is str
             and config["section"].strip(),
@@ -238,7 +247,10 @@ def build_owner_factory(
 
     frozen = load_configuration(config_path, expected_config_sha256)
     config, staging, binding = frozen
-    unit1 = config["contract"] == UNIT1_CONTRACT
+    unit1 = config["contract"] in {UNIT1_CONTRACT, UNIT1_PROPOSAL_CONTRACT}
+    proposal = config["contract"] in {PROPOSAL_CONTRACT, UNIT1_PROPOSAL_CONTRACT}
+    identity_key = "result_id" if proposal else "decision_id"
+    connection_type = LocalGrAssEditConnection
     if unit1:
         AuthenticatedDecisionSource = importlib.import_module(
             "localgrass.teacher_edit_unit1"
@@ -248,6 +260,17 @@ def build_owner_factory(
             == Path(config["identity_runtime_root"]),
             "LOCAL_EDIT_IDENTITY_RUNTIME_CHANGED",
         )
+
+    if proposal:
+        module = importlib.import_module("localgrass.teacher_edit_proposal")
+        AuthenticatedDecisionSource = (
+            module.AuthenticatedUnit1ProposalSource
+            if unit1
+            else module.AuthenticatedProposalSource
+        )
+        connection_type = importlib.import_module(
+            "canvas_mcp.gradebook.localgrass_proposal_edit"
+        ).LocalGrAssProposalEditConnection
 
     _need(
         isinstance(review, TeacherReview)
@@ -296,10 +319,16 @@ def build_owner_factory(
             if not unit1:
                 source_intake._schema()
                 source_intake._stored(config["source_receipt_id"])
-            row = review.registry.connection.execute(
-                "SELECT decision_id FROM workflow_teacher_acceptances WHERE decision_id=?",
-                (config["decision_id"],),
-            ).fetchone()
+            if proposal:
+                row = review.registry.connection.execute(
+                    "SELECT proposal_id FROM workflow_proposals WHERE proposal_id=?",
+                    ("proposal-" + config["result_id"],),
+                ).fetchone()
+            else:
+                row = review.registry.connection.execute(
+                    "SELECT decision_id FROM workflow_teacher_acceptances WHERE decision_id=?",
+                    (config["decision_id"],),
+                ).fetchone()
             _need(row is not None, "LOCAL_EDIT_REAL_CASE_NOT_ADMITTED")
 
             # The optional domain dependency has no installed type stub. Runtime
@@ -313,7 +342,7 @@ def build_owner_factory(
 
             source_args = {
                 "source_receipt_id": config["source_receipt_id"],
-                "decision_id": config["decision_id"],
+                identity_key: config[identity_key],
                 "identity_runtime_root": Path(config["identity_runtime_root"]),
             }
             if not unit1:
@@ -321,7 +350,7 @@ def build_owner_factory(
                     source_intake=source_intake, source_root=Path(config["source_root"])
                 )
             source = GuardedDecisionSource(review, token, csrf, **source_args)
-            connection = LocalGrAssEditConnection(
+            connection = connection_type(
                 source,
                 store,
                 assignment_bindings_path=Path(staging["assignment_bindings_path"]),
@@ -368,6 +397,10 @@ def build_application(
     _need(not enabled or callable(runtime_check), "LOCAL_EDIT_RUNTIME_CHECK_REQUIRED")
 
     config, _, _ = load_configuration(config_path, expected_config_sha256)
+    _need(
+        config["contract"] not in {PROPOSAL_CONTRACT, UNIT1_PROPOSAL_CONTRACT},
+        "PROPOSAL_CONFIG_REQUIRES_OWNER_WORKFLOW",
+    )
     factory = build_owner_factory(
         review,
         source_intake,

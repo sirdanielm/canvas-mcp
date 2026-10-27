@@ -298,6 +298,44 @@ def prepare_transfer(
     function cannot establish liveness or authenticate its own input record.
     """
     _selection(record, decision)
+    return _prepare_native_transfer(
+        record,
+        decision,
+        raw=raw,
+        binding=binding,
+        baseline=baseline,
+        current=current,
+        pin_binding=pin_binding,
+        source_check=source_check,
+        preservation=preservation,
+        selection_fields=DECISION_FIELDS,
+        selection_key="decision",
+        note_factory=_note,
+        contract=CONTRACT,
+    )
+
+
+def _prepare_native_transfer(
+    record: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    raw: dict[str, Any],
+    binding: dict[str, Any],
+    baseline: dict[str, Any],
+    current: dict[str, Any],
+    pin_binding: dict[str, Any],
+    source_check: SourceCheck,
+    preservation: dict[str, Any] | None,
+    selection_fields: tuple[str, ...],
+    selection_key: str,
+    note_factory: Callable[[str, str, str], str],
+    contract: str,
+) -> dict[str, Any]:
+    """Shared native preservation; each public caller validates its own authority.
+
+    The accepted-decision and unapproved-proposal contracts are distinct. This
+    helper supplies neither acceptance nor publication authority.
+    """
     _pins(pin_binding, record)
     _source(source_check, record, decision, pin_binding)
     # Only substantive fields bind a decision. Fetch/report timestamps do not
@@ -310,7 +348,7 @@ def prepare_transfer(
             if field in record
         }
     )
-    final = {field: copy.deepcopy(decision[field]) for field in DECISION_FIELDS}
+    final = {field: copy.deepcopy(decision[field]) for field in selection_fields}
     _need(
         (baseline["origin"], baseline["course_id"])
         == (current["origin"], current["course_id"])
@@ -373,7 +411,7 @@ def prepare_transfer(
     old_value = grade_value(next(iter(old.get("userEnteredValue", {}).values()), None))
     old_note = old.get("note", "")
     canonical_note = _baseline_note(baseline, binding, record)
-    selection_sha256 = digest({"record": selected, "decision": final})
+    selection_sha256 = digest({"record": selected, selection_key: final})
     if preservation is not None:
         _need(type(preservation) is dict, "EXACT_EDIT_PRESERVATION_CHANGED")
         expected = {
@@ -454,7 +492,7 @@ def prepare_transfer(
         "CANVAS_COMPARISON_HELD",
     )
     notes = [
-        _note(prefix, selection_sha256, final["feedback"])
+        note_factory(prefix, selection_sha256, final["feedback"])
         for prefix in (canonical_note, "")
     ]
     after = copy.deepcopy(before)
@@ -462,7 +500,7 @@ def prepare_transfer(
     # An exact operator-bound prefix can precede an already completed transfer.
     # Require the complete current marker/feedback block at its note boundary.
     preserved_note_matches = preservation is not None and old_note.endswith(
-        "\n\n" + _note("", selection_sha256, final["feedback"])
+        "\n\n" + note_factory("", selection_sha256, final["feedback"])
     )
     if old_value == score and (old_note in notes or preserved_note_matches):
         status = "NO_CHANGE"
@@ -475,7 +513,7 @@ def prepare_transfer(
             _need(old_note in ("", canonical_note), "EXISTING_TEACHER_NOTE_PRESERVED")
         replacement = {
             "userEnteredValue": {"numberValue": score},
-            "note": _note(old_note, selection_sha256, final["feedback"]),
+            "note": note_factory(old_note, selection_sha256, final["feedback"]),
         }
         after["sheets"][sid]["cells"].setdefault(address, {}).update(replacement)
         requests = [
@@ -489,10 +527,10 @@ def prepare_transfer(
         ]
         status = "PREPARED_LOCAL_EDIT_ONLY"
     plan = {
-        "contract": CONTRACT,
+        "contract": contract,
         "status": status,
         "record": selected,
-        "decision": final,
+        selection_key: final,
         "selection_sha256": selection_sha256,
         "binding": copy.deepcopy(binding),
         "baseline": copy.deepcopy(baseline),

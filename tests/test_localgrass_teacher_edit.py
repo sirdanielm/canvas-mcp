@@ -45,8 +45,7 @@ fixture_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fixture_module)
 
 
-@pytest.fixture
-def integrated(tmp_path, snapshot, binding, monkeypatch):
+def integrated_source(tmp_path, snapshot, binding, monkeypatch, *, proposal=False):
     snapshot["course_workflow_state"] = "available"
     snapshot["assignments"][0]["points_possible"] = 10
     snapshot["cells"]["101:21"].update(
@@ -86,8 +85,22 @@ def integrated(tmp_path, snapshot, binding, monkeypatch):
     source_root = tmp_path / "source"
     source_root.mkdir(mode=0o700)
     domain = fixture_module.VerifiedTeacherSourceFixture(
-        source_root, receipt_transform=transform
+        source_root, receipt_transform=transform, accept=not proposal
     )
+
+    if proposal:
+        from localgrass.teacher_edit_proposal import AuthenticatedProposalSource
+
+        domain.source = AuthenticatedProposalSource(
+            domain.review,
+            domain.token,
+            domain.csrf,
+            source_intake=domain.intake,
+            source_root=domain.root,
+            source_receipt_id=domain.receipt_id,
+            result_id=domain.result["result_id"],
+            identity_runtime_root=domain.root,
+        )
 
     def explicit_identity(runtime):
         assert runtime == domain.source.identity_runtime_root
@@ -149,7 +162,14 @@ def integrated(tmp_path, snapshot, binding, monkeypatch):
         "registry_path": registry_path,
         "shared_tool": tmp_path / "existing-shared-pin-tool.py",
     }
-    connection = LocalGrAssEditConnection(domain.source, store, **kwargs)
+    if proposal:
+        from canvas_mcp.gradebook.localgrass_proposal_edit import (
+            LocalGrAssProposalEditConnection,
+        )
+
+        connection = LocalGrAssProposalEditConnection(domain.source, store, **kwargs)
+    else:
+        connection = LocalGrAssEditConnection(domain.source, store, **kwargs)
     context = {
         "raw": initial_raw(snapshot, binding),
         "binding": binding,
@@ -159,6 +179,11 @@ def integrated(tmp_path, snapshot, binding, monkeypatch):
     }
     yield connection, context, domain, assignments, assignment_path, kwargs, store
     domain.registry.close()
+
+
+@pytest.fixture
+def integrated(tmp_path, snapshot, binding, monkeypatch):
+    yield from integrated_source(tmp_path, snapshot, binding, monkeypatch)
 
 
 def test_actual_authenticated_source_capture_and_native_edit_are_connected(integrated):

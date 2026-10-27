@@ -6,6 +6,10 @@ This guide records the operating contract for the local `canvas-authoring` MCP c
 
 - Never publish an assignment, module item or module unless the teacher explicitly authorizes that exact publication.
 - Creating and editing unpublished drafts is allowed when requested.
+- Reuse an existing authorization for unchanged target/content/visibility. A
+  complete request to assemble unpublished drafts needs no additional plan
+  approval. Resolve exact IDs and reconcile existing objects before creating;
+  reuse IDs and inspect uncertain creates before retrying.
 - Treat assignment publication, module-item publication and module publication as three separate states.
 - Keep general TypeScript execution disabled. It can bypass the MCP server's normal write controls.
 - Do not read or write student, submission or grade data during curriculum-authoring work.
@@ -58,7 +62,8 @@ Before any update, record the assignment ID, name, points, publication state, su
 For a description-only edit:
 
 1. Reread the live description immediately before writing and compare its hash with the planned source.
-2. Stop if another edit occurred.
+2. If another edit occurred, rebuild a nonconflicting change from the fresh
+   version. Hold only a substantive conflict and continue independent objects.
 3. Call `update_assignment` with `description` only.
 4. Read the assignment back.
 5. Verify that points, submission types, dates and publication state did not change.
@@ -134,8 +139,10 @@ Do not store API tokens, student data or full Canvas responses in Git.
 ## Tool limitations and safe defaults
 
 - `create_assignment` already defaults to `published=false`.
-- This branch changes `create_module` to default to `published=false`.
-- This branch adds a `published` option to `add_module_item` so callers can declare visibility during creation.
+- Maintained source defaults `create_module` to `published=false`.
+- Maintained source exposes `published` on `add_module_item`; pass intended
+  visibility explicitly and verify the item and linked object. Source defaults
+  do not establish the revision loaded by an installed connection.
 - The server includes `update_rubric`, but the tracked SDM authoring allowlist does not expose it. If an explicitly authorized native-rubric edit requires it, preserve every criterion/rating ID and the exact association ID, submit the complete replacement set, show the preview, then confirm with its single-use token. Structural additions/removals belong in the Canvas UI. There is no dedicated native-rubric deletion tool. The normal SDM workflow uses description-embedded tables.
 - Deleting assignments, modules or module items uses the upstream preview-and-confirm flow. Treat confirmation tokens as single-use and target-specific.
 
