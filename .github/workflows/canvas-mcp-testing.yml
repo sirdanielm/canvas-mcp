@@ -121,6 +121,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        # Launcher credential tests import the declared keyring extra but mock
+        # the backend; installing it enables coverage without accessing Keychain.
         pip install -e ".[local-exports,local-keychain]"
         # pyyaml is needed by the workflow-permission policy tests. They use
         # importorskip, so omitting it makes them skip silently in the one job

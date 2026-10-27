@@ -17,7 +17,7 @@ A comprehensive course health check for educators using Canvas LMS. Run it at th
 
 ### 1. Identify Target Course(s)
 
-Ask the user which course(s) to check. Accept a course code, Canvas ID, or "all" to iterate through every active course.
+Reuse course scope from the request/current task. Resolve exact IDs; "all" means every active course. Ask only if scope remains ambiguous.
 
 If the user does not specify, prompt:
 
@@ -101,7 +101,7 @@ After presenting the report, offer actionable next steps:
 > 3. Get detailed analytics for a specific assignment (uses `get_assignment_analytics`)
 > 4. Check another course
 
-If the user selects a messaging option, call `send_conversation` without a token to preview. Show the exact recipients and message, obtain explicit approval, then repeat with identical arguments and the returned `confirmation_token`. If the tool is unavailable under the operator write policy, stop at the draft.
+A status check alone does not authorize messaging. If the user requests a messaging option, resolve exact recipients/content and call `send_conversation` without a token to preview. Do not add an earlier generic plan/recipient approval round. Show the exact recipients and message, obtain explicit approval, then repeat with identical arguments and the returned `confirmation_token`. If the tool is unavailable under the operator write policy, stop at the draft.
 
 ## MCP Tools Used
 
@@ -126,6 +126,6 @@ If the user selects a messaging option, call `send_conversation` without a token
 
 ## Notes
 
-- When anonymization is enabled, maintain a local mapping of anonymous IDs so follow-up actions (messaging, grading) still target the correct students.
+- Preserve functional Canvas IDs for authorized targeting; do not invent an anonymization crosswalk or export one unnecessarily. Use the established permanent PIN authority for SDM local copies.
 - This skill works best as a weekly routine -- Monday mornings are ideal.
 - Pairs well with the `canvas-week-plan` skill for student-facing planning.

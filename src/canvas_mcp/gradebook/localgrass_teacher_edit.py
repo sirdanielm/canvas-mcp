@@ -68,6 +68,22 @@ class LocalGrAssEditConnection:
     Neither constructor nor methods execute any native write.
     """
 
+    contract = CONTRACT
+
+    @staticmethod
+    def _source_files(source: Any) -> Any:
+        """Authenticate the concrete source contract before shared initialization."""
+        try:
+            authority = importlib.import_module("localgrass.teacher_edit_source")
+            files = importlib.import_module("localgrass.teacher_edit_files")
+        except ImportError:
+            raise GradebookError("LOCAL_SOURCE_NOT_CONFIGURED") from None
+        _need(
+            isinstance(source, authority.AuthenticatedDecisionSource),
+            "AUTHENTICATED_SOURCE_REQUIRED",
+        )
+        return files
+
     def __init__(
         self,
         source: Any,
@@ -80,15 +96,7 @@ class LocalGrAssEditConnection:
         shared_tool: Path,
         preservation: dict[str, Any] | None = None,
     ) -> None:
-        try:
-            authority = importlib.import_module("localgrass.teacher_edit_source")
-            files = importlib.import_module("localgrass.teacher_edit_files")
-        except ImportError:
-            raise GradebookError("LOCAL_SOURCE_NOT_CONFIGURED") from None
-        _need(
-            isinstance(source, authority.AuthenticatedDecisionSource),
-            "AUTHENTICATED_SOURCE_REQUIRED",
-        )
+        files = self._source_files(source)
         _need(isinstance(canvas_store, Store), "EXISTING_CANVAS_STORE_REQUIRED")
         _need(
             all(
@@ -117,9 +125,33 @@ class LocalGrAssEditConnection:
         # read() is not a JSON flag check: this concrete source reauthenticates
         # the session/receipt/head/dependencies and verifies original bytes.
         self.source.assert_current(snapshot)
-        receipt, payload = snapshot["source_receipt"], snapshot["payload"]
+        payload = snapshot["payload"]
         if payload.get("result_kind") == "GRASS_UNIT1_VERIFIED_OWNER_RESULT_V1":
             return self._project_unit1(snapshot, current, pin_binding)
+        record = self._project_record(snapshot, current, pin_binding)
+        maximum = _amount(payload["computation"]["maximum"])
+        decision = {
+            k: record[k]
+            for k in ("evaluation_id", "source_revision", "result_revision", "policy")
+        }
+        decision.update(
+            decision_revision=snapshot["decision_id"],
+            is_final=True,
+            total_score=_amount(snapshot["decision"]["score"]),
+            points_possible=maximum,
+            score_units="CANVAS_POINTS",
+            feedback=snapshot["decision"]["feedback"],
+        )
+        return record, decision
+
+    def _project_record(
+        self,
+        snapshot: dict[str, Any],
+        current: dict[str, Any],
+        pin_binding: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Rebuild the exact target from verified generic source evidence."""
+        receipt, payload = snapshot["source_receipt"], snapshot["payload"]
         deps = payload["dependencies"]
         _need(
             snapshot["source_verified"] is True
@@ -221,19 +253,7 @@ class LocalGrAssEditConnection:
             "proposed_score": _amount(payload["computation"]["total"]),
             "score_scale": "RAW_IDENTITY",
         }
-        decision = {
-            k: record[k]
-            for k in ("evaluation_id", "source_revision", "result_revision", "policy")
-        }
-        decision.update(
-            decision_revision=snapshot["decision_id"],
-            is_final=True,
-            total_score=_amount(snapshot["decision"]["score"]),
-            points_possible=maximum,
-            score_units="CANVAS_POINTS",
-            feedback=snapshot["decision"]["feedback"],
-        )
-        return record, decision
+        return record
 
     def _project_unit1(
         self,
@@ -247,6 +267,33 @@ class LocalGrAssEditConnection:
             isinstance(self.source, authority.AuthenticatedUnit1DecisionSource),
             "UNIT1_SOURCE_AUTHORITY_REQUIRED",
         )
+        record = self._project_unit1_record(snapshot, current, pin_binding)
+        maximum = record["raw_maximum"]
+        scale = record["score_scale"]
+        native_maximum = 100 if scale == UNIT1_WHOLE_PERCENT else maximum
+        decision = {
+            key: record[key]
+            for key in ("evaluation_id", "source_revision", "result_revision", "policy")
+        }
+        decision.update(
+            decision_revision=snapshot["decision_id"],
+            is_final=True,
+            total_score=_unit1_native_score(
+                snapshot["decision"]["score"], maximum, scale
+            ),
+            points_possible=native_maximum,
+            score_units="CANVAS_POINTS",
+            feedback=snapshot["decision"]["feedback"],
+        )
+        return record, decision
+
+    def _project_unit1_record(
+        self,
+        snapshot: dict[str, Any],
+        current: dict[str, Any],
+        pin_binding: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Rebuild form/scale/target only; callers validate concrete authority."""
         payload, receipt = snapshot["payload"], snapshot["source_receipt"]
         deps, computation = payload["dependencies"], payload["computation"]
         _need(
@@ -353,21 +400,7 @@ class LocalGrAssEditConnection:
             record["score_scale_policy_ref"] = target["scale_policy_ref"]
         if observed_null:
             record["canvas_attempt_observation"] = "UNIT1_PAPER_OBSERVED_NULL"
-        decision = {
-            key: record[key]
-            for key in ("evaluation_id", "source_revision", "result_revision", "policy")
-        }
-        decision.update(
-            decision_revision=snapshot["decision_id"],
-            is_final=True,
-            total_score=_unit1_native_score(
-                snapshot["decision"]["score"], maximum, scale
-            ),
-            points_possible=native_maximum,
-            score_units="CANVAS_POINTS",
-            feedback=snapshot["decision"]["feedback"],
-        )
-        return record, decision
+        return record
 
     def _check(self, snapshot: dict[str, Any], current: dict[str, Any]) -> Any:
         def check(

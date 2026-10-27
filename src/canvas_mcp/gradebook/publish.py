@@ -8,6 +8,7 @@ import json
 import math
 import os
 import re
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
@@ -44,7 +45,9 @@ def comment_clock_limit(observed_at: str) -> int:
         if not math.isfinite(elapsed) or elapsed < 0:
             raise ValueError
     except (TypeError, ValueError, OverflowError) as exc:
-        raise GradebookError("Comment observation time is invalid; nothing sent.") from exc
+        raise GradebookError(
+            "Comment observation time is invalid; nothing sent."
+        ) from exc
     return math.ceil(elapsed) + 5
 
 
@@ -74,7 +77,8 @@ def comment_target_unchanged(
         if "seconds_late" in old:
             old_clock, new_clock = old["seconds_late"], new["seconds_late"]
             if not (
-                old_clock is None and new_clock is None
+                old_clock is None
+                and new_clock is None
                 or type(old_clock) is int
                 and type(new_clock) is int
                 and 0 <= old_clock <= new_clock <= old_clock + max_clock_advance_seconds
@@ -713,7 +717,13 @@ class Publisher:
         }
 
     async def confirm(
-        self, course_id: str, operation_id: str, token: str
+        self,
+        course_id: str,
+        operation_id: str,
+        token: str,
+        *,
+        independent_targets: bool = False,
+        authorization_check: Callable[[], Any] | None = None,
     ) -> dict[str, Any]:
         operation = self.ledger.operation(operation_id)
         plan = self.store.load("push", operation["plan_id"])
@@ -726,7 +736,11 @@ class Publisher:
                 "Push operation belongs to a different course or origin."
             )
         with self.ledger.exclusive(operation_id):
-            self.ledger.claim(operation_id, token)
+            if authorization_check is not None:
+                authorization_check()
+            self.ledger.claim(
+                operation_id, token, independent_targets=independent_targets
+            )
             try:
                 current = await self.client.snapshot(
                     course_id
@@ -735,8 +749,9 @@ class Publisher:
                     raise GradebookError("Course is no longer available; push held.")
                 active = {s["id"] for s in current["students"]}
                 published = {a["id"] for a in current["assignments"]}
-                # Reject the entire operation before the first PUT if any target changed.
-                for item in plan["items"]:
+                # Legacy single operations remain all-or-nothing at preflight.
+                # A reviewed batch quarantines only the independently changed target.
+                for index, item in enumerate(plan["items"]):
                     if (
                         item["user_id"] not in active
                         or item["assignment_id"] not in published
@@ -745,33 +760,77 @@ class Publisher:
                         )
                         != item["expected"]["submission"]
                     ):
+                        if independent_targets:
+                            self.ledger.mark(operation_id, index, "conflict")
+                            continue
                         raise GradebookError(
                             "Canvas changed after the preview; no push may start."
                         )
                 for index, item in enumerate(plan["items"]):
-                    live = await context(
-                        self.client, course_id, item["user_id"], item["assignment_id"]
-                    )
-                    if live != item["expected"]:
+                    if (
+                        independent_targets
+                        and self.ledger.operation(operation_id)["items"][index][
+                            "status"
+                        ]
+                        != "planned"
+                    ):
+                        continue
+                    if authorization_check is not None:
+                        authorization_check()
+                    try:
+                        live = await context(
+                            self.client,
+                            course_id,
+                            item["user_id"],
+                            item["assignment_id"],
+                        )
+                        if (
+                            item["user_id"] not in active
+                            or item["assignment_id"] not in published
+                            or live != item["expected"]
+                        ):
+                            self.ledger.mark(operation_id, index, "conflict")
+                            if independent_targets:
+                                continue
+                            break
+                        require_simple_target(live, item["proposed"])
+                    except GradebookError:
+                        if not independent_targets:
+                            raise
                         self.ledger.mark(operation_id, index, "conflict")
-                        break
-                    require_simple_target(live, item["proposed"])
+                        continue
+                    if authorization_check is not None:
+                        authorization_check()
                     self.ledger.mark(operation_id, index, "sending")
                     try:
                         await put_once(self.client, course_id, item)
                     except WriteRejected:
                         self.ledger.mark(operation_id, index, "rejected")
+                        if independent_targets:
+                            continue
                         break
                     except WriteUncertain:
                         self.ledger.mark(operation_id, index, "uncertain")
+                        if independent_targets:
+                            continue
                         break
-                    result = await context(
-                        self.client, course_id, item["user_id"], item["assignment_id"]
+                    try:
+                        result = await context(
+                            self.client,
+                            course_id,
+                            item["user_id"],
+                            item["assignment_id"],
+                        )
+                        verified = matches_proposal(result, item)
+                    except (GradebookError, httpx.HTTPError):
+                        if not independent_targets:
+                            raise
+                        verified = False
+                    self.ledger.mark(
+                        operation_id, index, "verified" if verified else "uncertain"
                     )
-                    if not matches_proposal(result, item):
-                        self.ledger.mark(operation_id, index, "uncertain")
+                    if not verified and not independent_targets:
                         break
-                    self.ledger.mark(operation_id, index, "verified")
             except Exception:
                 # Any item at 'sending' remains uncertain, including cancellation/crash
                 # (a process crash skips this block, leaving the same durable state).
@@ -828,7 +887,12 @@ class Publisher:
         return identifier(profile.get("id"))
 
     async def prepare_comment(
-        self, course_id: str, filename: str, expected_envelope_sha256: str
+        self,
+        course_id: str,
+        filename: str,
+        expected_envelope_sha256: str,
+        *,
+        issue_confirmation: bool = True,
     ) -> dict[str, Any]:
         """Preview one exact source-bound comment; append nothing, accept no grade."""
         if not filename.endswith(".json"):
@@ -863,6 +927,8 @@ class Publisher:
         }
         plan_id, _ = self.store.save("push", plan)
         display = comment_review_html(self.store, plan)
+        if not issue_confirmation:
+            return {"plan_id": plan_id, "review_file": display, "canvas_writes": 0}
         operation_id, token = self.ledger.prepare(
             plan_id,
             [target_key(self.client.origin, course_id, envelope)],
@@ -892,7 +958,12 @@ class Publisher:
         return plan
 
     async def confirm_comment(
-        self, course_id: str, operation_id: str, token: str
+        self,
+        course_id: str,
+        operation_id: str,
+        token: str,
+        *,
+        authorization_check: Callable[[], Any] | None = None,
     ) -> dict[str, Any]:
         """One explicit confirmation uses the existing durable ledger, no retries."""
         plan = self._comment_plan(course_id, operation_id)
@@ -904,6 +975,8 @@ class Publisher:
             envelope["user_id"],
         )
         with self.ledger.exclusive(operation_id):
+            if authorization_check is not None:
+                authorization_check()
             self.ledger.claim(operation_id, token)
             try:
                 if (
@@ -922,14 +995,19 @@ class Publisher:
                 before, spec = comment_spec(target, fresh, envelope, plan["author"])
                 if (
                     not comment_target_unchanged(
-                        plan["expected"], fresh,
-                        max_clock_advance_seconds=comment_clock_limit(plan["created_at"]),
+                        plan["expected"],
+                        fresh,
+                        max_clock_advance_seconds=comment_clock_limit(
+                            plan["created_at"]
+                        ),
                     )
                     or spec.component_sha256 != plan["delivery_id"]
                 ):
                     raise GradebookError(
                         "Canvas comment target changed after preview; nothing sent."
                     )
+                if authorization_check is not None:
+                    authorization_check()
                 self.ledger.mark(operation_id, 0, "sending")
                 try:
                     cid = await put_comment_once(self.client, spec, before)
@@ -1047,9 +1125,11 @@ class Publisher:
             state = (
                 "verified"
                 if result.stored_verified
-                else "observed_applied"
-                if result.outcome == "OBSERVED_APPLIED"
-                else "uncertain"
+                else (
+                    "observed_applied"
+                    if result.outcome == "OBSERVED_APPLIED"
+                    else "uncertain"
+                )
             )
             self.ledger.mark(operation_id, 0, state)
             return {

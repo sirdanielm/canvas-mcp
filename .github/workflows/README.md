@@ -68,10 +68,11 @@ Their presence or GitHub `active` status does not authorize invoking them.
 | [auto-label-issues.yml](auto-label-issues.yml) | New issue; model-assisted labels and explanatory comment |
 
 `auto-update-docs.yml` and `auto-claude-review.yml` are not present in this
-checkout. There is no automatic workflow that patches documentation for each
-tool change. Update `AGENTS.md`, `tools/README.md` and
-`tools/TOOL_MANIFEST.json` with the implementation, and review relevant
-entry-point documentation.
+checkout or the fork's current workflow inventory. There is no automatic
+workflow that patches documentation for each tool change. Update the relevant
+`docs/agent-usage.md`, `tools/README.md` and `tools/TOOL_MANIFEST.json` guidance
+with the implementation. Change `AGENTS.md` only when its operating rules or task
+routing change, and review relevant entry-point documentation.
 
 The Claude review job skips draft PRs, fork PRs, Dependabot actors and
 Dependabot-authored PRs. A skipped job means no Claude review ran; obtain a

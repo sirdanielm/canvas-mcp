@@ -42,10 +42,9 @@ domain_fixture = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(domain_fixture)
 
 
-@pytest.fixture
-def unit1(tmp_path, snapshot, binding):
+def unit1_source(tmp_path, snapshot, binding, *, proposal=False):
     domain = domain_fixture.AuthenticatedUnit1SourceTests()
-    domain.setUp()
+    domain.setUp(accept=not proposal)
     try:
         source = domain.source
         selected = source.read()
@@ -76,7 +75,14 @@ def unit1(tmp_path, snapshot, binding):
         path = tmp_path / "reviewed-mapping.json"
         path.write_text(json.dumps(mapping), encoding="utf-8")
         store = Store(tmp_path / "canvas")
-        connection = LocalGrAssEditConnection(
+        connection_type = LocalGrAssEditConnection
+        if proposal:
+            from canvas_mcp.gradebook.localgrass_proposal_edit import (
+                LocalGrAssProposalEditConnection,
+            )
+
+            connection_type = LocalGrAssProposalEditConnection
+        connection = connection_type(
             source,
             store,
             assignment_bindings_path=path,
@@ -102,6 +108,11 @@ def unit1(tmp_path, snapshot, binding):
         yield connection, context, domain, mapping, path
     finally:
         domain.doCleanups()
+
+
+@pytest.fixture
+def unit1(tmp_path, snapshot, binding):
+    yield from unit1_source(tmp_path, snapshot, binding)
 
 
 def test_authenticated_owner_points_and_full_final_feedback_prepare_without_canvas_capture(

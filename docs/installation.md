@@ -113,6 +113,6 @@ change the registered tool set.
   issue. For throttling, retain bounded backoff and the operation's uncertainty
   rules. Report aggregate error classes, never raw student responses or tokens.
 
-Use [AGENTS.md](../AGENTS.md) and the [tool reference](../tools/README.md) for exact
+Use [agent tool usage](agent-usage.md) and the [tool reference](../tools/README.md) for exact
 confirmation contracts. Earlier client-specific examples are retained in the
 [pre-trim installation section](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/README.md#local-installation).

@@ -32,8 +32,7 @@ def encoded(value):
     return json.dumps(value, sort_keys=True).encode()
 
 
-@pytest.fixture
-def configured(composed, tmp_path):
+def configured_source(composed, tmp_path):
     c = composed
     c.config_path.chmod(0o600)
     c.worker_config_path.chmod(0o600)
@@ -43,9 +42,11 @@ def configured(composed, tmp_path):
     shared_tool = tmp_path / "existing-shared-pin-tool.py"
     shared_tool.write_text("# fictional pinned shared tool\n", encoding="utf-8")
     c.connection.shared_tool = shared_tool
+    proposal = hasattr(source, "result_id") and not hasattr(source, "decision_id")
+    identity_key = "result_id" if proposal else "decision_id"
     value = {
-        "contract": app.CONTRACT,
-        "decision_id": source.decision_id,
+        "contract": app.PROPOSAL_CONTRACT if proposal else app.CONTRACT,
+        identity_key: source.result_id if proposal else source.decision_id,
         "source_receipt_id": source.receipt_id,
         "section": c.connection.section,
         "source_root": str(source.root),
@@ -69,6 +70,11 @@ def configured(composed, tmp_path):
         return (source.review, source.intake, c.canvas, c.google, c.store, c.journal)
 
     return c, value, path, kwargs, owners
+
+
+@pytest.fixture
+def configured(composed, tmp_path):
+    return configured_source(composed, tmp_path)
 
 
 def test_check_reads_no_database_or_clients(configured, monkeypatch, capsys):

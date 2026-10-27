@@ -72,6 +72,13 @@ The newest import/QC attempt remains authoritative when held, failed or
 interrupted. Its execution completion is separate from its diagnostic verdict;
 an older clean receipt cannot clear a newer hold.
 
+Reuse existing human authorization while scope, targets and substantive bindings
+still match. Do not ask for another project-level approval merely to advance an
+authorized stage. Quarantine held cases and continue independent eligible
+targets; uncertain sends retain their original locks and reconciliation history.
+Ownership coordination is required for actual overlapping writers and shared
+runtime changes, not acknowledgements before independent source work.
+
 ## Remaining work
 
 Promote portable local improvements through one reviewed source lane, keeping
