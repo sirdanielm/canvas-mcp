@@ -27,6 +27,15 @@ from dataclasses import dataclass
 from typing import Literal
 
 
+def format_canvas_error(error: object) -> str:
+    """Render an error at the output boundary without trusting its response body."""
+    text = str(error)
+    status = re.match(r"HTTP error: (\d{3})(?!\d)", text)
+    if status:
+        return f"HTTP error: {status.group(1)}"
+    return fence_untrusted_inline(text.strip()[:200] or "no detail", "Canvas error")
+
+
 @dataclass(frozen=True)
 class ReadToolContentPolicy:
     """Reviewed trust-boundary classification for one read-only MCP tool."""
@@ -53,17 +62,20 @@ def _deferred(rationale: str) -> ReadToolContentPolicy:
 # therefore make an explicit trust-boundary decision before it can merge.
 #
 # ``guards`` names a call or documented handoff visible in the registered tool
-# function. Runtime behavior tests in tests/security/test_untrusted_content.py
-# still exercise the returned values; this registry prevents coverage from
-# silently shrinking when a tool is added or its fencing path is removed.
+# function. This is a source-name smoke check, not proof that the main payload
+# reaches that guard. Runtime tests in tests/security/test_untrusted_content.py
+# exercise returned values; test_untrusted_content_registry.py additionally
+# checks read_course_file's actual primary payload through the live registry.
 READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "analyze_peer_review_quality": _fenced("fence_untrusted_fields"),
+    "calculate_grade_scenarios": _fenced("_render_grade_scenarios"),
     "check_enrollment": _safe(
         "Returns only yes, no, or indeterminate enrollment state; no Canvas-authored text."
     ),
     "download_course_file": _fenced("fence_untrusted_inline"),
     "extract_peer_review_dataset": _fenced("fence_untrusted_fields"),
     "fetch_ufixit_report": _fenced("fence_untrusted"),
+    "find_message_recipients": _fenced("_recipient_match"),
     "format_accessibility_summary": _fenced(
         "already fenced by parse_ufixit_violations"
     ),
@@ -73,7 +85,9 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
         "Returns local anonymization configuration and counts, not Canvas content."
     ),
     "get_assignment_analytics": _fenced("fence_untrusted_inline"),
+    "get_student_submission": _fenced("fence_untrusted"),
     "get_assignment_details": _fenced("fence_untrusted"),
+    "get_calendar_event": _fenced("_format_event"),
     "get_conversation_details": _fenced("_fence_conversation_fields"),
     "get_course_content_overview": _fenced("fence_untrusted"),
     "get_content_migration_status": _fenced("fence_untrusted"),
@@ -85,6 +99,9 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "get_discussion_topic_details": _fenced("fence_untrusted"),
     "get_discussion_with_replies": _fenced("fence_untrusted"),
     "get_front_page": _fenced("fence_untrusted"),
+    "get_my_activity_stream": _fenced("_format_stream_item"),
+    "get_group_members": _fenced("fence_untrusted_inline"),
+    "get_my_assignment_scores": _fenced("_render_scores_report"),
     "get_my_course_grades": _deferred(
         "Returns the caller's numeric grades with course name/code, the documented course-identity exception."
     ),
@@ -105,6 +122,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "get_peer_review_comments": _fenced("fence_untrusted_fields"),
     "get_peer_review_completion_analytics": _fenced("_fence_peer_review_names"),
     "get_peer_review_followup_list": _fenced("_fence_peer_review_names"),
+    "get_quiz_details": _fenced("fence_untrusted"),
     "get_rubric": _fenced("fence_untrusted_inline"),
     "get_rubric_assessment": _fenced("fence_untrusted_inline"),
     "get_student_analytics": _fenced("fence_untrusted_inline"),
@@ -115,6 +133,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "identify_problematic_peer_reviews": _fenced("fence_untrusted_fields"),
     "list_announcements": _fenced("fence_untrusted"),
     "list_assignments": _fenced("fence_untrusted_inline"),
+    "list_calendar_events": _fenced("_format_event"),
     "list_code_api_modules": _safe(
         "Returns metadata from bundled local TypeScript modules, not Canvas content."
     ),
@@ -125,18 +144,22 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     ),
     "list_discussion_entries": _fenced("fence_untrusted"),
     "list_discussion_topics": _fenced("fence_untrusted"),
+    "list_group_discussion_topics": _fenced("fence_untrusted"),
+    "list_group_files": _fenced("fence_untrusted_inline"),
     "list_groups": _fenced("fence_untrusted_inline"),
     "list_module_items": _fenced("fence_untrusted_inline"),
     "list_modules": _fenced("fence_untrusted_inline"),
+    "list_my_announcements": _fenced("_format_announcement"),
+    "list_my_groups": _fenced("fence_untrusted", "_group_label"),
     "list_pages": _fenced("fence_untrusted"),
     "list_peer_reviews": _fenced("fence_untrusted_inline"),
+    "list_quizzes": _fenced("fence_untrusted_inline"),
+    "list_planner_notes": _fenced("_format_note"),
     "list_rubrics": _fenced("fence_untrusted_inline"),
-    "list_submissions": _deferred(
-        "Returns IDs, timestamps, scores/grade labels, and course code; no unrestricted author free text."
-    ),
+    "list_submissions": _fenced("fence_untrusted"),
     "list_users": _fenced("fence_untrusted_inline"),
     "parse_ufixit_violations": _fenced("fence_untrusted_fields"),
-    "read_course_file": _fenced("fence_untrusted_inline"),
+    "read_course_file": _fenced("fence_untrusted"),
     "scan_course_content_accessibility": _fenced("fence_untrusted_fields"),
     "search_canvas_tools": _safe(
         "Returns registered tool and bundled source metadata, not Canvas content."
@@ -151,6 +174,12 @@ RESOURCE_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "code-api-file": _safe(
         "Returns bundled local TypeScript/JavaScript source, not Canvas-authored content."
     ),
+}
+
+# Prompts arrive as user-role messages, so their interpolated Canvas labels
+# need provenance even where ordinary tool outputs allow course identity.
+PROMPT_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
+    "summarize-course": _fenced("fence_untrusted_inline"),
 }
 
 # The markers deliberately carry their own instruction so every fence is

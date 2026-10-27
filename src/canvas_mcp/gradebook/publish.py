@@ -294,7 +294,9 @@ def comment_review_html(store: Store, plan: dict[str, Any]) -> str:
     path = store.root / ("comment-review-" + digest(plan) + ".html")
     if path.is_symlink():
         raise GradebookError("Comment review must not be a symlink.")
-    with open(path, "x", opener=lambda p, flags: os.open(p, flags, 0o600)) as stream:
+    with open(
+        path, "x", encoding="utf-8", opener=lambda p, flags: os.open(p, flags, 0o600)
+    ) as stream:
         stream.write(content)
     return str(path)
 
@@ -606,11 +608,11 @@ push can make grades visible under the course's existing Canvas posting policy.<
         raise GradebookError("Review file must not be a symlink.")
     try:
         with open(
-            path, "x", opener=lambda p, flags: os.open(p, flags, 0o600)
+            path, "x", encoding="utf-8", opener=lambda p, flags: os.open(p, flags, 0o600)
         ) as stream:
             stream.write(content)
     except FileExistsError:
-        if path.read_text() != content:
+        if path.read_text(encoding="utf-8") != content:
             raise GradebookError(
                 "Existing review display failed integrity verification."
             ) from None

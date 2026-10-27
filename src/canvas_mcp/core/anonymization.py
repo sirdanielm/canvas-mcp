@@ -4,14 +4,39 @@ Data anonymization utilities for Canvas MCP server.
 This module provides functions to mask supported student identity fields
 before tool results reach an AI client. This control can support institutional
 privacy practices but does not by itself establish FERPA compliance.
+
+Known limitation: ``generate_anonymous_id`` derives a pseudonym from the Canvas
+user ID alone, so it is the same in every course. Anywhere this server shows a
+person's real name next to their user ID, that name is linked to their
+pseudonym everywhere else. Tiers that keep names do this on purpose: course
+staff in ``find_message_recipients`` and the ``send_message`` preview, and
+correspondents in the caller's own inbox (``/conversations``). Someone who is
+staff in one shared course and a student in another is therefore not
+anonymous in the second.
 """
 
 import hashlib
 import re
+from itertools import islice
 from typing import Any
+
+from .credentials import (
+    get_request_anonymization_cache,
+    get_request_credentials,
+    is_http_request_active,
+)
 
 # Global anonymization mapping cache
 _anonymization_cache: dict[str, str] = {}
+
+
+def _session_cache() -> dict[str, str]:
+    """Use request-owned HTTP state and preserve the local stdio session cache."""
+    if is_http_request_active() or get_request_credentials() is not None:
+        cache = get_request_anonymization_cache()
+        # Missing/cleared credentials must never fall back to stdio history.
+        return cache if cache is not None else {}
+    return _anonymization_cache
 
 # --------------------------------------------------------------------------
 # Field policy for the recursive identity scrubber (issue #166)
@@ -127,10 +152,15 @@ USER_SIGNAL_FIELDS = frozenset({
 #: Keys that positively identify a record as NOT a person. Course objects also
 #: carry an ``enrollments`` list, which would otherwise corroborate them as a
 #: user and get the course title rewritten as a student pseudonym.
+#: ``group_category_id`` marks a Canvas Group: group records always carry an
+#: ``avatar_url`` key (a user signal), so on ``/users/self/groups`` — gated by
+#: its ``users`` segment — the group's own name was rewritten as a student
+#: pseudonym. Canvas user and group-membership records never carry it.
 NON_USER_MARKER_FIELDS = frozenset({
     'course_code',
     'sis_course_id',
     'enrollment_term_id',
+    'group_category_id',
 })
 
 #: Dict keys whose *value* is by convention a user record. Children reached
@@ -138,6 +168,9 @@ NON_USER_MARKER_FIELDS = frozenset({
 #: user-only null fields apply without needing their own corroborating signal.
 #: ``communication_channels`` / ``pseudonyms`` are the ``/users/self/profile``
 #: sub-objects that hold the caller's addresses and login handles.
+#: ``participants`` is the discussion ``/view`` user-summary list: an entry
+#: without an avatar key carries no other user signal, so without this its
+#: ``display_name`` passed through (this includes group discussions).
 USER_CONTAINER_KEYS = frozenset({
     'user',
     'author',
@@ -146,6 +179,7 @@ USER_CONTAINER_KEYS = frozenset({
     'editor',
     'submitter',
     'participant',
+    'participants',
     'student',
     'observed_user',
     'communication_channels',
@@ -170,7 +204,9 @@ FREE_TEXT_FIELDS = frozenset({
 #: an explicit value *inside* it suppresses duck-typing entirely.
 KNOWN_DATA_TYPES = frozenset({'users', 'discussions', 'submissions', 'assignments'})
 
-_EMAIL_RE = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+# Start only at the edge of an address-like run. A word boundary alone retries
+# at every dot in attacker-authored text, making a missing '@' quadratic.
+_EMAIL_RE = re.compile(r'(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
 _PHONE_RE = re.compile(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b')
 _SSN_RE = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
 
@@ -196,10 +232,11 @@ def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
         Consistent anonymous identifier
     """
     real_id_str = str(real_id)
+    cache = _session_cache()
 
     # Check cache first
-    if real_id_str in _anonymization_cache:
-        return _anonymization_cache[real_id_str]
+    if real_id_str in cache:
+        return cache[real_id_str]
 
     # Generate consistent hash-based ID
     hash_object = hashlib.sha256(real_id_str.encode())
@@ -209,7 +246,7 @@ def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
     anonymous_id = f"{prefix}_{hash_hex[:8]}"
 
     # Cache the mapping
-    _anonymization_cache[real_id_str] = anonymous_id
+    cache[real_id_str] = anonymous_id
 
     return anonymous_id
 
@@ -506,11 +543,12 @@ def get_anonymization_stats() -> dict[str, Any]:
     Returns:
         Dictionary with anonymization statistics
     """
+    cache = _session_cache()
     return {
-        "total_anonymized_ids": len(_anonymization_cache),
+        "total_anonymized_ids": len(cache),
         "sample_mappings": {
             f"real_id_{i}": anon_id
-            for i, anon_id in enumerate(list(_anonymization_cache.values())[:3])
+            for i, anon_id in enumerate(islice(cache.values(), 3))
         },
         "privacy_status": "PROTECTED"
     }
@@ -518,5 +556,4 @@ def get_anonymization_stats() -> dict[str, Any]:
 
 def clear_anonymization_cache() -> None:
     """Clear the anonymization cache (use when switching courses/contexts)."""
-    global _anonymization_cache
-    _anonymization_cache.clear()
+    _session_cache().clear()

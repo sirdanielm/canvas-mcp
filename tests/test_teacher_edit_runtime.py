@@ -72,7 +72,7 @@ def runtime(tmp_path):
         for name, content in files.items():
             path = release / package / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content)
+            path.write_text(content, encoding="utf-8")
             packages[package][name] = sha(path)
     external = {}
     for name in (
@@ -83,7 +83,7 @@ def runtime(tmp_path):
     ):
         path = tmp_path / "external" / name
         path.parent.mkdir(exist_ok=True)
-        path.write_text("# Fictional pinned external input.\n")
+        path.write_text("# Fictional pinned external input.\n", encoding="utf-8")
         external[name] = {"path": str(path), "sha256": sha(path)}
     manifest = {
         "contract": "LOCALGRASS_EDIT_IMMUTABLE_RUNTIME_V1",
@@ -151,12 +151,12 @@ def test_unit1_static_verifier_is_pinned_at_its_required_package_location(runtim
     relative = "tools/clearance-kit/unit1-pair-verifier.cjs"
     path = runtime["release"] / "domain" / relative
     path.parent.mkdir(parents=True)
-    path.write_text("// Fictional static verifier asset; never executed here.\n")
+    path.write_text("// Fictional static verifier asset; never executed here.\n", encoding="utf-8")
     runtime["manifest"]["packages"]["domain"][relative] = sha(path)
     reseal(runtime)
     assert check(runtime).returncode == 0
     runtime["marker"].unlink()
-    path.write_text("// Changed verifier.\n")
+    path.write_text("// Changed verifier.\n", encoding="utf-8")
     held_before_packages(runtime)
 
 
@@ -172,7 +172,7 @@ def test_fresh_subprocess_imports_pinned_code_without_creating_application(runti
         "Canvas_writes": 0,
         "paid_calls": 0,
     }
-    assert runtime["marker"].read_text() == "package imported"
+    assert runtime["marker"].read_text(encoding="utf-8") == "package imported"
     assert not runtime["objects"].exists()
     assert not (runtime["release"] / "unused-bytecode").exists()
     assert not list(runtime["release"].rglob("*.pyc"))
@@ -347,7 +347,8 @@ def test_check_refuses_even_caught_network_attempts_without_any_real_syscall(
         "getaddrinfo": "socket.getaddrinfo('fiction.invalid', 1)",
     }
     init.write_text(
-        "import io, socket\ntry:\n    " + calls[api] + "\nexcept Exception:\n    pass\n"
+        "import io, socket\ntry:\n    " + calls[api] + "\nexcept Exception:\n    pass\n",
+        encoding="utf-8",
     )
     runtime["manifest"]["packages"]["canvas"]["canvas_mcp/__init__.py"] = sha(init)
     reseal(runtime)

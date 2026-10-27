@@ -105,7 +105,8 @@ async def test_actual_google_transport_has_one_post_after_durable_intent(
                     }
                 }
             }
-        )
+        ),
+        encoding="utf-8",
     )
     credential.chmod(0o600)
     raw = copy.deepcopy(context["raw"])
@@ -118,7 +119,7 @@ async def test_actual_google_transport_has_one_post_after_durable_intent(
         nonlocal intent_seen
         old_write(path, value)
         if type(value) is dict and value.get("status") == "SENDING":
-            assert json.loads(path.read_text())["status"] == "SENDING"
+            assert json.loads(path.read_text(encoding="utf-8"))["status"] == "SENDING"
             intent_seen = True
 
     monkeypatch.setattr(connection.files, "write", durable_write)

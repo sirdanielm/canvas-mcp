@@ -26,7 +26,8 @@ def client_file(tmp_path):
                     "token_uri": auth.TOKEN_URL,
                 }
             }
-        )
+        ),
+        encoding="utf-8",
     )
     path.chmod(0o600)
     return path
@@ -97,7 +98,7 @@ async def test_authorize_pkce_state_narrow_scope_and_private_exclusive_save(
     )
     assert result["state"] == "AUTHORIZED"
     assert destination.stat().st_mode & 0o777 == 0o600
-    saved = json.loads(destination.read_text())
+    saved = json.loads(destination.read_text(encoding="utf-8"))
     assert saved["tokens"]["gradebook"]["refresh_token"] == "fictional-refresh"
     assert "access_token" not in saved["tokens"]["gradebook"]
     assert "fictional-secret" not in json.dumps(result)
@@ -211,9 +212,9 @@ def test_valid_callback_and_authenticated_denial():
     ],
 )
 def test_only_owned_desktop_client_and_official_authority(client_file, change):
-    raw = json.loads(client_file.read_text())
+    raw = json.loads(client_file.read_text(encoding="utf-8"))
     change(raw)
-    client_file.write_text(json.dumps(raw))
+    client_file.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(GradebookError):
         auth.desktop_client(client_file)
 

@@ -38,14 +38,14 @@ def composed(integrated, tmp_path, monkeypatch):
     repo = tmp_path / "existing-canvas-repo"
     (repo / "config").mkdir(parents=True)
     binding_path = repo / "config/sdm-gradebook-workbooks.json"
-    binding_path.write_text(json.dumps({"core": context["binding"]}))
+    binding_path.write_text(json.dumps({"core": context["binding"]}), encoding="utf-8")
     output = tmp_path / "existing-participation-history"
     output.mkdir(mode=0o700)
     runtime = tmp_path / "existing-runtime"
     runtime.mkdir()
     domain.source.identity_runtime_root = runtime
     worker_config_path = tmp_path / "existing-worker-config.json"
-    worker_config_path.write_text(json.dumps({"state_dir": str(store.root)}))
+    worker_config_path.write_text(json.dumps({"state_dir": str(store.root)}), encoding="utf-8")
     config = {
         "course": "core",
         "spreadsheet_id": context["binding"]["spreadsheet_id"],
@@ -58,7 +58,7 @@ def composed(integrated, tmp_path, monkeypatch):
         "worker_config": str(worker_config_path),
     }
     config_path = tmp_path / "existing-participation-config.json"
-    config_path.write_text(json.dumps(config))
+    config_path.write_text(json.dumps(config), encoding="utf-8")
     credential = tmp_path / "fictional-credentials.json"
     credential.write_text(
         json.dumps(
@@ -72,7 +72,8 @@ def composed(integrated, tmp_path, monkeypatch):
                     }
                 }
             }
-        )
+        ),
+        encoding="utf-8",
     )
     credential.chmod(0o600)
     calls = {"canvas_reads": 0, "sheets_reads": 0, "posts": []}
@@ -100,7 +101,7 @@ def composed(integrated, tmp_path, monkeypatch):
             with journal.exclusive():
                 pass
         receipts = sorted(output.glob("*/receipt-*.json"))
-        assert json.loads(receipts[-1].read_text())["status"] == "SENDING"
+        assert json.loads(receipts[-1].read_text(encoding="utf-8"))["status"] == "SENDING"
         if state["apply"]:
             current = native._state(state["raw"])
             for item in requests:
@@ -379,15 +380,16 @@ async def test_changed_configuration_and_owner_binding_hold_before_io(
     c.calls.update(canvas_reads=0, sheets_reads=0)
     if changed == "config":
         config = dict(c.config, output_root=str(c.output.parent / "parallel-root"))
-        c.config_path.write_text(json.dumps(config))
+        c.config_path.write_text(json.dumps(config), encoding="utf-8")
         code = "EXISTING_STAGING_CONFIG_CHANGED"
     elif changed == "registered_binding":
         c.binding_path.write_text(
-            json.dumps({"core": dict(c.context["binding"], course_id="99")})
+            json.dumps({"core": dict(c.context["binding"], course_id="99")}),
+            encoding="utf-8",
         )
         code = "REGISTERED_WORKBOOK_BINDING_CHANGED"
     elif changed == "worker_state":
-        c.worker_config_path.write_text(json.dumps({"state_dir": str(c.output)}))
+        c.worker_config_path.write_text(json.dumps({"state_dir": str(c.output)}), encoding="utf-8")
         code = "EXISTING_WORKER_STATE_CHANGED"
     else:
         (

@@ -186,7 +186,7 @@ def test_snapshot_integrity_and_file_permissions(tmp_path, snapshot):
     assert store.load("snapshot", artifact_id) == snapshot
     assert path.stat().st_mode & 0o777 == 0o600
     assert store.root.stat().st_mode & 0o777 == 0o700
-    path.write_text("{}")
+    path.write_text("{}", encoding="utf-8")
     with pytest.raises(GradebookError):
         store.load("snapshot", artifact_id)
 
@@ -331,5 +331,5 @@ async def test_mcp_registry_and_aggregate_only_result(tmp_path, snapshot):
 def test_ignored_state_directory():
     from pathlib import Path
 
-    assert "local_gradebooks/" in (Path(__file__).parents[1] / ".gitignore").read_text()
+    assert "local_gradebooks/" in (Path(__file__).parents[1] / ".gitignore").read_text(encoding="utf-8")
     assert os.name == "posix" or os.name == "nt"

@@ -15,6 +15,9 @@ that keeps a Canvas-controlled filename from clobbering an existing file.
 """
 
 import os
+import sys
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -49,7 +52,7 @@ def get_tool_function(tool_name: str):
 
 
 def _mock_stream(mock_client, content=b"file content here", raise_on_status=None):
-    """Build a mock streaming response for canvas_authenticated_client()."""
+    """Build a mock streaming response for canvas_file_download_client()."""
     mock_response = AsyncMock()
     if raise_on_status is None:
         mock_response.raise_for_status = MagicMock()
@@ -94,7 +97,8 @@ class TestDownloadRefusedOverHttp:
         ), patch(
             "canvas_mcp.tools.files.make_canvas_request", new_callable=AsyncMock
         ) as request, patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ):
             download = get_tool_function("download_course_file")
             result = await download("badm_350", 12345, save_directory=str(tmp_path))
@@ -115,12 +119,13 @@ class TestDownloadRefusedOverHttp:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.get_course_code",
             new=AsyncMock(return_value="badm_350"),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -144,9 +149,10 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -163,7 +169,17 @@ class TestDownloadDoesNotClobber:
         outside.write_bytes(b"do not touch")
         save_dir = tmp_path / "downloads"
         save_dir.mkdir()
-        (save_dir / "syllabus.pdf").symlink_to(outside)
+        try:
+            (save_dir / "syllabus.pdf").symlink_to(outside)
+        except OSError as exc:
+            if sys.platform != "win32":
+                raise
+            # Windows lets only administrators or Developer Mode create
+            # symlinks (WinError 1314 otherwise), and there is no unprivileged
+            # file-link equivalent: a junction targets directories only, and a
+            # hard link is the plain existing-file case covered above. Where
+            # the privilege exists (e.g. GitHub's Windows runners) this runs.
+            pytest.skip(f"cannot create a file symlink without privilege: {exc}")
 
         with patch(
             "canvas_mcp.tools.files.is_http_request_active", return_value=False
@@ -171,9 +187,10 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -197,9 +214,10 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client, raise_on_status=error)
             download = get_tool_function("download_course_file")
@@ -216,7 +234,7 @@ class TestUploadRefusedOverHttp:
     @pytest.mark.asyncio
     async def test_upload_refused_over_http(self, tmp_path):
         secret = tmp_path / "secret.txt"
-        secret.write_text("service-account readable content")
+        secret.write_text("service-account readable content", encoding="utf-8")
 
         with patch(
             "canvas_mcp.tools.files.is_http_request_active", return_value=True
@@ -255,8 +273,110 @@ class TestUploadRefusedOverHttp:
 
 
 class TestDownloadPermissions:
-    """Downloads land owner-only; the bytes come from a third party."""
+    """POSIX downloads are owner-only; Windows discloses inherited access."""
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("platform", ["win32", "linux", "darwin"])
+    @pytest.mark.parametrize("use_default_directory", [False, True])
+    async def test_download_reports_windows_permission_limitation(
+        self, tmp_path: Path, platform: str, use_default_directory: bool
+    ) -> None:
+        """Windows success must disclose that inherited access is not restricted.
+
+        Removing the warning (or assuming the default temp folder is private)
+        must fail this test. Real file creation and streaming are exercised;
+        the platform decision and external Canvas boundary are controlled.
+        """
+        with patch(
+            "canvas_mcp.tools.files.sys", SimpleNamespace(platform=platform), create=True
+        ), patch(
+            "canvas_mcp.tools.files.tempfile.gettempdir", return_value=str(tmp_path)
+        ), patch(
+            "canvas_mcp.tools.files.is_http_request_active", return_value=False
+        ), patch(
+            "canvas_mcp.tools.files.make_canvas_request",
+            new=AsyncMock(return_value=FILE_INFO),
+        ), patch(
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
+        ), patch(
+            "canvas_mcp.tools.files.get_course_code",
+            new=AsyncMock(return_value="badm_350"),
+        ), patch(
+            "canvas_mcp.tools.files.canvas_file_download_client"
+        ) as client:
+            _mock_stream(client)
+            download = get_tool_function("download_course_file")
+            result = await download(
+                "badm_350", 12345,
+                save_directory=None if use_default_directory else str(tmp_path),
+            )
+
+        assert (tmp_path / "syllabus.pdf").read_bytes() == b"file content here"
+        assert "Downloaded:" in result
+        if platform == "win32":
+            assert result.startswith("Warning:")
+            assert "owner-only access is not enforced" in result
+            assert "Other local users may be able to read this file" in result
+            assert "read_course_file" in result
+        else:
+            assert "Warning:" not in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failure", ["http", "metadata", "exists", "stream"])
+    async def test_windows_warning_does_not_mask_download_errors(
+        self, tmp_path: Path, failure: str
+    ) -> None:
+        """Failures retain their errors and never turn into a warned success."""
+        target = tmp_path / "syllabus.pdf"
+        if failure == "exists":
+            target.write_bytes(b"original")
+        info = {"error": "File not found"} if failure == "metadata" else FILE_INFO
+        with patch(
+            "canvas_mcp.tools.files.sys", SimpleNamespace(platform="win32")
+        ), patch(
+            "canvas_mcp.tools.files.is_http_request_active", return_value=failure == "http"
+        ), patch(
+            "canvas_mcp.tools.files.make_canvas_request", new=AsyncMock(return_value=info)
+        ) as request, patch(
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
+        ), patch(
+            "canvas_mcp.tools.files.canvas_file_download_client"
+        ) as client:
+            _mock_stream(
+                client, raise_on_status=OSError("transfer failed") if failure == "stream" else None
+            )
+            download = get_tool_function("download_course_file")
+            result = await download("badm_350", 12345, save_directory=str(tmp_path))
+
+        expected_error = {
+            "http": "only available on a local (stdio) server",
+            "metadata": "File not found",
+            "exists": "Refusing to overwrite",
+            "stream": "transfer failed",
+        }[failure]
+        assert result.startswith("Error")
+        assert expected_error in result
+        assert "Downloaded:" not in result
+        assert "Warning:" not in result
+        if failure == "exists":
+            assert target.read_bytes() == b"original"
+        else:
+            assert list(tmp_path.iterdir()) == []
+        if failure == "http":
+            request.assert_not_called()
+        if failure != "stream":
+            client.assert_not_called()
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason=(
+            "POSIX permission bits: on Windows os.open's mode only sets the "
+            "read-only attribute and st_mode always reports 0o666/0o444; access "
+            "is governed by the ACL inherited from the destination directory."
+        ),
+    )
     @pytest.mark.asyncio
     async def test_downloaded_file_is_owner_only(self, tmp_path):
         with patch(
@@ -265,9 +385,10 @@ class TestDownloadPermissions:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -311,12 +432,13 @@ class TestDownloadIsPortable:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.get_course_code",
             new=AsyncMock(return_value="badm_350"),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -338,9 +460,10 @@ class TestDownloadIsPortable:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")

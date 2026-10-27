@@ -101,7 +101,7 @@ def test_individual_safety_holds_are_retained(proposal):
 
 def test_private_html_escapes_body_and_returns_no_rows(proposal, tmp_path):
     result = write_paired_review(tmp_path / "review", proposal, proposal_sha256="a" * 64)
-    text = Path(result["review_file"]).read_text()
+    text = Path(result["review_file"]).read_text(encoding="utf-8")
     assert "&lt;script&gt;send()&lt;/script&gt;" in text
     assert "<script>" not in text
     assert "default-src 'none'" in text

@@ -41,7 +41,7 @@ def configured(composed, tmp_path):
     c.config["runtime_root"] = str(source.identity_runtime_root)
     c.config_path.write_bytes(encoded(c.config))
     shared_tool = tmp_path / "existing-shared-pin-tool.py"
-    shared_tool.write_text("# fictional pinned shared tool\n")
+    shared_tool.write_text("# fictional pinned shared tool\n", encoding="utf-8")
     c.connection.shared_tool = shared_tool
     value = {
         "contract": app.CONTRACT,

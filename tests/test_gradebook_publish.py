@@ -112,7 +112,7 @@ def comment_system(system, tmp_path):
 
 async def prepared_comment(comment_system):
     publisher, _, envelope = comment_system
-    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope))
+    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope), encoding="utf-8")
     return await publisher.prepare_comment("12", "comment.json", digest(envelope))
 
 
@@ -185,7 +185,7 @@ async def test_comment_confirmation_exact_form_independent_readback(comment_syst
     publisher, state, envelope = comment_system
     proposal = await prepared_comment(comment_system)
     assert state["forms"] == []
-    review = Path(proposal["review_file"]).read_text()
+    review = Path(proposal["review_file"]).read_text(encoding="utf-8")
     assert envelope["source_revision"] in review and envelope["source_sha256"] in review
     result = await publisher.confirm_comment(
         "12", proposal["operation_id"], proposal["confirmation_token"]
@@ -264,7 +264,7 @@ async def test_comment_changed_source_after_preview_sends_nothing(comment_system
     publisher, state, envelope = comment_system
     proposal = await prepared_comment(comment_system)
     envelope["source_revision"] = "fake-original:3"
-    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope))
+    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope), encoding="utf-8")
     with pytest.raises(GradebookError, match="changed after preview"):
         await publisher.confirm_comment(
             "12", proposal["operation_id"], proposal["confirmation_token"]
@@ -520,7 +520,7 @@ async def test_comment_mcp_preview_and_confirmation_use_exact_registered_contrac
     comment_system,
 ):
     publisher, state, envelope = comment_system
-    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope))
+    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope), encoding="utf-8")
     server = create_server(
         publisher.client, publisher.store, {"core": "12"}, enable_comments=True
     )
@@ -851,8 +851,8 @@ async def test_review_escapes_canvas_content_and_is_private(system):
     review_id, _ = publisher.store.save("review", review)
     proposal = await publisher.prepare("12", review_id)
     path = Path(proposal["review_file"])
-    assert "<script>bad()" not in path.read_text()
-    assert "&lt;script&gt;" in path.read_text()
+    assert "<script>bad()" not in path.read_text(encoding="utf-8")
+    assert "&lt;script&gt;" in path.read_text(encoding="utf-8")
     assert path.stat().st_mode & 0o777 == 0o600
     assert publisher.ledger.path.stat().st_mode & 0o777 == 0o600
 

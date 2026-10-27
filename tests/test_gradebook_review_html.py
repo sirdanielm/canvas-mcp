@@ -23,7 +23,7 @@ def test_ready_preview_requires_teacher_review_and_creates_no_publisher_state(
             "edits": [{"user_id": "101", "assignment_id": "21", "value": 20}],
         },
     )
-    display = Path(write_review_html(store, review)).read_text()
+    display = Path(write_review_html(store, review)).read_text(encoding="utf-8")
     assert "Ready for teacher review" in display
     assert "Ready for confirmation" not in display
     assert "No grades have been sent by this review" in display

@@ -189,9 +189,9 @@ async def test_snapshot_checksum_is_verified(scenario):
     plan = await prepare_get_only_refresh(canvas, store, "core", binding, before)
     after = apply(before, plan, binding)
     path = store.root / f"snapshot-{plan['canvas_snapshot_id']}.json"
-    altered = json.loads(path.read_text())
+    altered = json.loads(path.read_text(encoding="utf-8"))
     altered["cells"]["101:21"]["value"] = 99
-    path.write_text(json.dumps(altered))
+    path.write_text(json.dumps(altered), encoding="utf-8")
     assert digest(altered) != plan["canvas_snapshot_id"]
     with pytest.raises(GradebookError, match="integrity"):
         verify_get_only_output(before, after, [plan], store, {"core": binding})

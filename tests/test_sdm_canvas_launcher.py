@@ -52,8 +52,8 @@ def test_secret_only_saved_in_keychain(tmp_path, monkeypatch):
     backend.set_password.assert_called_once_with(
         launcher.SERVICE, "https://school.example", "dummy-secret"
     )
-    assert json.loads(config.read_text()) == {"canvas_origin": "https://school.example"}
-    assert "dummy-secret" not in config.read_text()
+    assert json.loads(config.read_text(encoding="utf-8")) == {"canvas_origin": "https://school.example"}
+    assert "dummy-secret" not in config.read_text(encoding="utf-8")
     assert config.stat().st_mode & 0o777 == 0o600
 
 

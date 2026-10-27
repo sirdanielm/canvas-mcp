@@ -51,7 +51,7 @@ def test_allowlist_never_serializes_private_values(tmp_path, monkeypatch, micros
         grade=87,
     )
     diagnostic.emit("http", component="private-token", operation="private-url")
-    rows = [json.loads(line) for line in log.read_text().splitlines()]
+    rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
     assert rows == [
         {
             "v": 1,
@@ -66,7 +66,7 @@ def test_allowlist_never_serializes_private_values(tmp_path, monkeypatch, micros
         {"v": 1, "event": "http", "at": frozen.isoformat()},
     ]
     assert not any(
-        value in log.read_text()
+        value in log.read_text(encoding="utf-8")
         for value in (
             "private",
             "score=87",
@@ -84,23 +84,23 @@ def test_failure_span_correlates_only_safe_code(tmp_path):
     with pytest.raises(httpx.ReadTimeout):
         with diagnostic.stage("fresh_workbook", RID):
             raise httpx.ReadTimeout("token https://private.invalid student score")
-    rows = [json.loads(line) for line in diagnostic.path.read_text().splitlines()]
+    rows = [json.loads(line) for line in diagnostic.path.read_text(encoding="utf-8").splitlines()]
     assert rows[-1]["request_id"] == RID
     assert rows[-1]["stage"] == "fresh_workbook"
     assert rows[-1]["failure_code"] == "transport_timeout"
     assert rows[-1]["duration_ms"] >= 0
-    assert "private.invalid" not in diagnostic.path.read_text()
+    assert "private.invalid" not in diagnostic.path.read_text(encoding="utf-8")
 
 
 def test_logging_failure_cannot_interrupt_operation(tmp_path):
     target = tmp_path / "outside"
-    target.write_text("preserve")
+    target.write_text("preserve", encoding="utf-8")
     log = tmp_path / "diagnostics.jsonl"
     log.symlink_to(target)
     diagnostic = Diagnostics(log)
     with diagnostic.stage("grade_batch", RID):
         diagnostic.emit("loop", state="HELD")
-    assert target.read_text() == "preserve"
+    assert target.read_text(encoding="utf-8") == "preserve"
     assert diagnostic.dropped > 0
 
 
@@ -240,12 +240,12 @@ async def test_canvas_http_failure_class_and_correlation_without_raw_exception(
     finally:
         await client.close()
     rows = [
-        json.loads(line) for line in client.diagnostics.path.read_text().splitlines()
+        json.loads(line) for line in client.diagnostics.path.read_text(encoding="utf-8").splitlines()
     ]
     http = next(row for row in rows if row["event"] == "http")
     assert http["http_class"] == "forbidden" and http["attempt"] == 1
     assert http["stage"] == "prepare_core" and http["request_id"] == RID
-    assert "private" not in client.diagnostics.path.read_text()
+    assert "private" not in client.diagnostics.path.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -364,7 +364,7 @@ def test_repeated_rotation_is_private_bounded_and_retains_each_startup_header(
     path = root / "diagnostics.jsonl"
     diagnostics = Diagnostics(path)
     diagnostics.emit("startup", source_digest="a" * 64)
-    first = json.loads(path.read_text())
+    first = json.loads(path.read_text(encoding="utf-8"))
     for _ in range(20):
         diagnostics.emit("stage_start", stage="readback")
     archives = list(root.glob("diagnostics.archive-*.jsonl"))
@@ -373,7 +373,7 @@ def test_repeated_rotation_is_private_bounded_and_retains_each_startup_header(
         assert file.stat().st_size <= 600
         assert file.stat().st_mode & 0o777 == 0o600
         assert file.stat().st_nlink == 1
-        lines = [json.loads(line) for line in file.read_text().splitlines()]
+        lines = [json.loads(line) for line in file.read_text(encoding="utf-8").splitlines()]
         assert lines[0] == first
     assert diagnostics.dropped == 0
     result = inspect_journal(tmp_path, "fictional-book")
@@ -390,7 +390,7 @@ def test_rotation_can_recover_header_when_a_new_diagnostics_object_opens_log(
     path = root / "diagnostics.jsonl"
     initial = Diagnostics(path)
     initial.emit("startup", source_digest="a" * 64)
-    first = json.loads(path.read_text())
+    first = json.loads(path.read_text(encoding="utf-8"))
     while path.stat().st_size < 490:
         initial.emit("stage_start", stage="readback")
     other = Diagnostics(path)
@@ -398,7 +398,7 @@ def test_rotation_can_recover_header_when_a_new_diagnostics_object_opens_log(
         "http", component="google", operation="workbook_read", http_class="success"
     )
     assert list(root.glob("diagnostics.archive-*.jsonl"))
-    assert json.loads(path.read_text().splitlines()[0]) == first
+    assert json.loads(path.read_text(encoding="utf-8").splitlines()[0]) == first
     assert other.dropped == 0
 
 
