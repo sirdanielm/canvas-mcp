@@ -29,6 +29,9 @@ keywords = ["canvas", "lms", "mcp", "claude", "education", "api"]
 dependencies = [
     "fastmcp>=4.1.2,<5",
     "mcp>=2.2.0,<3",
+    # Security floors for OAuth signature/claim validation and DNS decompression.
+    "authlib>=1.9.1,<2",
+    "dnspython>=2.9.0,<3",
     # Security floor for FastMCP/Authlib's transitive JOSE implementation.
     "joserfc>=1.7.5,<2",
     # Security floors for shared TLS trust and FastMCP trace-context parsing.
