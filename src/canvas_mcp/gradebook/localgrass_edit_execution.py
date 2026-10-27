@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from .client import GradebookError
-from .localgrass_teacher_edit import CONTRACT, LocalGrAssEditConnection
+from .localgrass_teacher_edit import LocalGrAssEditConnection
 from .model import digest
 
 
@@ -121,7 +121,7 @@ async def _execute_local_edit_once(
         if previous is not None:
             _need(
                 type(previous) is dict
-                and previous.get("contract") == CONTRACT
+                and previous.get("contract") == connection.contract
                 and previous.get("plan_id") == expected_plan_sha256
                 and previous.get("canvas_writes") == 0
                 and previous.get("retry_writes") is False
@@ -172,7 +172,7 @@ async def _execute_local_edit_once(
 
         def record(status: str, writes: int = 0) -> dict[str, Any]:
             receipt = {
-                "contract": CONTRACT,
+                "contract": connection.contract,
                 "plan_id": expected_plan_sha256,
                 "status": status,
                 "observed_status": observed["status"],

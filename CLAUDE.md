@@ -1,17 +1,17 @@
 # CLAUDE.md
 
-Guidance for developing the Canvas MCP server. Agents *using* the server: see [AGENTS.md](./AGENTS.md).
+Guidance for developing the Canvas MCP server. Agents *using* the server: see [tool usage](docs/agent-usage.md).
 Design: [internal/architecture.md](internal/architecture.md). Long-form rules and the reasons behind them: [internal/dev-reference.md](internal/dev-reference.md). Completed work: [internal/project-history.md](internal/project-history.md), `CHANGELOG.md`.
-Codex reads `AGENTS.md`, not this file; its "Developing this server" section points here, so keep development rules in this file only. Historical upstream issue references belong to `vishalsachdev/canvas-mcp` unless explicitly identified as this SDM fork. Use current source and operator receipts for operational status.
+Codex starts with `AGENTS.md`; its task router points here for repository development. Keep development rules here and load long references only for the affected task. Historical upstream issue references belong to `vishalsachdev/canvas-mcp` unless explicitly identified as this SDM fork. Use current source and operator receipts for operational status.
 
 ## Commands
 - Install `uv pip install -e .`; run `canvas-mcp-server` (`--test`, `--config`); `.env` holds `CANVAS_API_TOKEN` and `CANVAS_API_URL`.
-- Before committing: `uv run python -m pytest tests/ -v -rf`. TypeScript changes: `npm test` and `npm run build`.
+- During iteration, run focused checks for the affected behavior. Documentation-only edits need link/format/privacy review, not the application suite. Before promotion, run applicable required CI; Python behavior changes use `uv run python -m pytest tests/ -v -rf`, and TypeScript changes use `npm test` and `npm run build`.
 
 ## Git workflow
 - Use a reviewed branch and PR for changes to this SDM fork, including documentation. Follow an already authorized workflow without asking again; otherwise clarify only consequential scope or target ambiguity. Prefixes: `feature/`, `fix/`, `docs/`, `refactor/`.
 - `main` is the maintained SDM branch; keep the installation-compatible `feature/sdm-authoring` synchronized after reviewed promotion. The primary checkout retains the shared Git directory, and the operational authoring checkout must remain available to installed services. See [repository maintenance](docs/repository-maintenance.md).
-- Keep concurrent changes isolated in suitable worktrees. Before retiring a completed review checkout, inspect ancestry and actual files, preserve unique changes and ignored evidence, and verify recovery. Archive managed worktrees through Codex; do not automatically delete branches or operational checkouts.
+- Keep concurrent changes isolated in suitable worktrees. Begin independent authorized work without waiting for owner acknowledgements; coordinate actual overlapping writers and shared runtime changes. Before retiring a completed review checkout, inspect ancestry and actual files, preserve unique changes and ignored evidence, and verify recovery. Archive managed worktrees through Codex; do not automatically delete branches or operational checkouts.
 - Use PR review and passing applicable CI for promotion to this fork's `main`. Inspect current GitHub rules before claiming which checks are enforced. Do not bypass failed checks or change repository protection during ordinary development.
 - Integrate current base changes without overwriting another session's work, then rerun the relevant validation. Before a release, test the exact merged candidate in an isolated environment; never borrow live credentials merely to make tests pass.
 - Run `./scripts/install-hooks.sh` once per clone. `fixes|closes|resolves #N` mid-sentence in a commit or PR body closes the issue on merge: rephrase (`closed [issue 172]`) or set `ALLOW_CLOSING_KEYWORD=1`. A trailer that opens a line (`Closes #173`) is allowed.
@@ -29,7 +29,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 
 ## Testing and behavioral evidence
 - New tools need meaningful automated coverage: success, failure, boundary and safety behavior.
-- A reproducible bug gets a failing regression first; watch it fail for the intended reason.
+- A reproducible behavior bug gets a focused failing regression first when practical; observe the intended failure. Prose-only and reversible low-impact changes do not need artificial tests.
 - Assert outgoing request contracts and forbidden side effects, from an independent requirement, not from the implementation's own output.
 - Use a real client with controlled HTTP transport when the risk is serialization, retries, pagination or error classification.
 - Never send live Canvas writes to verify a patch. Never weaken an assertion to get a green run.
@@ -37,8 +37,8 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Report what was verified, what failed and what was skipped.
 
 ## Documentation Maintenance
-- Source of truth: agents `AGENTS.md`; humans `tools/README.md`; machine `tools/TOOL_MANIFEST.json`; `README.md` is the entry point.
-- New tool: update `tools/README.md`, then `AGENTS.md`, then `TOOL_MANIFEST.json`. Touch `README.md` only for a major feature. No tool usage docs in this file.
+- Source of truth: agent working agreement `AGENTS.md`; agent tool usage `docs/agent-usage.md`; human catalog `tools/README.md`; machine catalog `tools/TOOL_MANIFEST.json`. `README.md` is the entry point.
+- New tool: update `tools/README.md`, relevant `docs/agent-usage.md` guidance and `TOOL_MANIFEST.json`. Change `AGENTS.md` only when operating rules or task routing change; touch `README.md` for a major feature. No tool usage docs in this file.
 - `docs/` is the public Cloudflare Pages root and deploys manually (`wrangler pages deploy docs/`); nothing internal goes there.
 - `internal/` is deny-by-default in `.gitignore`; un-ignore only a file meant to be public. `internal/session-history.md` stays untracked.
 - Triage briefs are tracked: never record a collaborator's affiliation, evaluation status, timeline or competing products. Name the person and the technical issue only.
@@ -61,21 +61,22 @@ identity, source, form, policy and attempt bindings. GrAss summative work retain
 score and full feedback together; ordinary sdmGrAss participation delivers a
 score while keeping its analysis private.
 
-The authenticated Unit 1 teacher-decision-to-EDIT route is source-accepted and
-has a completed local canary. Preserve its terminal receipts; qualify each new
-adapter and installed scope separately. The ordinary UNAPPROVED participation
-route is qualified as a local overlay; portable source publication and broader
-rollout remain separate work. Stage, teacher acceptance and Canvas delivery are
-different states. Use the [transfer guide](docs/teacher-edit-transfer.md) for the
-current route and [integration boundaries](docs/grass-workflow-integration.md)
-for ownership.
+Use the current [transfer guide](docs/teacher-edit-transfer.md) and
+[integration boundaries](docs/grass-workflow-integration.md) for route capability
+and ownership. Preserve completed canaries and uncertain histories; qualify a new
+or materially changed adapter/installation without repeating live canaries for
+every unchanged batch. Stage, teacher acceptance and Canvas delivery remain
+different states. Reuse existing authorization and valid evidence for the first
+unfinished stage.
 
 LocalGrAss owns shared review/workbench tools. Canvas owns exact observations,
 GET/EDIT integrity, scoped writers and installed Canvas bindings. Prioritize
 source consolidation, eligible proposal review and exact target admission;
 retain original evidence and existing teacher edits. Unit 2 requires its issued
-forms, keys and sealed policy before advisory scoring. Documentation work enables
-no provider, paid call, service restart or publisher.
+forms, keys and sealed policy before advisory scoring. Actual permitted effects
+come from the current work order and installed configuration; a documentation
+change itself enables no provider, service restart or publisher. A held case does
+not stop independent eligible targets or source work.
 
 Historical plans, prototype limitations and test diaries remain in
 [project history](internal/project-history.md), [CHANGELOG](CHANGELOG.md) and

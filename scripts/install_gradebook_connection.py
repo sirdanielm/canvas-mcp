@@ -29,7 +29,52 @@ LEGACY_DEFAULT_TOOLS = [
 ]
 
 
-def add_get_controls(config_path: Path) -> str:
+BATCH_REVIEW_TOOLS = [
+    "prepare_gradebook_score_batch",
+    "prepare_gradebook_comment_batch",
+    "get_gradebook_batch_status",
+    "revoke_gradebook_batch",
+]
+BATCH_WRITE_TOOLS = ["authorize_gradebook_batch", "execute_gradebook_batch_chunk"]
+PRE_BATCH_DEFAULT_TOOLS = [
+    "get_canvas_gradebook",
+    "preview_gradebook_changes",
+    "prepare_gradebook_push",
+    "get_gradebook_push_status",
+    "reconcile_gradebook_push",
+    *GET_CONTROLS,
+]
+
+
+def _recognized_arguments(args: object, template: list[str]) -> bool:
+    if not isinstance(args, list) or args[: len(template)] != template:
+        return False
+    extras = args[len(template) :]
+    seen = set()
+    index = 0
+    while index < len(extras):
+        flag = extras[index]
+        if not isinstance(flag, str) or flag in seen:
+            return False
+        seen.add(flag)
+        if flag in ("--enable-push", "--enable-comments"):
+            index += 1
+            continue
+        if flag == "--comment-approval-seconds" and index + 1 < len(extras):
+            value = extras[index + 1]
+            if (
+                not isinstance(value, str)
+                or not value.isdecimal()
+                or not 600 <= int(value) <= 1800
+            ):
+                return False
+            index += 2
+            continue
+        return False
+    return True
+
+
+def _add_controls(config_path: Path, controls: list[str], label: str) -> str:
     """Add only protected GET control names; preserve custom push/comment gates."""
     if config_path.is_symlink():
         raise ValueError("Refusing to replace a symlinked configuration.")
@@ -47,17 +92,7 @@ def add_get_controls(config_path: Path) -> str:
     ):
         raise ValueError("Gradebook launcher binding differs; no settings changed.")
     args = entry.get("args")
-    recognized_args = [
-        [*template["args"], *flags]
-        for flags in (
-            [],
-            ["--enable-push"],
-            ["--enable-comments"],
-            ["--enable-push", "--enable-comments"],
-            ["--enable-comments", "--enable-push"],
-        )
-    ]
-    if args not in recognized_args:
+    if not _recognized_arguments(args, template["args"]):
         raise ValueError("Gradebook launcher arguments differ; no settings changed.")
     enabled = entry.get("enabled_tools")
     if (
@@ -66,9 +101,9 @@ def add_get_controls(config_path: Path) -> str:
         or len(set(enabled)) != len(enabled)
     ):
         raise ValueError("Gradebook tool allowlist is invalid.")
-    added = [x for x in GET_CONTROLS if x not in enabled]
+    added = [x for x in controls if x not in enabled]
     if not added:
-        return "Protected GET controls already enabled; no settings changed."
+        return f"{label} controls already enabled; no settings changed."
     new_tools = [*enabled, *added]
     table = re.search(
         r"(?ms)^\[mcp_servers\.canvas-gradebook\]\n.*?(?=^\[|\Z)", original.decode()
@@ -91,7 +126,9 @@ def add_get_controls(config_path: Path) -> str:
     if after != before:
         raise ValueError("Unrelated settings changed; installation refused.")
     backup = config_path.with_name(
-        "config.before-get-controls-"
+        "config.before-"
+        + label.lower()
+        + "-controls-"
         + hashlib.sha256(original).hexdigest()[:12]
         + ".toml"
     )
@@ -120,7 +157,27 @@ def add_get_controls(config_path: Path) -> str:
     check["mcp_servers"]["canvas-gradebook"]["enabled_tools"] = enabled
     if check != before:
         raise ValueError("Configuration readback differs.")
-    return "Added protected GET controls; all existing push, comment and connection settings preserved."
+    return f"Added {label} controls; all existing push, comment and connection settings preserved."
+
+
+def add_get_controls(config_path: Path) -> str:
+    return _add_controls(config_path, GET_CONTROLS, "get")
+
+
+def add_batch_controls(config_path: Path) -> str:
+    """Expose reviewed batches only within already enabled publication channels."""
+    if config_path.is_symlink():
+        raise ValueError("Refusing to replace a symlinked configuration.")
+    entry = (
+        tomllib.loads(config_path.read_text())
+        .get("mcp_servers", {})
+        .get("canvas-gradebook", {})
+    )
+    args = entry.get("args", [])
+    controls = list(BATCH_REVIEW_TOOLS)
+    if "--enable-push" in args or "--enable-comments" in args:
+        controls += BATCH_WRITE_TOOLS
+    return _add_controls(config_path, controls, "batch")
 
 
 def install(config_path: Path, upgrade: bool = False) -> str:
@@ -139,6 +196,7 @@ def install(config_path: Path, upgrade: bool = False) -> str:
             for tools in (
                 ["get_canvas_gradebook", "preview_gradebook_changes"],
                 LEGACY_DEFAULT_TOOLS,
+                PRE_BATCH_DEFAULT_TOOLS,
                 desired["enabled_tools"],
             )
             for timeout in (180, desired["tool_timeout_sec"])
@@ -208,9 +266,20 @@ if __name__ == "__main__":
         action="store_true",
         help="Add only GET-only queue/status tools to the existing connection",
     )
+    parser.add_argument(
+        "--add-batch-controls",
+        action="store_true",
+        help="Add reviewed batch tools while retaining existing score/comment enablement",
+    )
     args = parser.parse_args()
+    if args.add_get_controls and args.add_batch_controls:
+        parser.error("Choose one control update per invocation")
     print(
-        add_get_controls(args.config)
-        if args.add_get_controls
-        else install(args.config, args.upgrade)
+        add_batch_controls(args.config)
+        if args.add_batch_controls
+        else (
+            add_get_controls(args.config)
+            if args.add_get_controls
+            else install(args.config, args.upgrade)
+        )
     )

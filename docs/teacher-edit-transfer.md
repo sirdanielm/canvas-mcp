@@ -1,10 +1,12 @@
 # Exact decisions and ordinary drafts to local EDIT
 
-This guide describes two local staging routes. The authenticated Unit 1 route is
-maintained source with a retained one-case runtime qualification. The newer
-ordinary participation receiver is a qualified private local overlay awaiting
+This guide describes accepted decisions and unapproved proposals staged through
+the existing local EDIT owner. The authenticated Unit 1 decision route has a
+retained one-case runtime qualification; the maintained unapproved proposal route
+has joined synthetic coverage and retains separate installation qualification.
+The ordinary participation receiver is a qualified private overlay awaiting
 portable source review. Inspect the [capability table](goals-and-status.md#source-and-installed-capability)
-before selecting a route. Neither route grants Canvas publication authority.
+before selecting a route. These staging routes grant no Canvas publication authority.
 The [current agenda](goals-and-status.md#next-work-and-ownership) owns next work;
 this page owns procedures and their gates.
 
@@ -20,6 +22,32 @@ Reuse valid existing admission, mapping and exact human approval when their
 substantive bindings still match. A source merge is not a reason to repeat valid
 approval. A completed operation is retained, never replayed. A possible send
 permits reconciliation of its existing operation evidence only.
+
+## Retained unapproved score and feedback pairs
+
+An existing scoped authenticated review session can expose a current, source-byte
+verified advisory result through LocalGrAss's `AuthenticatedProposalSource` or
+`AuthenticatedUnit1ProposalSource`, without writing teacher acceptance. Canvas's
+`LocalGrAssProposalEditConnection` stages its score and full feedback using the
+same `LocalGrAssEditOwner`, workbook locks, private plan/history store and
+one-shot executor. The EDIT note explicitly says **UNAPPROVED**; neither score
+nor comment publication is authorized by staging.
+
+The existing `localgrass_application.build_owner_factory` accepts explicit
+`LOCALGRASS_PROPOSAL_EDIT_APP_V1` and
+`LOCALGRASS_PROPOSAL_EDIT_U1_APP_V1` configurations, using exact
+`result_id` instead of `decision_id`. The operator composes the existing factory,
+then `owner.prepare()` and `owner.execute(..., enabled=True)` under the current
+local-staging authorization. No new account, acceptance receipt or publisher is
+created. The accepted-decision browser `build_application` remains accepted-only
+and rejects proposal configurations.
+
+Saved teacher decisions or drafts hold that case. Original bytes, current
+result/policy, permanent PINs, real attempt/target, destination preimage and full
+readback remain bound; changed evidence holds only the affected case. Possible
+prior writes use the same durable no-replay recovery. New or materially changed
+installations still need their existing runtime qualification; synthetic tests
+do not claim live activation.
 
 ## Ordinary unapproved participation drafts
 
@@ -141,6 +169,8 @@ the typed adapter supplies the established Unit 1 owner-result route.
    Any retained send uses no-write reconciliation. Never release or replay an
    uncertain operation, refresh a baseline to hide drift or repeat a completed
    canary. Qualify a changed installation through its owner with staging off.
+   Holds apply to their exact targets and shared resources; continue independent
+   eligible cases and source work while reconciliation proceeds.
 3. **Admit the exact source and mapping.** Reuse valid saved evidence. Domain
    owners resolve source, policy, membership, page completeness and identity holds.
    Ordinary participation needs its pinned reader/provider/attempt bindings; an
@@ -160,8 +190,10 @@ the typed adapter supplies the established Unit 1 owner-result route.
 7. **Publish separately when authorized.** Freshly compare EDIT with Canvas and
    obtain exact final approval for the intended score and permitted feedback
    channel. Use existing publishers and independently verify each channel.
-   Local participation drafts remain score-only; paid calls and Canvas writes
-   remain off unless the human expressly authorizes that new action.
+   Local participation drafts remain score-only. Reuse current authorization for
+   unchanged approved effects; ask only when a consequential effect falls outside
+   that scope. Paid calls and Canvas writes still require their applicable
+   enablement, academic acceptance and actual tool/platform confirmations.
 
 ## Validation and retained evidence
 

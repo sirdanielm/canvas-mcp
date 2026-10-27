@@ -18,7 +18,7 @@ A complete peer review management workflow for educators using Canvas LMS. Monit
 
 ### 1. Identify the Assignment
 
-Ask the user which course and assignment to manage peer reviews for. Accept a course code, Canvas ID, or course name, plus an assignment name or ID.
+Reuse the course and assignment in the request/current task. Resolve their exact IDs with tools and ask only when the target remains ambiguous.
 
 If the user does not specify, prompt:
 
@@ -108,8 +108,8 @@ Example flow:
 
 1. Get incomplete reviewers from step 2
 2. Extract their user IDs
-3. Review the recipient list with the user
-4. Send reminders after confirmation
+3. Obtain the exact tool preview of recipients and final content for the required review
+4. Send with identical arguments and its token after that approval; do not add a separate generic recipient/plan approval
 
 For an automated pipeline, call `send_peer_review_followup_campaign` with the course identifier and assignment ID; the first call returns analytics plus a preview of urgent vs. gentle recipients and a token. This tool:
 
@@ -118,7 +118,7 @@ For an automated pipeline, call `send_peer_review_followup_campaign` with the co
 3. Sends the reminders only on the confirming call with the token
 4. Returns combined analytics and messaging results
 
-**Warning:** The campaign tool sends real messages. Always confirm with the instructor before running it.
+The first campaign call previews and sends nothing; the confirming call sends real messages. Use that exact preview for the required review, without an additional approval merely to generate it. Preserve current recipient/content authority and token rules.
 
 ### 9. Export Data
 
@@ -152,7 +152,7 @@ Run steps 1-2, then step 7 with `priority_filter="urgent"`. List the students wh
 Run steps 4-6. Present quality scores, flag generic or low-effort reviews, and surface recommendations.
 
 **"Send reminders to stragglers"**
-Run steps 1-2 to identify incomplete reviewers, then step 8. Always confirm the recipient list before sending.
+Run steps 1-2 to identify incomplete reviewers, then step 8. Review the exact final recipient/content preview once where required, retaining the tool token flow.
 
 **"Give me a full report"**
 Run steps 2, 5, 6, and 10. Combine completion analytics with quality analysis into a comprehensive instructor report.
@@ -205,7 +205,7 @@ Run step 9 with `output_format="csv"` and `anonymize_data=true` for a privacy-co
 
 **User:** "Send reminders to the ones who haven't started"
 
-**Agent:** Confirms the 4 recipients, then calls `send_peer_review_inbox_messages` with their user IDs.
+**Agent:** Resolves the 4 recipients, obtains the tool’s exact message/recipient preview, and confirms that preview before the token-bearing send.
 
 **User:** "Now check if the completed reviews are any good"
 
@@ -213,7 +213,7 @@ Run step 9 with `output_format="csv"` and `anonymize_data=true` for a privacy-co
 
 ## Safety Guidelines
 
-- **Confirm before sending** -- Always present the recipient list and message content to the instructor before calling any messaging tool.
+- **Use one concrete review** -- Resolve exact recipients/content and use the required tool preview for approval. Reuse established scope and avoid an earlier generic plan approval; the confirming call still requires valid authority and its exact token.
 - **Anonymize by default** -- Use `anonymize_students=true` or `anonymize_data=true` when reviewing data in shared contexts.
 - **Respect rate limits** -- The Canvas API allows roughly 700 requests per 10 minutes. For large courses, the messaging tools send messages sequentially with built-in delays.
 - **FERPA-conscious handling** -- Never display student names in logs, shared screens, or exported files unless the instructor has explicitly confirmed the context is appropriate.

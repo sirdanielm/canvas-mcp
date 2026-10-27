@@ -6,6 +6,7 @@ from typing import Any
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from .batch_publish import BatchPublisher
 from .capture import save_capture
 from .client import GradebookClient, GradebookError
 from .ledger import Ledger
@@ -32,10 +33,12 @@ def create_server(
 ) -> FastMCP:
     server = FastMCP("canvas-gradebook")
     publisher_options = (
-        {} if type(comment_approval_seconds) is int and comment_approval_seconds == 600
+        {}
+        if type(comment_approval_seconds) is int and comment_approval_seconds == 600
         else {"comment_approval_seconds": comment_approval_seconds}
     )
     publisher = Publisher(client, store, Ledger(store.root), **publisher_options)
+    batches = BatchPublisher(publisher)
 
     def resolve(course: str) -> str:
         if course not in courses:
@@ -44,9 +47,13 @@ def create_server(
 
     if get_refresh_control is not None:
 
-        @server.tool(annotations=ToolAnnotations(
-            read_only_hint=False, destructive_hint=False, idempotent_hint=False,
-        ))
+        @server.tool(
+            annotations=ToolAnnotations(
+                read_only_hint=False,
+                destructive_hint=False,
+                idempotent_hint=False,
+            )
+        )
         async def request_gradebook_get_refresh() -> dict[str, Any]:
             """Queue one fresh Canvas read into both protected GET tabs.
 
@@ -60,8 +67,11 @@ def create_server(
             except GradebookError as exc:
                 return {"error": str(exc), "canvas_writes": 0, "retry_writes": False}
             except Exception:
-                return {"error": "GET request unavailable; inspect stored status before retrying.",
-                        "canvas_writes": 0, "retry_writes": False}
+                return {
+                    "error": "GET request unavailable; inspect stored status before retrying.",
+                    "canvas_writes": 0,
+                    "retry_writes": False,
+                }
 
         @server.tool(annotations=ToolAnnotations(read_only_hint=True))
         async def get_gradebook_get_refresh_status(request_id: str) -> dict[str, Any]:
@@ -76,8 +86,11 @@ def create_server(
             except GradebookError as exc:
                 return {"error": str(exc), "canvas_writes": 0, "retry_writes": False}
             except Exception:
-                return {"error": "GET status unavailable; no action was retried.",
-                        "canvas_writes": 0, "retry_writes": False}
+                return {
+                    "error": "GET status unavailable; no action was retried.",
+                    "canvas_writes": 0,
+                    "retry_writes": False,
+                }
 
         @server.tool(annotations=ToolAnnotations(read_only_hint=True))
         async def review_gradebook_edits(course: str) -> dict[str, Any]:
@@ -93,31 +106,39 @@ def create_server(
             except GradebookError as exc:
                 return {"error": str(exc), "canvas_writes": 0}
             except Exception:
-                return {"error": "Native EDIT review held; no grades or comments were sent.",
-                        "canvas_writes": 0}
-
+                return {
+                    "error": "Native EDIT review held; no grades or comments were sent.",
+                    "canvas_writes": 0,
+                }
 
     if get_refresh_control is not None:
 
         @server.tool(annotations=ToolAnnotations(read_only_hint=True))
         async def select_gradebook_review_batch(
-            course: str, review_id: str, batch_index: int = 0,
+            course: str,
+            review_id: str,
+            batch_index: int = 0,
         ) -> dict[str, Any]:
             """Make a private scope of up to 25 ready rows from an existing review.
 
-        Independently checks classifications against captured evidence. Held
-        rows remain unresolved in the parent. Does not refresh source times,
-        approve teacher decisions, prepare a publisher, or send Canvas changes.
-        Review the private scope before separately preparing/confirming a push.
+            Independently checks classifications against captured evidence. Held
+            rows remain unresolved in the parent. Does not refresh source times,
+            approve teacher decisions, prepare a publisher, or send Canvas changes.
+            Review the private scope before separately preparing/confirming a push.
             """
             try:
                 from .scoped_review import select_ready_batch
-                return select_ready_batch(store, resolve(course), client.origin, review_id, batch_index)
+
+                return select_ready_batch(
+                    store, resolve(course), client.origin, review_id, batch_index
+                )
             except GradebookError as exc:
                 return {"error": str(exc), "canvas_writes": 0}
             except Exception:
-                return {"error": "Review scope held; no grade operation was prepared.", "canvas_writes": 0}
-
+                return {
+                    "error": "Review scope held; no grade operation was prepared.",
+                    "canvas_writes": 0,
+                }
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def get_canvas_gradebook(course: str) -> dict[str, Any]:
@@ -212,7 +233,9 @@ def create_server(
                     store.inbox_file(workbook_filename), binding.get("tab_names")
                 )
                 if sheets["_Sync"].get("B2") != snapshot_id:
-                    raise GradebookError("Baseline does not match the workbook reference.")
+                    raise GradebookError(
+                        "Baseline does not match the workbook reference."
+                    )
                 plan = await prepare_refresh(client, store, course, binding, sheets)
                 plan_id, path = plan["refresh_id"], plan["local_file"]
                 merged_id, current_id = plan["baseline_id"], plan["canvas_snapshot_id"]
@@ -264,7 +287,8 @@ def create_server(
                 ):
                     raise GradebookError("Workbook binding changed.")
                 sheets = read_workbook_cells(
-                    store.inbox_file(workbook_filename), bindings[course].get("tab_names")
+                    store.inbox_file(workbook_filename),
+                    bindings[course].get("tab_names"),
                 )
                 if phase == "before":
                     age = (
@@ -479,6 +503,133 @@ def create_server(
                 return {
                     "error": "Push stopped; read its durable status before any further action.",
                     "operation_id": operation_id,
+                    "retry_writes": False,
+                }
+
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+    async def prepare_gradebook_score_batch(
+        course: str, review_id: str, approval_seconds: int = 7200
+    ) -> dict[str, Any]:
+        """Review one immutable score manifest, excluding held targets.
+
+        At most 1000 proposals, split into <=25-target single-use chunks.
+        Approve every exact payload in the private review once. No Canvas writes.
+        The bounded grant expires after the requested 600–28800 seconds.
+        """
+        try:
+            return {
+                **await batches.prepare_scores(
+                    resolve(course), review_id, approval_seconds
+                ),
+                "publishing_available": enable_push,
+            }
+        except GradebookError as exc:
+            return {"error": str(exc), "canvas_writes": 0}
+        except Exception:
+            return {
+                "error": "Batch preparation held; no Canvas changes were made.",
+                "canvas_writes": 0,
+            }
+
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+    async def prepare_gradebook_comment_batch(
+        course: str, proposals: list[dict[str, str]], approval_seconds: int = 7200
+    ) -> dict[str, Any]:
+        """Review exact private comment references in one immutable manifest.
+
+        Each reference has filename and envelope_sha256 from its source owner.
+        Held proposals stay excluded. Review all private payloads once; hashes
+        establish no academic acceptance. No grades, comments or messages sent.
+        """
+        try:
+            return {
+                **await batches.prepare_comments(
+                    resolve(course), proposals, approval_seconds
+                ),
+                "publishing_available": enable_comments,
+            }
+        except GradebookError as exc:
+            return {"error": str(exc), "canvas_writes": 0}
+        except Exception:
+            return {
+                "error": "Comment batch preparation held; nothing sent.",
+                "canvas_writes": 0,
+            }
+
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+    async def get_gradebook_batch_status(course: str, batch_id: str) -> dict[str, Any]:
+        """Read the durable manifest/grant and per-chunk aggregate status only."""
+        try:
+            return batches.status(resolve(course), batch_id)
+        except GradebookError as exc:
+            return {"error": str(exc), "retry_writes": False}
+
+    @server.tool(
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False)
+    )
+    async def revoke_gradebook_batch(course: str, batch_id: str) -> dict[str, Any]:
+        """Revoke remaining dispatch authority. Never reverses or retries writes."""
+        try:
+            return batches.revoke(resolve(course), batch_id)
+        except GradebookError as exc:
+            return {"error": str(exc), "retry_writes": False}
+
+    if enable_push or enable_comments:
+
+        def enabled_batch(course_id: str, batch_id: str) -> None:
+            _, manifest = batches._manifest(course_id, batch_id)
+            if not (enable_push if manifest["channel"] == "SCORE" else enable_comments):
+                raise GradebookError("This batch publication channel is not enabled.")
+
+        @server.tool(
+            annotations=ToolAnnotations(
+                read_only_hint=False, destructive_hint=False, idempotent_hint=False
+            )
+        )
+        async def authorize_gradebook_batch(
+            course: str, batch_id: str, confirmation_token: str
+        ) -> dict[str, Any]:
+            """Consume approval of the exact private batch manifest once; send nothing.
+
+            Only use after the teacher approved all linked unchanged payloads.
+            Future bounded chunks reuse this grant until expiry/revocation,
+            while retaining exact source/target checks and single-use sends.
+            """
+            try:
+                course_id = resolve(course)
+                enabled_batch(course_id, batch_id)
+                return {
+                    **batches.authorize(course_id, batch_id, confirmation_token),
+                    "canvas_writes": 0,
+                }
+            except GradebookError as exc:
+                return {"error": str(exc), "canvas_writes": 0}
+
+        @server.tool(
+            annotations=ToolAnnotations(
+                read_only_hint=False, destructive_hint=True, idempotent_hint=False
+            )
+        )
+        async def execute_gradebook_batch_chunk(
+            course: str, batch_id: str, chunk_index: int
+        ) -> dict[str, Any]:
+            """Dispatch one exact chunk covered by an existing approved manifest.
+
+            Rechecks current scope, targets, source and original payload. Holds
+            affect only their independent targets. A previously claimed chunk
+            returns status, never resends. Use existing reconciliation tools
+            for uncertain operation IDs returned by batch status.
+            """
+            try:
+                course_id = resolve(course)
+                enabled_batch(course_id, batch_id)
+                return await batches.execute_chunk(course_id, batch_id, chunk_index)
+            except GradebookError as exc:
+                return {"error": str(exc), "batch_id": batch_id, "retry_writes": False}
+            except Exception:
+                return {
+                    "error": "Chunk stopped; inspect batch and operation status before continuing.",
+                    "batch_id": batch_id,
                     "retry_writes": False,
                 }
 

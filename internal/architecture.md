@@ -20,7 +20,7 @@
 - **Messaging workflow**: Analytics → Target → Template → Send pattern for automated communications
 
 ### API Layer Architecture
-- **Centralized requests**: All Canvas API calls go through `make_canvas_request()`
+- **General MCP requests**: General Python tools use `make_canvas_request()`; gradebook, course mirror and optional TypeScript paths have separate transports/contracts
 - **Form data support**: Messaging endpoints use `use_form_data=True` for Canvas compatibility
 - **Automatic pagination**: `fetch_all_paginated_results()` handles Canvas pagination transparently
 - **Async throughout**: All I/O operations use async/await
@@ -178,8 +178,12 @@ and [production connection plan](https://github.com/sirdanielm/LocalGrAss/blob/m
 The intended grading path admits Canvas submissions and teacher-folder/paper
 evidence with their source provenance intact, then carries score and feedback
 from one saved result through local inspection/QC and the protected proposal
-inbox. GrAss's importer preserves GET/EDIT and teacher fields; the general
-revision-bound teacher-decision-to-EDIT transfer remains a separate integration.
+inbox. GrAss's importer preserves GET/EDIT and teacher fields. The authenticated
+Unit 1 teacher-decision-to-native-EDIT route is maintained source with a retained
+bounded case qualification; ordinary participation has a qualified private
+overlay pending portable source review. The older accepted-pair RELEASE
+prototype remains separate. A past qualification does not establish installed
+parity or authority for a new case.
 Reuse the central identity and publisher boundaries. A successful proposal
 import does not prove teacher acceptance, downstream application or either
 delivery channel. See the [current grading flow](../docs/goals-and-status.md#grading-flow)

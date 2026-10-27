@@ -64,6 +64,12 @@ Canvas MCP server and its tool manifest:
 | `get_gradebook_get_refresh_status` | Inspect that request's durable aggregate preservation receipt. |
 | `review_gradebook_edits` | Compare native EDIT proposals with fresh Canvas; save a private review. |
 | `select_gradebook_review_batch` | Select up to 25 ready rows from an existing review, retaining its evidence time and holds. |
+| `prepare_gradebook_score_batch` | Save an immutable private manifest of eligible score chunks from an exact review; no Canvas write. |
+| `prepare_gradebook_comment_batch` | Save an immutable manifest of exact source-bound comment envelopes; no Canvas write. |
+| `authorize_gradebook_batch` | Consume one exact manifest approval; sends nothing. |
+| `execute_gradebook_batch_chunk` | Execute one bounded chunk under that existing grant and fresh target checks. |
+| `get_gradebook_batch_status` | Inspect batch/chunk outcomes and remaining holds. |
+| `revoke_gradebook_batch` | Revoke the batch grant without deleting its history. |
 
 The four controller tools require the existing local worker configuration,
 matching state store and explicit client allowlist entries. Missing controls do
@@ -169,7 +175,8 @@ The default connection omits `confirm_gradebook_push`. A reviewed installation
 needs both `--enable-push` and its explicit client allowlist entry. Each operation
 still requires approval of the exact private preview:
 
-1. Prepare at most 25 changes; resolve every hold.
+1. Select up to 25 eligible changes. Quarantine held targets and resolve their
+   causes separately; do not block independent ready targets.
 2. Review the immutable operation and approve its exact scope. Its one-use
    confirmation expires after ten minutes.
 3. Confirm once. Fresh checks run immediately before each PUT; durable
@@ -178,11 +185,62 @@ still requires approval of the exact private preview:
    operation; uncertain targets remain locked. `observed_applied` proves the
    present result, not which actor wrote it.
 
+These are the legacy single-operation controls. An approval of an exact reviewed
+payload can cover its unchanged bounded delivery chunks; do not add another
+project-level question for each chunk. Continue independent eligible operations
+without releasing uncertain targets. Use only the supported publisher APIs and
+their actual fresh checks, durable claims and tool confirmations.
+
 A score match alone does not establish unchanged attempts, visibility or grading
 context. A numeric/EX push sends no feedback and changes no posting policy.
 Existing Canvas policy may make grades visible. Coordinate with other graders:
 Canvas has no atomic conditional-write API, and readback cannot eliminate the
 race between the final GET and PUT.
+
+## Immutable batch authorization
+
+The maintained batch APIs avoid asking the teacher to approve an unchanged
+reviewed payload for every delivery chunk. They do not enable publication by
+themselves or turn advisory scoring into teacher acceptance. Score/comment
+channels still need their respective launcher flags and client allowlists; a
+source merge does not install or activate them.
+
+For an authorized installation update, add the matching batch client entries
+with `.venv/bin/python scripts/install_gradebook_connection.py --upgrade
+--add-batch-controls`, then reconnect the affected idle connection through its
+supported lifecycle. Preserve existing operations before reconnecting. The
+installer retains the existing `--enable-push`/`--enable-comments` settings;
+adding batch controls enables neither channel. Without channel enablement the
+connection exposes preview/status/revoke controls, not authorize/execute. CLI
+calls use the same six tool names with `scripts/sdm_gradebook_launcher.py --call`.
+
+1. For scores, call `prepare_gradebook_score_batch(course, review_id,
+   approval_seconds=7200)` on the exact private review. For comments, call
+   `prepare_gradebook_comment_batch(course, proposals=[{filename,
+   envelope_sha256}], approval_seconds=7200)` with the exact private envelope
+   filenames/digests. Inspect the returned manifest and held cases privately.
+2. Obtain any missing approval of that concrete manifest, then call
+   `authorize_gradebook_batch(course, batch_id, confirmation_token)`. This
+   consumes the approval token and records the grant; it sends nothing. Do not
+   add a generic project-level approval before this concrete review.
+3. Call `execute_gradebook_batch_chunk(course, batch_id, chunk_index)` for each
+   pending chunk: at most 25 score targets or one exact comment. Unchanged
+   approved chunks reuse the same grant. Each dispatch is single-use and still
+   checks current source, targets, attempts, destination preimages and the grant
+   before any write. Do not regenerate plans to hide substantive drift.
+4. Inspect `get_gradebook_batch_status`. Held/uncertain targets stay quarantined
+   while independent eligible chunks continue; reconcile possible sends through
+   their original operation histories. Never replay a completed chunk or append
+   duplicate feedback.
+5. `revoke_gradebook_batch(course, batch_id)` stops later delivery without
+   rewriting completed outcomes or clearing uncertain locks.
+
+The grant defaults to two hours; preparation accepts 600–28800 seconds, bounded
+to the reviewed task. Revocation, expiry or substantive drift prevents further
+sends. This lifetime is distinct from the legacy ten-minute score token,
+600–1800-second comment preview, worker request/plan freshness and client
+timeouts. Do not edit an existing expiry to extend a grant; preserve original
+history and prepare a new concrete review only when recovery permits it.
 
 ## Separately reviewed student comments
 
@@ -249,6 +307,13 @@ The authenticated Unit 1 teacher-decision-to-EDIT route is source-accepted and
 has a completed local canary. Genuine authenticated acceptance, exact selection,
 current source/attempt checks and complete native preservation remain required
 for a new case. Retain the completed plan and receipt; do not repeat its send.
+
+The distinct retained-proposal route can stage a source-verified summative score
+and full feedback as **UNAPPROVED** before academic acceptance. It uses explicit
+proposal configuration through the existing owner factory and preserves saved
+teacher decisions/drafts, target/preimage checks and one-shot history. See
+[retained unapproved pairs](teacher-edit-transfer.md#retained-unapproved-score-and-feedback-pairs).
+This route creates no teacher acceptance and grants no Canvas delivery authority.
 
 Ordinary participation can enter central EDIT as an **UNAPPROVED** draft before
 final teacher acceptance. That receiver is qualified as a local overlay pending

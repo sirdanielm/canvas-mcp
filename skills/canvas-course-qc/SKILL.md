@@ -17,7 +17,7 @@ Automated quality checklist for Learning Designers to verify a Canvas course is 
 
 ### 1. Identify Target Course
 
-Ask the user which course to QC. Accept a course code, Canvas ID, or course name.
+Reuse the course and intended state from the request/current task. Resolve exact IDs with tools; ask only if ambiguous. Distinguish draft assembly from student-ready publication; default an unspecified QC request to read-only inspection.
 
 If not specified, prompt:
 
@@ -48,7 +48,7 @@ Call `list_assignments(course_identifier)` and check each assignment:
 
 | Check | Priority | What to Look For |
 |-------|----------|------------------|
-| Missing due dates | Blocking | Graded assignments without a due_at date |
+| Missing due dates | Depends on intended state | Block only when the requested release requires dates; drafts may intentionally omit them |
 | Missing descriptions | Warning | Assignments with empty or null description |
 | Missing points | Warning | Assignments without points_possible set |
 | Date sequencing | Warning | Due dates that don't follow module order |
@@ -65,8 +65,8 @@ Using the structure data:
 
 | Check | Priority | What to Look For |
 |-------|----------|------------------|
-| Ghost items | Blocking | Published items inside unpublished modules (invisible to students) |
-| Unpublished modules | Warning | Modules that may need publishing before semester |
+| Visibility mismatch | Depends on intended state | Compare module, item and linked-object visibility independently; an unpublished module does not guarantee linked content is inaccessible elsewhere |
+| Unpublished modules | Expected for drafts | Flag only a mismatch with the explicitly intended publication state |
 | No front page | Warning | Course has no front page set |
 
 `list_pages` renders a `(Front Page)` text marker. Use `get_front_page` to verify
@@ -96,7 +96,7 @@ Present results grouped by priority:
 
 ### Blocking Issues (fix before publishing)
 1. Assignment "Final Project" has no due date
-2. Published "Week 5 Quiz" is inside unpublished "Week 5" module (invisible to students)
+2. "Week 5 Quiz" is published although this unit was requested as an unpublished draft
 3. Assignment "Midterm" has no due date
 
 ### Warnings (should fix)
@@ -113,15 +113,7 @@ Present results grouped by priority:
 
 ### 8. Offer Follow-up Actions
 
-After presenting the report, offer actionable next steps:
-
-> Would you like me to:
-> 1. **Auto-fix publishing** -- Publish all unpublished modules (with confirmation)
-> 2. **Show details** -- Expand on a specific issue
-> 3. **Run accessibility audit** -- Check for WCAG-oriented issues (uses canvas-accessibility-auditor skill)
-> 4. **Check another course**
-
-For auto-fix, use `update_module` or `bulk_update_pages` with user confirmation before each batch.
+Report actionable mismatches against the requested state. If repairs were already authorized, apply unambiguous in-scope fixes and verify them; otherwise provide the concrete proposed repair set. Do not propose publishing every unpublished module as a generic repair. Publish only the exact authorized set and verify the container, children and linked objects. Reuse one valid authorization across its unchanged bounded batches while preserving actual tool confirmations. Accessibility checks and further courses are optional, not prerequisites.
 
 ## MCP Tools Used
 
@@ -145,7 +137,7 @@ For auto-fix, use `update_module` or `bulk_update_pages` with user confirmation 
 
 **User:** "Fix the publishing issues"
 
-**Agent:** Publishes the 2 unpublished modules after confirmation.
+**Agent:** Resolves the exact intended publication set and existing authority, applies only those changes, and verifies child/linked-object visibility. Intentional drafts remain unpublished.
 
 ## Notes
 

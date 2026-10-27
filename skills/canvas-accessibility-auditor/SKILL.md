@@ -17,7 +17,7 @@ Full accessibility audit cycle for Learning Designers: scan course content, gene
 
 ### 1. Identify Target Course
 
-Ask the user which course to audit. Accept a course code, Canvas ID, or course name.
+Reuse the course and remediation scope in the request/current task. Resolve its exact ID with tools; ask only if the target remains ambiguous.
 
 If not specified, prompt:
 
@@ -89,7 +89,7 @@ Present issues sorted by priority:
 
 ### 4. Guided Remediation
 
-For each guided/manual issue, walk the user through the fix. The automatic fixer
+For an audit-only request, report findings. For authorized remediation, apply unambiguous fixes in scope without per-page approval, retaining preimages and verifying changed bodies. Ask only for unresolved semantic/pedagogical choices. The automatic fixer
 supports only `th_scope`, `low_contrast`, `legacy_designplus` and
 `redundant_alt_prefix`; it does not infer missing alt text, heading order, table
 captions or meaningful link wording:
@@ -97,28 +97,28 @@ captions or meaningful link wording:
 **For missing alt text:**
 1. Call `get_page_content(course_identifier, page_url)` to retrieve the HTML
 2. Identify the `<img>` tags without alt attributes
-3. Ask the user for alt text descriptions (or suggest based on surrounding context)
+3. Inspect the image and relevant context; write a supported description within the remediation scope. Ask only when the image meaning cannot be established; never infer it from the filename alone
 4. Call `edit_page_content(course_identifier, page_url, new_content)` with corrected HTML
 
 **For non-descriptive links:**
 1. Retrieve the page content
 2. Show the current link: `<a href="...">click here</a>`
 3. Suggest descriptive replacement: `<a href="...">Download the syllabus (PDF)</a>`
-4. Apply fix after user approval
+4. Apply an unambiguous replacement within the authorized remediation scope; ask only about unresolved meaning
 
 **For empty headings:**
 1. Retrieve the page content
 2. Show the empty heading
-3. Ask: "Remove this heading, or add text to it?"
+3. Remove an unambiguous empty formatting artifact; ask if removal or added text would change meaningful structure
 4. Apply the chosen fix
 
 **For tables missing headers:**
 1. Retrieve the page content
 2. Show the table structure
-3. Ask: "Which row/column should be headers?"
+3. Infer headers only when the table meaning is clear; ask when row/column semantics are ambiguous
 4. Convert `<td>` to `<th>` elements and apply
 
-Always ask for user confirmation before modifying any page.
+Reuse existing remediation authorization. Save each current body, recheck for concurrent edits, apply the smallest supported fix and read back the result. Hold ambiguous pages while continuing independent fixes. Publication, messages and unrelated content changes remain outside an audit/remediation request.
 
 ### 5. Verify Remediation
 
@@ -184,14 +184,14 @@ Manual review of color contrast and multimedia is recommended before publishing.
 
 **User:** "Fix the missing alt text issues"
 
-**Agent:** Retrieves each affected page, asks for alt text descriptions, applies fixes, re-scans.
+**Agent:** Inspects each image/context, applies supported descriptions in scope, asks only about unresolved image meaning, and verifies changed pages.
 
 ## Limitations
 
 - **Requires separate review:** Contrast outside the supported white-on-orange pattern, video captions, PDF accessibility, audio descriptions, keyboard navigation
 - **These are flagged** as "manual review required" in every report
 - **Remediation is per-page:** Each fix requires a full page content read and write cycle
-- **Recovery:** This MCP workflow exposes no dedicated undo tool; retain the approved page content before edits for separately reviewed restoration
+- **Recovery:** This workflow exposes no dedicated undo tool. Retain preimages; restore the agent’s own failed edit within the same authorization only when current state still matches that edit. Preserve intervening user changes and reconcile uncertain writes first
 
 ## Notes
 

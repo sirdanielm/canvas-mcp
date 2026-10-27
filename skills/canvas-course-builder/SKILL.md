@@ -30,30 +30,32 @@ Read the structure of Course A and replicate it into Course B.
 
 ### 1. Determine Mode and Gather Input
 
-Ask the user how they want to build:
+Reuse the mode, course, specification and template already supplied in the request or current task. Resolve exact course IDs with tools. Ask only for missing information that materially blocks the build; do not repeat an interview for a complete specification. When the mode itself is genuinely unspecified, offer:
 
 > How would you like to build the course structure?
 > 1. **Describe it** -- Tell me the structure (e.g., "15 weeks, each with an overview page, assignment, and discussion")
 > 2. **From template** -- Load a saved template file
 > 3. **Clone another course** -- Copy structure from an existing course
 
-**For Mode 1 (Spec):** Ask for:
+**For Mode 1 (Spec):** Resolve from the request; ask only for essential missing fields:
 - Target course (code or ID)
 - Number of modules/weeks/units
 - Module naming pattern (e.g., "Week N: [Topic]")
 - Standard items per module (overview page, assignment, discussion, etc.)
 - Any module-specific variations (midterm week, final project, etc.)
 
-**For Mode 2 (Template):** Ask for the template file path. Parse the JSON template.
+**For Mode 2 (Template):** Reuse the selected template or resolve its path; parse it. Ask only when the template remains ambiguous.
 
-**For Mode 3 (Clone):** Ask for:
+**For Mode 3 (Clone):** Resolve the supplied source/target and read the source:
 - Source course (code or ID)
 - Target course (code or ID)
 - Call `get_course_structure(source_course)` to read the full structure
 
 ### 2. Generate Structure Preview
 
-Build a preview of what will be created and present it to the user:
+Read `get_course_structure(target_course)` and reconcile the requested structure with existing objects before planning any create. Reuse recorded IDs and matching existing objects, distinguish exact matches from substantive conflicts, and create only missing objects. Do not deduplicate by title alone when several plausible targets exist.
+
+Build a concise preview of the remaining work. Present it when useful; it is not another approval gate for an already-authorized build:
 
 ```
 ## Course Build Plan: [Course Name]
@@ -76,17 +78,11 @@ Build a preview of what will be created and present it to the user:
 - 15 subheaders
 - Total: 73 Canvas objects
 
-Shall I proceed?
 ```
 
-### 3. User Approves or Modifies
+### 3. Resolve Only Consequential Missing Decisions
 
-Wait for explicit approval. The user may:
-- Approve as-is
-- Request modifications (add/remove items, change naming, adjust points)
-- Cancel
-
-**Do NOT proceed without approval.**
+Proceed with a complete authorized specification, including requested unpublished assembly. Make reversible implementation choices independently. Ask only about an unresolved target/content decision or a publication effect outside the existing authorization. Reuse valid approval for unchanged scope; actual tool/platform confirmation requirements still apply.
 
 ### 4. Execute Creation
 
@@ -96,7 +92,7 @@ Create items in dependency order:
 2. **Pages:** Call `create_page` with `published=false` for each overview page (pages default to published)
 3. **Assignments:** Call `create_assignment` for each assignment (unpublished)
 4. **Discussions:** Defer creation until publication is authorized. `create_discussion_topic` publishes immediately unless `delayed_post_at` defers visibility; draft creation is unavailable.
-5. **Module items:** Call `add_module_item` to link each created item to its module
+5. **Module items:** Reuse existing links; call `add_module_item` only for missing links, passing the intended `published` state explicitly. Read back each linked object and final module visibility.
 
 Track actual created counts and deferred discussions separately. The example
 below assumes discussion publication was explicitly authorized:
@@ -108,7 +104,7 @@ Creating discussions... 14/14 done
 Linking items to modules... 58/58 done
 ```
 
-If any creation fails, log the error and continue with remaining items.
+Record created IDs and completed links as work succeeds. On an uncertain response, inspect target state before retrying; an error is not proof that creation failed. Hold only affected objects/dependencies and continue independent items. Resume at the first unfinished object instead of rebuilding the course. Verify final structure, order and publication states against the requested specification.
 
 ### 5. Report Results
 
@@ -134,11 +130,7 @@ None
 
 ### 6. Save as Template (Optional)
 
-After building, offer to save the structure as a reusable template:
-
-> Would you like to save this structure as a template for future courses?
-
-If yes, call `get_course_structure(target_course)` and save the output as a JSON file.
+Save a template when requested or already included in the task. Otherwise finish with the build result; template creation is not a prerequisite. Use `get_course_structure(target_course)` for the saved structure.
 
 ## MCP Tools Used
 
@@ -182,11 +174,11 @@ Templates are JSON files with this structure:
 
 **User:** "Build a 15-week structure for BADM 350 with a weekly overview page, homework, and discussion"
 
-**Agent:** Generates preview, asks for approval, creates 60+ items.
+**Agent:** Resolves the target, inventories existing objects and creates missing authorized drafts. Discussions are deferred unless their visibility is authorized.
 
 **User:** "Clone the structure from CS 101 into CS 102"
 
-**Agent:** Reads CS 101 structure, generates preview for CS 102, asks approval, creates matching structure.
+**Agent:** Reads source and target structures, reuses matching objects, creates missing unpublished objects and verifies the resulting structure. It asks only about substantive conflicts or unauthorized publication.
 
 ## Notes
 

@@ -9,7 +9,8 @@ not establish current service liveness or publication authority.
 | --- | --- |
 | Current aims, intake methods and next owner action | [Goals and methods](goals-and-status.md), [current agenda](goals-and-status.md#next-work-and-ownership) |
 | Main MCP connection and tools | [README](../README.md), [installation](installation.md), [tool reference](../tools/README.md) |
-| Agent and developer rules | [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [main tool manifest](../tools/TOOL_MANIFEST.json) |
+| Agent and developer rules | [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md) |
+| Agent tool usage and catalog | [Tool usage](agent-usage.md), [main tool manifest](../tools/TOOL_MANIFEST.json) |
 | GET/EDIT gradebook operation | [Workflow](sdm-gradebook-workflow.md), [worker and recovery](sdm-gradebook-worker.md) |
 | Accepted decisions and ordinary draft staging | [Transfer methods and restart](teacher-edit-transfer.md), [exact preservation](teacher-edit-preservation.md) |
 | Repository ownership and domain contracts | [Integration boundaries](grass-workflow-integration.md), [architecture pointer](GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md), [capture port](grass-capture-contract.md) |

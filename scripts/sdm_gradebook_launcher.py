@@ -37,6 +37,12 @@ def main() -> int:
             "get_gradebook_get_refresh_status",
             "review_gradebook_edits",
             "select_gradebook_review_batch",
+            "prepare_gradebook_score_batch",
+            "prepare_gradebook_comment_batch",
+            "get_gradebook_batch_status",
+            "revoke_gradebook_batch",
+            "authorize_gradebook_batch",
+            "execute_gradebook_batch_chunk",
         ],
     )
     parser.add_argument(
@@ -54,7 +60,9 @@ def main() -> int:
         help="Register the separately confirmed comment-only tool; does not enable grades",
     )
     parser.add_argument(
-        "--comment-approval-seconds", type=int, default=600,
+        "--comment-approval-seconds",
+        type=int,
+        default=600,
         help="Future comment preview approval window (600–1800 seconds); score windows stay 600.",
     )
     args = parser.parse_args()
@@ -106,13 +114,17 @@ def main() -> int:
             # disable the existing standalone Canvas snapshot/review tools.
             get_control = None
             from sdm_gradebook_worker import DEFAULT_CONFIG, google_client, load_config
+
             if DEFAULT_CONFIG.exists():
                 config = load_config(DEFAULT_CONFIG)
                 if Path(config["state_dir"]).resolve() != store.root.resolve():
                     raise GradebookError("Worker and MCP gradebook stores differ.")
                 from canvas_mcp.gradebook.get_refresh_control import GetRefreshControl
+
                 get_control = GetRefreshControl(
-                    lambda: google_client(config, bindings), store, bindings,
+                    lambda: google_client(config, bindings),
+                    store,
+                    bindings,
                     config["instance_id"],
                 )
             server = create_server(

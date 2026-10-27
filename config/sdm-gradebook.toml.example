@@ -6,4 +6,4 @@ enabled = true
 required = false
 startup_timeout_sec = 20
 tool_timeout_sec = 300
-enabled_tools = ["get_canvas_gradebook", "preview_gradebook_changes", "prepare_gradebook_push", "get_gradebook_push_status", "reconcile_gradebook_push", "request_gradebook_get_refresh", "get_gradebook_get_refresh_status", "review_gradebook_edits", "select_gradebook_review_batch"]
+enabled_tools = ["get_canvas_gradebook", "preview_gradebook_changes", "prepare_gradebook_push", "get_gradebook_push_status", "reconcile_gradebook_push", "request_gradebook_get_refresh", "get_gradebook_get_refresh_status", "review_gradebook_edits", "select_gradebook_review_batch", "prepare_gradebook_score_batch", "prepare_gradebook_comment_batch", "get_gradebook_batch_status", "revoke_gradebook_batch"]

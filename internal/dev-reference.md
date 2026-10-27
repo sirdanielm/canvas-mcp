@@ -122,12 +122,14 @@ and pair model proofs with implementation regressions. A proved model does not
 prove the HTTP service, compiler, or every caller follows it. See `verify/` for
 scoped examples and pinned toolchain instructions.
 
-Run focused checks during iteration and the full Python suite before committing:
-`uv run python -m pytest tests/ -v -rf`. Run `npm test` and `npm run build` for
-TypeScript changes, and relevant formal checks when their implementation mapping
-changes. Keep required lint, type-checking, and CI gates; do not merge with failing
-required checks. Report what was verified and any failures, skipped coverage, or
-environment limitations. Do not weaken assertions to obtain a green run.
+Run focused checks during iteration. Documentation-only edits require relevant
+link/format/privacy review, not the application suite. Before promotion of Python
+behavior changes, run `uv run python -m pytest tests/ -v -rf`; run `npm test` and
+`npm run build` for TypeScript changes, and relevant formal checks when their
+implementation mapping changes. Local commits do not require repeatedly running
+the full suite. Preserve required lint, type-checking and CI gates; do not merge
+with failing required checks. Report actual verification, failures, skipped
+coverage and environment limits. Do not weaken assertions to obtain a green run.
 
 ## Upstream hosted deployment reference (Azure — upstream #115)
 

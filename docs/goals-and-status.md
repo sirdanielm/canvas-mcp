@@ -10,7 +10,9 @@ history, approvals, installed pins and readback receipts remain private.
 The immediate classroom priority is teacher-ready Unit 2 A-day test results.
 Use retained evidence and existing domain engines; resolve actual source/policy
 holds and prepare reviewable score/feedback pairs before expanding infrastructure.
-Execution and delivery still require their separate authorization.
+Execution and delivery use the current work order's authorization and their
+respective academic/tool checks; routine stage transitions do not need duplicate
+project approval.
 
 For the Unit 2 handback, batch work by stage: admit exact source packets,
 retain literal readings, apply the issued form and sealed policy, then check
@@ -53,6 +55,7 @@ separate delivery evidence. Missing source or identity is a hold, never a zero.
 | --- | --- |
 | GET-only mirror refresh and native review | Maintained source preserves EDIT content and original Sync baselines. A current matching worker heartbeat and finalized request receipt establish operation-specific readiness and completion. |
 | Authenticated Unit 1 decision to native EDIT | Source-accepted composition, typed owner-result adapter and exact preservation controls exist. One real case has a retained isolated-runtime qualification; that completed operation must not be replayed. |
+| Retained unapproved score/feedback pair to native EDIT | Concrete authenticated proposal sources and explicit configured owner-factory routes reuse native preservation and one-shot execution without teacher acceptance. Joined synthetic checks cover source/draft/identity/preimage drift and no replay; installation and real-case qualification remain separate. |
 | Ordinary participation receiver | Qualified locally with the existing source reader, owner, locks and history. The newer draft/provider/current-attempt implementation remains a private operational overlay pending portable source review. |
 | Proposal-preview source | Three commits remain unmerged on the existing remote review branch. That branch does not contain every private operational overlay or establish installed parity. |
 | Canvas score and comment delivery | Existing publishers have distinct approval, durable-intent and readback gates. EDIT staging and score parity do not verify feedback delivery. |
@@ -60,8 +63,9 @@ separate delivery evidence. Missing source or identity is a hold, never a zero.
 
 Source publication, installed bindings, service liveness, teacher acceptance and
 delivery are separate facts. A merge, test result, manifest or old checkpoint
-does not establish the others. Paid calls and Canvas writes remain off in the
-current work scope. See [transfer methods](teacher-edit-transfer.md),
+does not establish the others. Paid calls and Canvas writes follow the current
+work order and installed enablement; dated pause records do not cancel a later
+explicit authorization. See [transfer methods](teacher-edit-transfer.md),
 [integration ownership](grass-workflow-integration.md) and the
 [gradebook workflow](sdm-gradebook-workflow.md).
 
@@ -84,6 +88,14 @@ qualification must be established before a bounded proposal; helper availability
 does not activate grading, paid providers or publication.
 
 ## Evidence and recovery
+
+Quarantine held source/identity/attempt cases and continue independent eligible
+work. Preserve an uncertain operation's target locks and reconcile that same
+history; a held case blocks only its affected targets or genuinely shared
+resource. Within an authorized bounded task, eligible Sheet projection and
+ordinary UNAPPROVED EDIT drafts do not need a new project confirmation merely to
+advance a stage. Teacher acceptance, mandatory tool confirmations and the
+current paid/publication limits remain effective.
 
 Use the [documentation map](documentation-map.md) to select a procedure and
 [repository maintenance](repository-maintenance.md) before source or checkout

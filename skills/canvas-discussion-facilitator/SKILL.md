@@ -17,7 +17,7 @@ Facilitate discussion forum activity in Canvas LMS -- browse topics, read posts,
 
 ### 1. Identify the Course
 
-Ask the user which course to work with. Accept a course code, Canvas ID, or ask them to pick from a list.
+Reuse the course/topic from the request or current task. Resolve exact IDs; ask only when multiple plausible targets remain.
 
 If the user does not specify, use `list_courses` to show active courses and prompt:
 
@@ -79,10 +79,7 @@ When the user wants to respond to a specific post, call `reply_to_discussion_ent
 - `entry_id` -- the entry being replied to
 - `message` -- the reply content (HTML is supported)
 
-**Before sending, always:**
-1. Show the draft reply to the user for confirmation
-2. Reference the original post so the user can verify context
-3. Only send after explicit approval
+**Before sending:** verify the target post and the actual authorization for this reply. Reuse an already-approved exact reply/target; otherwise show the concrete draft and context for the needed approval. A draft-only request does not authorize sending. Preserve actual tool/platform confirmations.
 
 ### 6. Post a New Top-Level Entry
 
@@ -93,7 +90,7 @@ When the user wants to add a new post to an existing discussion (not a reply), c
 - `topic_id` -- the discussion topic ID
 - `message` -- the post content (HTML is supported)
 
-Show the draft to the user and confirm before posting.
+Post only when the target and final content are covered by existing authorization; obtain the needed approval when missing. Do not add a second generic plan approval for an already-approved post.
 
 ### 7. Create a New Discussion Topic
 
@@ -108,7 +105,7 @@ When the user needs an entirely new discussion forum, call `create_discussion_to
 - `require_initial_post` -- set to `true` if students must post before seeing classmates' responses
 - `pinned` -- set to `true` to pin the topic to the top of the discussion list
 
-Confirm the title, content, and any scheduling options with the user before creating.
+Resolve the title, content, timing and visibility from the request. Reuse existing authorization; ask only about missing consequential choices. Creation may be immediately visible, so a draft-only request does not authorize it.
 
 ## Educator Use Cases
 
@@ -150,7 +147,7 @@ When an educator wants to reply to student posts:
 
 1. Read the full post with `get_discussion_entry_details` (include replies for context).
 2. Draft a reply that acknowledges the student's points, asks follow-up questions, or connects ideas to course material.
-3. Show the draft for educator review and revision before calling `reply_to_discussion_entry`.
+3. Reuse an approved exact reply/target or present the final draft for any missing approval before calling `reply_to_discussion_entry`.
 
 ## Student Use Cases
 
@@ -193,7 +190,7 @@ When an educator wants to reply to student posts:
 - **Read before replying.** Always read the full post and its replies before drafting a response. This avoids repeating points and shows engagement with the conversation.
 - **Check for existing similar posts.** Before posting a new entry, scan existing posts to avoid duplicating what others have already said. Build on or respectfully challenge existing arguments instead.
 - **Reference specific points.** When replying, quote or paraphrase specific parts of the original post. This makes the reply more substantive and shows careful reading.
-- **Confirm before sending.** Always show draft content to the user for approval before calling any write tool (`reply_to_discussion_entry`, `post_discussion_entry`, `create_discussion_topic`, `create_announcement`).
+- **Reuse concrete authorization.** Send only final content/targets covered by the user’s request or approval. Ask when that authority is missing or substantive effects change; follow required tool previews/tokens without adding generic plan approvals.
 - **Respect discussion settings.** Some discussions require an initial post before viewing others (`require_initial_post`). If a student cannot see other posts, they need to post first.
 - **Mind the timing.** Check `delayed_post_at` and `lock_at` dates on topics. Do not attempt to post to locked discussions.
 - **Anonymization for educators.** When reviewing student participation, rely on anonymous IDs if anonymization is enabled. The Canvas MCP server preserves functional user IDs for messaging while anonymizing display names.
@@ -206,7 +203,7 @@ When an educator wants to reply to student posts:
 
 **User:** "Send them a reminder."
 
-**Agent:** Drafts a reminder message referencing the discussion deadline, shows it for confirmation, then obtains the `send_conversation` preview and sends only after the user approves that exact preview, repeating the request with its token.
+**Agent:** Resolves exact recipients, drafts the reminder, obtains the `send_conversation` preview and uses that concrete preview for the required review. It repeats identical arguments with the token after approval; no separate generic plan review is added.
 
 ---
 

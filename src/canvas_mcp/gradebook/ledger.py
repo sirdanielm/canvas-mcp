@@ -53,6 +53,16 @@ class Ledger:
                 );
                 CREATE INDEX IF NOT EXISTS comment_delivery_lookup
                     ON comment_items(delivery_id);
+                CREATE TABLE IF NOT EXISTS batch_authorizations (
+                    id TEXT PRIMARY KEY, manifest_id TEXT NOT NULL,
+                    token_hash TEXT NOT NULL, expires REAL NOT NULL,
+                    status TEXT NOT NULL, created REAL NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS batch_chunks (
+                    batch_id TEXT NOT NULL, position INTEGER NOT NULL,
+                    plan_id TEXT NOT NULL, operation_id TEXT,
+                    PRIMARY KEY(batch_id, position)
+                );
             """)
 
     @contextmanager
@@ -170,7 +180,9 @@ class Ledger:
             ],
         }
 
-    def claim(self, operation_id: str, token: str) -> str:
+    def claim(
+        self, operation_id: str, token: str, *, independent_targets: bool = False
+    ) -> str:
         # BEGIN IMMEDIATE serializes token consumption across server processes.
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -201,22 +213,194 @@ class Ledger:
                     "This exact comment was sent or may have been sent; readback only."
                 )
             targets = db.execute(
-                "SELECT target FROM items WHERE operation_id=?", (operation_id,)
+                "SELECT position,target FROM items WHERE operation_id=?",
+                (operation_id,),
             ).fetchall()
             for target in targets:
                 if db.execute(
-                    "SELECT 1 FROM target_locks WHERE target=?", (target[0],)
+                    "SELECT 1 FROM target_locks WHERE target=?", (target["target"],)
                 ).fetchone():
+                    if independent_targets:
+                        db.execute(
+                            "UPDATE items SET status='conflict' WHERE operation_id=? AND position=?",
+                            (operation_id, target["position"]),
+                        )
+                        continue
                     raise GradebookError(
                         "A target has an unresolved push; reconcile it before another attempt."
                     )
                 db.execute(
-                    "INSERT INTO target_locks VALUES(?,?)", (target[0], operation_id)
+                    "INSERT INTO target_locks VALUES(?,?)",
+                    (target["target"], operation_id),
                 )
             db.execute(
                 "UPDATE operations SET status='running' WHERE id=?", (operation_id,)
             )
         return str(row["plan_id"])
+
+    def prepare_batch(
+        self, manifest_id: str, plan_ids: list[str], approval_seconds: int
+    ) -> tuple[str, str]:
+        """Bind one review to immutable child plans, without authorizing a write."""
+        if (
+            type(approval_seconds) is not int
+            or not 600 <= approval_seconds <= 28800
+            or not re.fullmatch(r"[a-f0-9]{64}", manifest_id)
+            or not 1 <= len(plan_ids) <= 1000
+            or len(set(plan_ids)) != len(plan_ids)
+            or any(not re.fullmatch(r"[a-f0-9]{64}", p) for p in plan_ids)
+        ):
+            raise GradebookError(
+                "Invalid immutable batch or approval window (600–28800 seconds)."
+            )
+        batch_id, token = secrets.token_hex(16), secrets.token_urlsafe(32)
+        now = time.time()
+        with self.connect() as db:
+            db.execute(
+                "INSERT INTO batch_authorizations VALUES(?,?,?,?,?,?)",
+                (
+                    batch_id,
+                    manifest_id,
+                    hashlib.sha256(token.encode()).hexdigest(),
+                    now + approval_seconds,
+                    "prepared",
+                    now,
+                ),
+            )
+            db.executemany(
+                "INSERT INTO batch_chunks VALUES(?,?,?,NULL)",
+                [(batch_id, i, plan) for i, plan in enumerate(plan_ids)],
+            )
+        return batch_id, token
+
+    def batch(self, batch_id: str) -> dict[str, Any]:
+        if not re.fullmatch(r"[a-f0-9]{32}", batch_id):
+            raise GradebookError("Invalid batch reference.")
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT * FROM batch_authorizations WHERE id=?", (batch_id,)
+            ).fetchone()
+            if row is None:
+                raise GradebookError("Batch authorization is unavailable.")
+            chunks = db.execute(
+                "SELECT position,plan_id,operation_id FROM batch_chunks WHERE batch_id=? ORDER BY position",
+                (batch_id,),
+            ).fetchall()
+        return {**dict(row), "chunks": [dict(c) for c in chunks]}
+
+    def authorize_batch(self, batch_id: str, token: str) -> None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT * FROM batch_authorizations WHERE id=?", (batch_id,)
+            ).fetchone()
+            if row is None or not secrets.compare_digest(
+                row["token_hash"], hashlib.sha256(token.encode()).hexdigest()
+            ):
+                raise GradebookError(
+                    "Batch confirmation does not match the reviewed manifest."
+                )
+            if row["status"] != "prepared":
+                raise GradebookError(
+                    "Batch confirmation already consumed or revoked; inspect status."
+                )
+            if time.time() > row["expires"]:
+                raise GradebookError(
+                    "Batch authorization expired; no write authorized."
+                )
+            db.execute(
+                "UPDATE batch_authorizations SET status='authorized' WHERE id=?",
+                (batch_id,),
+            )
+
+    def require_batch(self, batch_id: str, manifest_id: str) -> dict[str, Any]:
+        batch = self.batch(batch_id)
+        if batch["manifest_id"] != manifest_id or batch["status"] != "authorized":
+            raise GradebookError(
+                "Batch is not authorized for this exact manifest or was revoked."
+            )
+        if time.time() > batch["expires"]:
+            raise GradebookError(
+                "Batch authorization expired; remaining targets are held."
+            )
+        return batch
+
+    def revoke_batch(self, batch_id: str) -> None:
+        self.batch(batch_id)
+        with self.connect() as db:
+            db.execute(
+                "UPDATE batch_authorizations SET status='revoked' WHERE id=?",
+                (batch_id,),
+            )
+
+    def attach_batch_chunk(
+        self, batch_id: str, manifest_id: str, position: int, operation_id: str
+    ) -> None:
+        """Attach only an unused operation for the pre-reviewed child plan."""
+        self.require_batch(batch_id, manifest_id)
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            batch = db.execute(
+                "SELECT * FROM batch_authorizations WHERE id=?", (batch_id,)
+            ).fetchone()
+            chunk = db.execute(
+                "SELECT * FROM batch_chunks WHERE batch_id=? AND position=?",
+                (batch_id, position),
+            ).fetchone()
+            op = db.execute(
+                "SELECT * FROM operations WHERE id=?", (operation_id,)
+            ).fetchone()
+            if (
+                batch is None
+                or batch["status"] != "authorized"
+                or time.time() > batch["expires"]
+                or chunk is None
+                or chunk["operation_id"] is not None
+                or op is None
+                or op["status"] != "prepared"
+                or op["plan_id"] != chunk["plan_id"]
+            ):
+                raise GradebookError(
+                    "Batch chunk changed or is already dispatched; inspect status."
+                )
+            db.execute(
+                "UPDATE batch_chunks SET operation_id=? WHERE batch_id=? AND position=?",
+                (operation_id, batch_id, position),
+            )
+
+    def unstarted_chunk_token(
+        self, batch_id: str, manifest_id: str, operation_id: str
+    ) -> str:
+        """Recover only a never-claimed dispatch after restart; never a possible send."""
+        self.require_batch(batch_id, manifest_id)
+        token = secrets.token_urlsafe(32)
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT o.status,b.status AS grant_status,b.expires FROM operations o "
+                "JOIN batch_chunks c ON c.operation_id=o.id "
+                "JOIN batch_authorizations b ON b.id=c.batch_id "
+                "WHERE o.id=? AND b.id=? AND b.manifest_id=?",
+                (operation_id, batch_id, manifest_id),
+            ).fetchone()
+            if (
+                row is None
+                or row["status"] != "prepared"
+                or row["grant_status"] != "authorized"
+                or time.time() > row["expires"]
+            ):
+                raise GradebookError(
+                    "Only an unstarted authorized chunk may obtain a dispatch token."
+                )
+            db.execute(
+                "UPDATE operations SET token_hash=?,expires=? WHERE id=?",
+                (
+                    hashlib.sha256(token.encode()).hexdigest(),
+                    min(row["expires"], time.time() + 600),
+                    operation_id,
+                ),
+            )
+        return token
 
     def save_comment_response(
         self, operation_id: str, position: int, comment_id: str
