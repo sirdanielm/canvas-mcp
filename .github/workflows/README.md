@@ -14,10 +14,16 @@ an upstream ruleset is not evidence of the fork's rules. See
 
 | Workflow | Triggers | Checks |
 |---|---|---|
-| [canvas-mcp-testing.yml](canvas-mcp-testing.yml) | Push to `main` or `development`; PR targeting `main` or `feature/sdm-authoring` | Ruff, mypy, site-fact consistency, Ubuntu Python 3.11–3.14 tests, Windows Python 3.14 tests, TypeScript tests/build and confirmation-protocol verification |
+| [canvas-mcp-testing.yml](canvas-mcp-testing.yml) | Push to `main` or `development`; PR targeting `main` or `feature/sdm-authoring` | Ruff, mypy, site-fact consistency, Ubuntu Python 3.11–3.14 tests, Windows Python 3.14 portable tests, TypeScript tests/build and confirmation-protocol verification |
 | [security-testing.yml](security-testing.yml) | Push to `main` or `development`; PR targeting `main`; Sunday 00:00 UTC | Security regression tests, Bandit/Semgrep, frozen-lock dependency audit including all extras, secret scan and CodeQL |
 | [closing-keyword-guard.yml](closing-keyword-guard.yml) | PR opened/edited/reopened/synchronized; push to `main` | Guards accidental issue-closing prose; PR scan applies only to the default-branch target |
 | [scorecard.yml](scorecard.yml) | Push to `main`; branch-protection events; Monday 06:27 UTC; manual dispatch | OSSF Scorecard, SARIF and public result publication on the default branch |
+
+Both application test jobs install the declared `local-exports` and
+`local-keychain` extras. Linux runs the complete suite. Windows reports explicit
+capability skips for the separate local POSIX/Keychain tooling and its fixture
+imports; portable Canvas tools, model/workbook logic and PIN text checks remain
+collected. The declaration and import closure live in `tests/platform_contract.py`.
 
 The test and security workflows do not expose `workflow_dispatch`. Check each
 file before suggesting a manual run. `pip-audit` fails on findings; its existing

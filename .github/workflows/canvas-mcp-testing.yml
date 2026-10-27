@@ -38,7 +38,7 @@ jobs:
       # would have kept type-checking on mypy 1.x forever while contributors
       # running `uv sync` got 2.x — the gate asserting a version nobody uses.
       run: |
-        python -m pip install -e ".[local-exports]"
+        python -m pip install -e ".[local-exports,local-keychain]"
         CONSTRAINT=$(python - <<'PY'
         import tomllib
         with open("pyproject.toml", "rb") as fh:
@@ -121,7 +121,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e ".[local-exports]"
+        pip install -e ".[local-exports,local-keychain]"
         # pyyaml is needed by the workflow-permission policy tests. They use
         # importorskip, so omitting it makes them skip silently in the one job
         # branch protection actually requires — passing green while the check
@@ -131,10 +131,12 @@ jobs:
     - name: Run the test suite
       run: pytest tests/ -q
 
-  # The same full suite on Windows, where a local stdio server often runs and
+  # The portable suite on Windows, where a local stdio server often runs and
   # where things Linux never exercises break: an open file cannot be deleted,
   # symlinks need a privilege, `python3` may be the Store alias, and the
-  # default text encoding is the ANSI code page rather than UTF-8.
+  # default text encoding is the ANSI code page rather than UTF-8. Local SDM
+  # POSIX/Keychain components report explicit capability skips; their full
+  # invariant tests remain in every Linux job. See tests/platform_contract.py.
   test-windows:
     runs-on: windows-latest
     env:
@@ -166,17 +168,17 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install -e .
+        python -m pip install -e ".[local-exports,local-keychain]"
         python -m pip install pytest pytest-asyncio pyyaml
 
     - name: Run the test suite
-      run: python -m pytest tests/ -q
+      run: python -m pytest tests/ -q -rs
 
   # Aggregator. Branch protection requires a check literally named
   # "test-enhancements", and a matrix job publishes per-version names
   # ("test (3.11)"), which would leave the required check permanently pending
   # and block every PR. This gate keeps the required name while making it mean
-  # "the full suite passed on every supported Python, on Linux and Windows, and
+  # "the full Linux suite and the supported Windows suite passed, and
   # the code API passed".
   test-enhancements:
     runs-on: ubuntu-latest
@@ -194,4 +196,4 @@ jobs:
         fi
         echo "## Canvas MCP test results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Full suite passed on Ubuntu with Python 3.11, 3.12, 3.13 and 3.14, and on Windows with Python 3.14." >> $GITHUB_STEP_SUMMARY
+        echo "Full suite passed on Ubuntu with Python 3.11-3.14; portable suite passed on Windows with Python 3.14. POSIX/Keychain skips are reported explicitly." >> $GITHUB_STEP_SUMMARY

@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,8 @@ _spec.loader.exec_module(module)
 
 @pytest.fixture
 def files(tmp_path):
+    if sys.platform == "win32":
+        pytest.skip("Private PIN archive fixture requires POSIX owner-only directories and O_NOFOLLOW")
     tmp_path.chmod(0o700)
     roster = tmp_path / "roster.xlsx"
     w = Workbook()

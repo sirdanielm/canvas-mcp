@@ -1,5 +1,7 @@
 """Shared pytest fixtures for Canvas MCP tests."""
 
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -211,3 +213,25 @@ def sample_announcement_data():
         "posted_at": "2024-02-01T12:00:00Z",
         "author": {"id": 2000, "display_name": "Prof. Smith"}
     }
+
+
+class UnsupportedWindowsLocalModule(pytest.Module):
+    def collect(self):
+        from platform_contract import windows_test_requirements
+
+        requirements = windows_test_requirements()[self.path.resolve()]
+        pytest.skip("Windows local capability unavailable: " + "; ".join(requirements), allow_module_level=True)
+
+
+def _module_for_platform(module_path: Path, parent: pytest.Collector, platform: str):
+    if platform != "win32":
+        return None
+    from platform_contract import windows_test_requirements
+
+    if windows_test_requirements().get(module_path.resolve()):
+        return UnsupportedWindowsLocalModule.from_parent(parent, path=module_path)
+    return None
+
+
+def pytest_pycollect_makemodule(module_path: Path, parent: pytest.Collector):
+    return _module_for_platform(module_path, parent, sys.platform)

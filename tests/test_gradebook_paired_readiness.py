@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -99,6 +100,7 @@ def test_individual_safety_holds_are_retained(proposal):
                "newer_submission_review_required", "late_policy_review_required", "decrease_held"))
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Private review file modes require POSIX owner-only files")
 def test_private_html_escapes_body_and_returns_no_rows(proposal, tmp_path):
     result = write_paired_review(tmp_path / "review", proposal, proposal_sha256="a" * 64)
     text = Path(result["review_file"]).read_text(encoding="utf-8")
