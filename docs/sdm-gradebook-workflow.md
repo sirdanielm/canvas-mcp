@@ -36,6 +36,18 @@ Grader Proposals, plus hidden course Sync tabs. Exact bindings live in
 `config/sdm-gradebook-workbooks.json`; names do not establish ownership. Preserve
 reference tabs and permanent numbers.
 
+### Edpuzzle exclusion
+
+Routine EDIT staging and Canvas publication exclude Edpuzzle assignments.
+An exception requires explicit teacher authorization for the exact Edpuzzle
+assignment and action; general participation, batch or publication approval
+does not supply that exception. Check assignment IDs when selecting EDIT
+targets and reviewing the publication preview. Existing Edpuzzle values may
+remain in read-only GET observations; preserve their scores and all holds.
+This is an operator selection policy, not a claim that the generic publisher
+automatically enforces an Edpuzzle filter. An authorized exception still uses
+the normal source, target, teacher-review, confirmation and readback gates.
+
 ## Permanent PINs for local copies
 
 `Student Info` is the shared identity authority: map `Email` to `Student Number`,
