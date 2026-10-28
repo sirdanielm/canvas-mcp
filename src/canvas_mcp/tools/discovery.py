@@ -87,6 +87,22 @@ def register_discovery_tools(mcp: FastMCP) -> None:
     """Register tool discovery tools."""
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    async def get_runtime_identity() -> str:
+        """Report bounded software identity as a nonauthorizing self-report.
+
+        Takes no arguments. Declared metadata, current disk hashes and selected
+        loaded-code hashes are separate observations, never runtime readiness.
+        """
+        try:
+            from ..runtime_identity import runtime_identity
+        except ImportError:
+            result = {"schema": "CANVAS_RUNTIME_IDENTITY_V1", "status": "UNKNOWN",
+                      "reason": "IDENTITY_HELPER_UNAVAILABLE"}
+        else:
+            result = runtime_identity()
+        return json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def search_canvas_tools(
         query: str = "",

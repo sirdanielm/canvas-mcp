@@ -2855,6 +2855,47 @@ full-content tool exists, and the output names it when a preview was shortened
 
 These tools help developers discover, explore, and execute Canvas code execution API operations.
 
+### Software Identity Diagnostic
+
+#### `get_runtime_identity`
+
+Report a bounded software self-measurement through an existing authenticated
+general-server connection, when this diagnostic is installed and available.
+
+**Parameters:** none; the argument object is `{}`. No caller-selected module,
+path, file, URL or target is accepted.
+
+**Availability:** shared by the `student`, `educator` and `all` tool profiles,
+including enforced read-only transports. It is annotated `read_only_hint=True`
+and explicitly classified `Effect.READ`; do not list it in `ALLOWED_WRITE_TOOLS`.
+Existing authentication and write protections remain unchanged. The separate
+`canvas-gradebook` service does not register this diagnostic.
+
+**Returns:** JSON text with `schema: CANVAS_RUNTIME_IDENTITY_V1`,
+`attestation: SELF_REPORT_ONLY`, `declared_distribution`, `targets`, and
+`limitations`. Distribution metadata is declared on-disk name/version only.
+Each fixed target reports software-relative `origin`, `disk_source_sha256`,
+`loaded_code_sha256`, `code_format`, and `disk_loaded_equivalence: NOT_ATTESTED`,
+or fixed `UNKNOWN`/`reason`. Top-level failure likewise returns fixed UNKNOWN.
+The three aliases are `canvas_server`, `gradebook_server`, and `gradebook_google`;
+optional modules are measured only if already loaded, never imported to obtain
+evidence. Seeing a gradebook target does not identify the separate gradebook route.
+
+**Disclosure and limits:** fixed software identifiers, version metadata, relative
+paths and code fingerprints are disclosed. No absolute private paths, source,
+bytecode, constants, credentials, environment/configuration, account/connection
+details, student records or grades are returned. Disk hashes, selected loaded
+function-code hashes and declared versions are separate observations. This is
+neither disk-to-loaded equivalence nor third-party attestation, permission,
+complete served-process identity, grade readiness or runtime readiness.
+Missing filesystem safeguards or unqualified evidence remain UNKNOWN.
+
+Source documentation does not establish an installed tool or authorize a live
+invocation. See the [identity contract](../docs/runtime-identity-contract.md)
+for the fixed targets, bounds, fingerprint format and source/test limitations.
+
+---
+
 ### Tool Discovery
 
 #### `search_canvas_tools`
