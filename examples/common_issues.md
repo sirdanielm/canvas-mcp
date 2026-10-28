@@ -46,15 +46,19 @@ uv pip install -e .
 **Problem**: Canvas API token is invalid or expired.
 
 **Solution**:
-1. Go to Canvas → Account → Settings
-2. Scroll to "Approved Integrations"
-3. Delete the old token if present
-4. Create a new access token (see below if your institution gates this)
-5. Update your `.env` file with the new token
-6. Restart your MCP client
+1. Identify the exact connection and distinguish rejected authentication (401)
+   from permission for the requested action (403).
+2. Follow the institution's supported renewal or permission process. Preserve the
+   existing credential until an authorized replacement is verified; do not change
+   accounts or broaden grants to bypass a hold.
+3. Use the owning launcher's credential path. SDM launchers validate a proposed
+   Keychain replacement before storing it; a generic `.env` edit is not their setup.
+4. Reconnect only the affected idle connection through its supported lifecycle.
+   Preserve active operations and previews; a restart can invalidate process-bound
+   tokens. See [worker recovery](../docs/sdm-gradebook-worker.md#coordination-and-crash-recovery).
 
-Note that many institutions now issue short-lived tokens — Instructure pushed a 30-day
-default in 2026 — so "it worked last month" does not mean the token is still valid.
+Institutional token lifetimes vary. A previous successful connection is not
+evidence that its credential or permissions remain valid now.
 
 ### "Canvas API URL is invalid"
 
@@ -115,8 +119,13 @@ Most institutions will enable this for legitimate educational purposes.
 - Shows progress: "⏳ Rate limited (429). Retrying in 4s..."
 
 **If it still fails**:
-- Wait a few minutes before trying again
-- For bulk operations, the code execution API is more efficient
+- For a read, use the transport's supported bounded backoff; retain incomplete
+  results as incomplete.
+- For a possible write, inspect the original operation and independent readback.
+  A timeout does not prove nothing was sent; never blindly repeat a grade,
+  comment, message or content mutation.
+- Code execution is not a throttling workaround and does not inherit the
+  gradebook publisher's durable recovery contracts.
 
 ### "Tool not showing up in Claude Desktop"
 
@@ -157,9 +166,10 @@ Most institutions will enable this for legitimate educational purposes.
    }
    ```
 
-2. **Restart your MCP client completely**:
-   - Quit the application (not just close the window)
-   - Reopen it
+2. **Reconnect the affected connection when idle**:
+   - Preserve active or uncertain operations and inspect their owner/status first
+   - Use supported reconnect without restarting unrelated shared services
+   - Missing tools may be deliberate role, feature or allowlist policy
 
 3. **Check for errors**:
    - For Claude Desktop: Look in the developer console
@@ -205,10 +215,10 @@ Then restart your MCP client.
    - Solution: Check your Canvas role and permissions
 
 2. **Archived courses**: Old courses might be archived
-   - Solution: Unarchive in Canvas if needed
+   - Solution: Verify concluded-course scope and access; changing course state needs authorization for that action
 
 3. **Pagination issue**: Very large datasets might not load completely
-   - Solution: Be more specific (e.g., "Show assignments in CS 101" instead of "Show all assignments")
+   - Solution: Inspect pagination errors and exact scope; a narrower successful query does not prove the original inventory complete
 
 ## Performance Issues
 
@@ -216,19 +226,13 @@ Then restart your MCP client.
 
 **Problem**: Grading or analyzing large datasets takes too long.
 
-**Solution**: Use the code execution API for bulk operations:
-
-Instead of:
-```
-Show me all 90 student submissions and grade them
-```
-
-Use:
-```
-Use the bulk grading code API to grade all submissions for Assignment 5
-```
-
-This keeps per-item processing out of the model's context; actual token use depends on the workload and selected output.
+**Solution**: Choose the qualified interface for the actual operation. For SDM
+score/comment delivery, use the [immutable batch workflow](../docs/sdm-gradebook-workflow.md#immutable-batch-authorization)
+with exact manifest approval, bounded dispatch and independent channel readback.
+Generic code execution has separate role, write and transport controls; it does
+not inherit the publisher's source/QC checks or durable operation history.
+Do not switch interfaces to bypass throttling, approval or an uncertain result.
+Processing time and token use depend on the actual workload and selected output.
 
 ### "AI assistant seems to get confused with lots of data"
 

@@ -1,12 +1,15 @@
 # Documentation map and authority
 
-[Goals, methods and current work](goals-and-status.md) is the single current
-agenda. Use the relevant procedure below and inspect actual source and installed
+[The operator manual](../OPERATOR-MANUAL.md) is the human starting point.
+[Goals, methods and current work](goals-and-status.md) describes standing aims
+and ownership; the current scoped work order determines the active queue.
+Use the relevant procedure below and inspect actual source and installed
 bindings before claiming a capability. Tests, a merge or an old checkpoint do
 not establish current service liveness or publication authority.
 
 | Need | Maintained reference |
 | --- | --- |
+| Human setup, operation and recovery without ChatGPT | [Operator manual](../OPERATOR-MANUAL.md) |
 | Current aims, intake methods and next owner action | [Goals and methods](goals-and-status.md), [current agenda](goals-and-status.md#next-work-and-ownership) |
 | Main MCP connection and tools | [README](../README.md), [installation](installation.md), [tool reference](../tools/README.md) |
 | Agent and developer rules | [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md) |
@@ -33,6 +36,17 @@ distinguishes maintained source from unmerged review commits and private runtime
 overlays; none grants broad rollout authority.
 
 ## History and privacy
+
+Status lives in [goals and ownership](goals-and-status.md), procedures in the
+guides above, and settings evidence in [repository maintenance](repository-maintenance.md#settings-evidence).
+Do not create competing root status, workflow or settings ledgers. Source
+defaults, persisted configuration and loaded-process observations are distinct.
+
+The October 20 pause and feedback-version notes remain in the
+[dated proposal](https://github.com/sirdanielm/canvas-mcp/blob/230bbe1e08161fc8a139a74dea657625b8379a3a/docs/goals-and-status.md).
+The [October 25 readiness proposal](https://github.com/sirdanielm/canvas-mcp/commit/4c49c8bdaa38fc7ebc77843922457846094856e8)
+retains its original review history. These fixed records do not set today's
+queue, prove a saved feedback body or establish installed capability.
 
 Keep historical detail in fixed Git revisions, release notes and private owner
 receipts. Update the existing agenda and procedure rather than adding another

@@ -22,6 +22,24 @@ lane-appropriate proposals. The authenticated Unit 1 EDIT transfer is source-acc
 the ordinary participation receiver is locally qualified pending portable source
 publication. Git maintenance clears no source, teacher-review or delivery hold.
 
+## Settings evidence
+
+Use the existing private operator/d0t ledger; do not create a competing public
+runtime or approval registry. Record verification time, source revision, owner
+and unknowns for each evidence class:
+
+| Evidence | Maintained reference and limit |
+| --- | --- |
+| GitHub governance | Inspect current active rules; a protected flag or workflow comment does not prove enforcement. |
+| Automation | [Workflow inventory](../.github/workflows/README.md) describes triggers, not credentials or authority to run them. |
+| MCP configuration | [Environment template](../env.template), [overlay limitations](../config/overlays/README.md); unsupported flags implement no control. |
+| Gradebook source settings | [Worker limits](sdm-gradebook-worker.md#limits-and-tradeoffs), [reference allocation](gradebook-reference-limits.md), [timing](sdm-gradebook-workflow.md#timing-and-freshness); constructor defaults can differ from launcher overrides. |
+| Loaded installation | Keep exact configuration and current process observations privately; a file or old receipt alone is not loaded-runtime proof. |
+
+Attribute a failure to a limit only when the exact operation supports it.
+Changing a client timeout does not renew an approval, cancel a remote write or
+clear uncertainty. Documentation reconciliation changes no setting.
+
 ## Reviewed promotion
 
 1. Read current branches, worktrees, upstream containment and actual dirty
@@ -84,6 +102,13 @@ and their recovery verified before retirement. Record a successor for
 superseded review checkouts and status documents. Archived receipts retain
 their original bytes and timestamps. Missing upstreams, detached heads and
 opaque unreachable objects are retention holds, not deletion instructions.
+
+Before an authorized retirement, record exact ref names and tips and verify a
+private recovery bundle. Preserve staged/unstaged changes, untracked files and
+ignored evidence separately where applicable; a similar title, closed PR or
+patch-only equivalence is not proof of zero unique commits. Archive a managed
+worktree through its owning task. An unavailable attachment or unresolved
+owner/pin is a retention hold. These checks grant no deletion authority.
 
 Keep credentials, student data, original evidence, manifests, backup patches and
 operational receipts outside Git. `docs/` is also the website upload root:

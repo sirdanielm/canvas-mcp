@@ -1,3 +1,5 @@
+**Human operator manual:** [Read the operator manual](OPERATOR-MANUAL.md) - setup, daily operation, outputs, recovery and operation without ChatGPT.
+
 <p align="center">
   <img src="docs/canvas-mcp-header.png" alt="Canvas MCP — AI tools for Canvas LMS" width="800">
 </p>
