@@ -1,13 +1,12 @@
 # GitHub Actions workflows
 
-Checked against the workflow files and the SDM fork's GitHub workflow inventory
-on 2026-10-08. Workflow definitions describe triggers and effects; they do not
-prove that a fork has the secrets, publication rights or deployment targets
+Checked against the integration candidate's workflow files on 2026-10-26.
+Workflow definitions describe triggers and effects; they do not prove that a fork has the secrets, publication rights or deployment targets
 needed to complete a run.
 
-GitHub now reports the fork's `main` as protected; its October 1 unprotected
-status is historical. Reviewed PRs and green applicable CI remain the project
-workflow policy. Inspect the exact active rules before claiming enforced checks;
+The October 8 check reported the fork's `main` as protected; its October 1
+unprotected status is historical. Reviewed PRs and green applicable CI remain
+the project workflow policy. Inspect the exact active rules before claiming enforced checks;
 an upstream ruleset is not evidence of the fork's rules. See
 [development guidance](../../CLAUDE.md).
 
@@ -15,10 +14,16 @@ an upstream ruleset is not evidence of the fork's rules. See
 
 | Workflow | Triggers | Checks |
 |---|---|---|
-| [canvas-mcp-testing.yml](canvas-mcp-testing.yml) | Push to `main` or `development`; PR targeting `main` or `feature/sdm-authoring` | Ruff, mypy, Python 3.11–3.13 tests, TypeScript tests/build, confirmation-protocol verification and enhancement tests |
+| [canvas-mcp-testing.yml](canvas-mcp-testing.yml) | Push to `main` or `development`; PR targeting `main` or `feature/sdm-authoring` | Ruff, mypy, site-fact consistency, Ubuntu Python 3.11–3.14 tests, Windows Python 3.14 portable tests, TypeScript tests/build and confirmation-protocol verification |
 | [security-testing.yml](security-testing.yml) | Push to `main` or `development`; PR targeting `main`; Sunday 00:00 UTC | Security regression tests, Bandit/Semgrep, frozen-lock dependency audit including all extras, secret scan and CodeQL |
 | [closing-keyword-guard.yml](closing-keyword-guard.yml) | PR opened/edited/reopened/synchronized; push to `main` | Guards accidental issue-closing prose; PR scan applies only to the default-branch target |
 | [scorecard.yml](scorecard.yml) | Push to `main`; branch-protection events; Monday 06:27 UTC; manual dispatch | OSSF Scorecard, SARIF and public result publication on the default branch |
+
+Both application test jobs install the declared `local-exports` and
+`local-keychain` extras. Linux runs the complete suite. Windows reports explicit
+capability skips for the separate local POSIX/Keychain tooling and its fixture
+imports; portable Canvas tools, model/workbook logic and PIN text checks remain
+collected. The declaration and import closure live in `tests/platform_contract.py`.
 
 The test and security workflows do not expose `workflow_dispatch`. Check each
 file before suggesting a manual run. `pip-audit` fails on findings; its existing
@@ -43,11 +48,12 @@ production deployment together; neither a test tag nor a manual release run is
 a harmless workflow test. Confirm the intended repository, tag, package rights,
 target and authorization first.
 
-Upstream's latest published release is v1.13.0 (2026-09-27 EDT / 2026-09-28 UTC).
-The SDM fork has no published latest release as of this check; merged SDM work
-and the hosted-dependency lock repair remain unreleased source changes. Follow
-the [release checklist](../../internal/release-checklist.md) and verify each
-package, registry entry, attached artifact and authorized deployment separately.
+A source merge does not publish a release or install its dependencies. Follow
+the [release checklist](../../internal/release-checklist.md) and verify current
+release metadata, each package, registry entry, attached artifact and authorized
+deployment separately. Website publication uses `scripts/deploy_site.sh`, whose
+staging and exclusion checks keep private operator documents out of Pages; a
+bare `wrangler pages deploy docs/` bypasses those checks.
 
 ## Model-assisted workflows
 
@@ -56,7 +62,7 @@ Their presence or GitHub `active` status does not authorize invoking them.
 
 | Workflow | Trigger and effect |
 |---|---|
-| [claude-code-review.yml](claude-code-review.yml) | PR opened/synchronized; skips drafts; requires configured Claude OAuth and posts review comments. Includes documentation review in its prompt |
+| [claude-code-review.yml](claude-code-review.yml) | PR opened/synchronized; skips drafts, forks and Dependabot; requires configured Claude OAuth and posts review comments. Includes documentation review in its prompt |
 | [claude.yml](claude.yml) | Supported issue, comment and review events containing `@claude`; interactive Claude action |
 | [weekly-maintenance.yml](weekly-maintenance.yml) | Sunday 00:00 UTC or manual dispatch; model-assisted maintenance analysis and issue creation |
 | [auto-label-issues.yml](auto-label-issues.yml) | New issue; model-assisted labels and explanatory comment |
@@ -67,6 +73,18 @@ workflow that patches documentation for each tool change. Update the relevant
 `docs/agent-usage.md`, `tools/README.md` and `tools/TOOL_MANIFEST.json` guidance
 with the implementation. Change `AGENTS.md` only when its operating rules or task
 routing change, and review relevant entry-point documentation.
+
+The Claude review job skips draft PRs, fork PRs, Dependabot actors and
+Dependabot-authored PRs. A skipped job means no Claude review ran; obtain a
+separate maintainer review before merging. Application tests and security scans
+continue to run. An eligible same-repository human PR fails explicitly if its
+review secret is missing. Paid model review still requires explicit provider,
+budget and window authorization; changing a PR's draft status is not that
+approval.
+
+Keep the `pull_request` trigger. Do not switch to a privileged
+`pull_request_target` workflow that checks out contributor code to obtain
+secrets. See [GitHub's Dependabot Actions restrictions](https://docs.github.com/en/code-security/dependabot/troubleshooting-dependabot/troubleshooting-dependabot-on-github-actions).
 
 ## Troubleshooting
 

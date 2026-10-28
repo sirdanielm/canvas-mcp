@@ -26,7 +26,7 @@ class Store:
         path = self.root / f"{kind}-{artifact_id}.json"
         fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=self.root)
         try:
-            with os.fdopen(fd, "w") as stream:
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
                 json.dump(value, stream, allow_nan=False)
                 stream.write("\n")
                 stream.flush()
@@ -60,7 +60,7 @@ class Store:
         if path.is_symlink():
             raise GradebookError("Artifact must not be a symlink.")
         try:
-            value = json.loads(path.read_text())
+            value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise GradebookError("Local artifact is unavailable.") from exc
         if not isinstance(value, dict) or digest(value) != artifact_id:
@@ -79,7 +79,7 @@ class Store:
                 raise GradebookError("An immutable baseline is required.")
             return read_workbook_edits(path, baseline, tab_names)
         try:
-            result = json.loads(path.read_text())
+            result = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise GradebookError("Cannot read edit file.") from exc
         if not isinstance(result, dict):

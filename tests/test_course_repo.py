@@ -38,7 +38,8 @@ async def test_html_edit_has_exact_identity_and_baseline(tmp_path):
     destination = tmp_path / "editable"
     materialize(snapshot, destination)
     (destination / "working/core/assignments/9/description.html").write_text(
-        "<p>New</p>"
+        "<p>New</p>",
+        encoding="utf-8",
     )
     result = repo_diff(destination)
     assert result["status"] == "DRAFT_NOT_AUTHORIZED"
@@ -63,11 +64,11 @@ async def test_conflicting_json_html_and_identity_edits_hold(tmp_path):
     path = destination / "working/core/assignments/9/object.json"
     value = read_json(path)
     value["description"] = "<p>JSON change</p>"
-    path.write_text(json.dumps(value))
-    (path.parent / "description.html").write_text("<p>HTML change</p>")
+    path.write_text(json.dumps(value), encoding="utf-8")
+    (path.parent / "description.html").write_text("<p>HTML change</p>", encoding="utf-8")
     assert repo_diff(destination)["status"] == "CONFLICT_REVIEW_REQUIRED"
     value["id"] = 999
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
     assert "SOURCE_IDENTITY_CHANGED" in repo_diff(destination)["holds"]
 
 
@@ -78,7 +79,7 @@ async def test_source_tamper_is_rejected_and_destination_never_overwritten(tmp_p
     materialize(snapshot, destination)
     with pytest.raises(MirrorError, match="DESTINATION_EXISTS"):
         materialize(snapshot, destination)
-    (destination / "source/core/objects/assignments.json").write_text("[]")
+    (destination / "source/core/objects/assignments.json").write_text("[]", encoding="utf-8")
     with pytest.raises(MirrorError, match="SNAPSHOT_FAILED_QC"):
         repo_diff(destination)
 
@@ -92,7 +93,7 @@ async def test_missing_file_and_symlink_escape_are_holds(tmp_path):
     path.unlink()
     assert "WORKING_FILE_MISSING" in repo_diff(destination)["holds"]
     outside = tmp_path / "outside.html"
-    outside.write_text("private")
+    outside.write_text("private", encoding="utf-8")
     path.symlink_to(outside)
     with pytest.raises(MirrorError, match="UNSAFE_LOCAL_PATH"):
         repo_diff(destination)
@@ -111,7 +112,7 @@ async def test_unknown_fields_and_null_removal_are_not_silently_ignored(tmp_path
     path = destination / "working/core/assignments/9/object.json"
     value = read_json(path)
     del value["optional"]
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
     result = repo_diff(destination)
     assert result["changes"][0]["fields"] == ["optional"]
     assert "UNSUPPORTED_EDIT_FIELD" in result["holds"]
@@ -126,7 +127,7 @@ async def test_forged_index_and_added_files_are_rejected(tmp_path):
     path = destination / "repo-manifest.json"
     value = read_json(path)
     value["objects"] = []
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
     with pytest.raises(MirrorError, match="REPO_INDEX_MISMATCH"):
         repo_diff(destination)
 

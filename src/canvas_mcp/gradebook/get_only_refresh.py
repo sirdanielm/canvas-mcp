@@ -8,6 +8,7 @@ but never parsed as grade proposals. Full-sync and publication guards stay separ
 from __future__ import annotations
 
 import copy
+import math
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -262,11 +263,88 @@ async def prepare_get_only_refresh(
     return {**plan, "refresh_id": plan_id, "local_file": str(path)}
 
 
+
+def _valid_blank_tail_text_format(value: dict[str, Any]) -> bool:
+    """Admit only concrete native font/color facts, never malformed lookalikes."""
+    for key, item in value.items():
+        if key == "fontFamily":
+            if type(item) is not str or not item.strip():
+                return False
+        elif key == "fontSize":
+            if type(item) not in (int, float) or not math.isfinite(item) or item <= 0:
+                return False
+        elif key == "foregroundColor":
+            if type(item) is not dict or set(item) - {"red", "green", "blue", "alpha"}:
+                return False
+            if any(
+                type(channel) not in (int, float)
+                or not math.isfinite(channel)
+                or not 0 <= channel <= 1
+                for channel in item.values()
+            ):
+                return False
+        else:
+            return False
+    return bool(value)
+
+
+def _new_column_blank_tail_styles(
+    before: dict[str, Any], expected: dict[str, Any], actual: dict[str, Any],
+    bindings: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Narrow reviewed postcondition, NOT a universal Sheets inheritance rule.
+
+    One genuinely new column, first two rows beyond both old/new bodies, blank
+    expected cells, and exact preserved adjacent blank style are the only basis.
+    Never mutate original before/expected/actual or ignore unrelated formatting.
+    """
+    compared = copy.deepcopy(actual)
+    admitted: list[dict[str, Any]] = []
+    for binding in bindings.values():
+        sid = binding["sheets"]["Canvas"]
+        prior, want, got = (s["sheets"][sid] for s in (before, expected, actual))
+        old_cols = prior["properties"]["gridProperties"]["columnCount"]
+        new_cols = want["properties"]["gridProperties"]["columnCount"]
+        if new_cols != old_cols + 1 or got["properties"] != want["properties"]:
+            continue
+        body_end = max(native._shape(native._literal_cells(prior))[0],
+                       native._shape(native._literal_cells(want))[0])
+        for row in range(body_end, min(body_end + 2, want["properties"]["gridProperties"]["rowCount"])):
+            address, anchor = f"{row}:{old_cols}", f"{row}:{old_cols - 1}"
+            original = copy.deepcopy(prior["cells"].get(anchor, {}))
+            desired = copy.deepcopy(want["cells"].get(address, {}))
+            observed = copy.deepcopy(got["cells"].get(address, {}))
+            for item in (original, desired, observed):
+                item.get("userEnteredFormat", {}).pop("borders", None)
+            original, desired, observed = (native._clean(x) for x in (original, desired, observed))
+            style = original.get("userEnteredFormat", {})
+            if (desired or set(original) != {"userEnteredFormat"}
+                or set(style) != {"textFormat", "verticalAlignment"}
+                or not isinstance(style["textFormat"], dict)
+                or not set(style["textFormat"]) <= {"fontFamily", "fontSize", "foregroundColor"}
+                or not _valid_blank_tail_text_format(style["textFormat"])
+                or style["verticalAlignment"] not in {"TOP", "MIDDLE", "BOTTOM"}
+                or set(observed) != {"userEnteredFormat"}
+                or digest(observed["userEnteredFormat"]) != digest(style)):
+                continue
+            compared["sheets"][sid]["cells"].pop(address, None)
+            admitted.append({"sheet_id": sid, "cell": f"{column_name(old_cols + 1)}{row + 1}",
+                "anchor_cell": f"{column_name(old_cols)}{row + 1}",
+                "expected": copy.deepcopy(want["cells"].get(address, {})),
+                "actual": copy.deepcopy(got["cells"][address]),
+                "anchor_before": copy.deepcopy(prior["cells"][anchor]),
+                "rule": "new-column-blank-tail-style-v1"})
+    return compared, admitted
+
+
 def verify_get_only_output(
     before: dict[str, Any], after: dict[str, Any], plans: Any,
-    store: Store, bindings: dict[str, Any],
+    store: Store, bindings: dict[str, Any], *,
+    postcondition_report: dict[str, Any] | None = None,
 ) -> None:
     """Verify complete GET observations and every preserved native field."""
+    if postcondition_report is not None and (type(postcondition_report) is not dict or postcondition_report):
+        raise GradebookError("Empty postcondition report output required.")
     views = validate_get_workbook(before, bindings)
     output = validate_get_workbook(after, bindings)
     expected = native._state(before)
@@ -302,5 +380,13 @@ def verify_get_only_output(
         if edits_from_cells(surrogate, current)["edits"]:
             raise GradebookError("GET readback differs from its complete snapshot.")
     owned = {binding["sheets"]["Canvas"] for binding in bindings.values()}
-    if native._comparable(expected, owned) != native._comparable(native._state(after), owned):
+    actual = native._state(after)
+    compared, admitted = _new_column_blank_tail_styles(native._state(before), expected, actual, bindings)
+    if digest(native._comparable(expected, owned)) != digest(native._comparable(compared, owned)):
         raise GradebookError("GET refresh native readback differs; never replay writes.")
+    if postcondition_report is not None:
+        postcondition_report.update({"contract": "GET_ONLY_MATERIALIZATION_V1",
+            "before_fingerprint": native.fingerprint(before), "actual_after_fingerprint": native.fingerprint(after),
+            "canonical_expected_sha256": digest(expected), "comparison_sha256": digest(compared),
+            "plan_sha256s": [digest(p) for p in iterable], "admitted_differences": admitted,
+            "original_artifacts_unchanged": True, "replay_authorized": False})

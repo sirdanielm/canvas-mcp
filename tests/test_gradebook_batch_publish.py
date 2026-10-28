@@ -278,9 +278,9 @@ async def test_wrong_course_token_or_mutated_payload_cannot_authorize_or_send(
     batches.authorize("12", preview["batch_id"], preview["confirmation_token"])
     batch = batches.ledger.batch(preview["batch_id"])
     path = batches.store.root / ("push-" + batch["chunks"][0]["plan_id"] + ".json")
-    plan = json.loads(path.read_text())
+    plan = json.loads(path.read_text(encoding="utf-8"))
     plan["items"][0]["proposed"] = 19
-    path.write_text(json.dumps(plan))
+    path.write_text(json.dumps(plan), encoding="utf-8")
     with pytest.raises(GradebookError, match="integrity"):
         await batches.execute_chunk("12", preview["batch_id"], 0)
     assert state["puts"] == []
@@ -296,7 +296,7 @@ async def test_changed_teacher_review_display_cannot_keep_dispatch_authority(
     preview = await batches.prepare_scores("12", review_id)
     if when == "after_approval":
         batches.authorize("12", preview["batch_id"], preview["confirmation_token"])
-    Path(preview["review_files"][0]).write_text("Changed reviewed values")
+    Path(preview["review_files"][0]).write_text("Changed reviewed values", encoding="utf-8")
     with pytest.raises(GradebookError, match="display changed"):
         if when == "before_approval":
             batches.authorize("12", preview["batch_id"], preview["confirmation_token"])
@@ -383,7 +383,7 @@ async def test_comment_grant_still_binds_exact_source_and_never_replays(comment_
     publisher, state, envelope = comment_system
     batches = BatchPublisher(publisher)
     filename = publisher.store.root / "inbox/comment.json"
-    filename.write_text(json.dumps(envelope))
+    filename.write_text(json.dumps(envelope), encoding="utf-8")
     preview = await batches.prepare_comments(
         "12", [{"filename": "comment.json", "envelope_sha256": digest(envelope)}]
     )
@@ -398,13 +398,13 @@ async def test_comment_source_drift_after_batch_review_sends_nothing(comment_sys
     publisher, state, envelope = comment_system
     batches = BatchPublisher(publisher)
     filename = publisher.store.root / "inbox/comment.json"
-    filename.write_text(json.dumps(envelope))
+    filename.write_text(json.dumps(envelope), encoding="utf-8")
     preview = await batches.prepare_comments(
         "12", [{"filename": "comment.json", "envelope_sha256": digest(envelope)}]
     )
     batches.authorize("12", preview["batch_id"], preview["confirmation_token"])
     envelope["comment"] += " changed"
-    filename.write_text(json.dumps(envelope))
+    filename.write_text(json.dumps(envelope), encoding="utf-8")
     with pytest.raises(GradebookError, match="changed after preview"):
         await batches.execute_chunk("12", preview["batch_id"], 0)
     assert state["forms"] == []
@@ -416,7 +416,7 @@ async def test_comment_chunk_restart_resumes_only_unclaimed_dispatch(
 ):
     publisher, state, envelope = comment_system
     batches = BatchPublisher(publisher)
-    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope))
+    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope), encoding="utf-8")
     preview = await batches.prepare_comments(
         "12", [{"filename": "comment.json", "envelope_sha256": digest(envelope)}]
     )

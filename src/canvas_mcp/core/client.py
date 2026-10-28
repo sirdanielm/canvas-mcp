@@ -26,6 +26,7 @@ DEFAULT_PAGE_SIZE = 100
 MAX_PAGINATION_PAGES = 10000
 API_ROOT_REST: Final = "rest"
 API_ROOT_QUIZ: Final = "quiz"
+API_ROOT_GRAPHQL: Final = "graphql"
 
 
 def _canvas_auth_headers(api_token: str) -> dict[str, str]:
@@ -37,12 +38,13 @@ def _canvas_auth_headers(api_token: str) -> dict[str, str]:
         "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
     }
 
-def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz"]) -> str:
+def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz", "graphql"]) -> str:
     """Resolve a configured ``…/api/v<N>`` base URL to a selected Canvas API root.
 
     ``rest`` keeps the configured URL unchanged. ``quiz`` rewrites only the
     trailing API version segment to ``/api/quiz/v1`` while preserving any
-    institution prefix (e.g. ``/lms``). This is an explicit call-site opt-in;
+    institution prefix (e.g. ``/lms``). ``graphql`` rewrites it to ``/api``, so
+    the endpoint ``/graphql`` reaches Canvas's GraphQL API at ``/api/graphql``. This is an explicit call-site opt-in;
     endpoint strings never select a base path implicitly.
     """
     if api_root == API_ROOT_REST:
@@ -51,9 +53,11 @@ def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz"
     match = re.search(r"/api/v\d+$", base_api_url)
     if not match:
         raise ValueError(
-            "Invalid Canvas API base URL for quiz root resolution: expected trailing /api/v<N>"
+            f"Invalid Canvas API base URL for {api_root} root resolution: expected trailing /api/v<N>"
         )
 
+    if api_root == API_ROOT_GRAPHQL:
+        return f"{base_api_url[:match.start()]}/api"
     return f"{base_api_url[:match.start()]}/api/quiz/v1"
 
 
@@ -233,6 +237,17 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
       the participants are their own correspondents, not third parties whose
       records they are browsing — pseudonymising `participants[].name` would
       make "who emailed me?" unanswerable while protecting nobody.
+    - /search/recipients -> ANONYMIZE_FREE_TEXT: the caller's Inbox address
+      book, used to find who to message, so names must survive for staff.
+      Unlike the inbox it lists everyone in a course, so the one tool that
+      reads it (tools/student_messaging.py) pseudonymises every non-staff
+      entry itself while anonymization is on, and drops them from a name
+      search (Canvas matches ``search`` against real names; the search only
+      asks the course's staff sub-contexts); otherwise it would map the user
+      IDs the FULL tier keeps back to real names. Staff names it does show sit
+      next to user IDs, and pseudonyms depend only on the user ID, so staff
+      in one course are not anonymous where they are students (documented
+      limitation, see core/anonymization.py).
     - /pages, /courses/{id}/pages/{slug}, /courses/{id}/front_page ->
       ANONYMIZE_IDENTITY. Previously ungated: `last_edited_by` leaked a display
       name and avatar URL. front_page returns the same block but carries no
@@ -245,10 +260,13 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     Intentionally NOT matched at all:
     - /groups listings — carry group names, not student names; generic
       anonymization would mangle them. Membership goes via /groups/{id}/users,
-      which the '/users' rule covers.
-    - /discussion_topics listings (incl. announcements) — typically
-      instructor-authored; student content lives under the content endpoints
-      matched below.
+      which the '/users' rule covers. (/users/self/groups IS matched, by its
+      'users' segment; group records survive the full tier because
+      'group_category_id' is a non-person marker in core/anonymization.py.)
+    - COURSE /discussion_topics listings and records (incl. announcements) —
+      typically instructor-authored; student content lives under the content
+      endpoints matched below. GROUP topics (/groups/{id}/discussion_topics...)
+      ARE matched (full tier): group members author them.
     - /submissions/self — the caller's OWN submission. Anonymizing it redacts
       body/url/attachments, so a student cannot read back what they submitted
       (issue #166). Only the literal 'self' sub-route is excluded; any other
@@ -269,17 +287,36 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     if self_indices:
         segments = [seg for i, seg in enumerate(segments) if i not in self_indices]
 
+    # GraphQL has a single endpoint, so its path says nothing about what the
+    # query returns. Treat every response as sensitive (fail closed).
+    if segments == ['graphql']:
+        return ANONYMIZE_FULL
+
     # Discussion content endpoints carry student posts and names
     if 'discussion_topics' in segments and _has_route_segment(
         segments, {'entries', 'view', 'entry_list', 'replies'}
     ):
         return ANONYMIZE_FULL
 
-    # Endpoints whose responses contain student records
-    if _has_route_segment(segments, {'users', 'submissions', 'enrollments', 'analytics'}):
+    # Group discussion topics (and group announcements, which are topics) are
+    # written by group members: any student in the group can start one, so the
+    # topic record's message, user_name and author block are student data. This
+    # is the rule that protects the discussion tools' group_id path.
+    if 'discussion_topics' in segments and _has_route_segment(segments, {'groups'}):
         return ANONYMIZE_FULL
 
-    if _has_route_segment(segments, {'conversations'}):
+    # Endpoints whose responses contain student records
+    if _has_route_segment(segments, {'users', 'submissions', 'enrollments', 'analytics', 'memberships'}):
+        return ANONYMIZE_FULL
+
+    # /search/recipients is the Inbox address book: the people the caller may
+    # message, with their names and shared courses. Pseudonymising every name
+    # here would make "what is my instructor's user ID?" unanswerable, so the
+    # tier keeps names and nulls avatars and direct identifiers; the caller
+    # (student_messaging._display_name) pseudonymises non-staff entries, per
+    # course, because the address book is a full roster. Exact path, not a
+    # 'search' prefix.
+    if _has_route_segment(segments, {'conversations'}) or segments == ['search', 'recipients']:
         return ANONYMIZE_FREE_TEXT
 
     # 'front_page' is a page too and returns the same last_edited_by block, but
@@ -400,6 +437,57 @@ async def canvas_authenticated_client() -> AsyncIterator[httpx.AsyncClient]:
     yield _get_http_client()
 
 
+def is_canvas_origin(url: str | httpx.URL) -> bool:
+    """Whether a file URL shares the caller's Canvas scheme, host and port."""
+    from .config import get_config
+
+    credentials = get_request_credentials()
+    base_url = credentials.api_url if credentials else get_config().canvas_api_url
+    try:
+        target = httpx.URL(url)
+        base = httpx.URL(base_url)
+    except (httpx.InvalidURL, TypeError):
+        return False
+    return (
+        target.scheme in ("http", "https")
+        and bool(target.host)
+        and (target.scheme, target.host, target.port)
+        == (base.scheme, base.host, base.port)
+    )
+
+
+@asynccontextmanager
+async def canvas_file_download_client() -> AsyncIterator[httpx.AsyncClient]:
+    """Scope download credentials before every request, including redirects.
+
+    Storage URLs use their own signed parameters. Once a chain leaves Canvas,
+    never reattach the token, even if storage redirects back to Canvas.
+    """
+    from .config import get_config
+
+    left_canvas = False
+
+    async def scope_credentials(request: httpx.Request) -> None:
+        nonlocal left_canvas
+        if not is_canvas_origin(request.url):
+            left_canvas = True
+        if left_canvas:
+            request.headers.pop("Authorization", None)
+
+    # Preserve the shared resolver's hosted missing-token refusal and caller
+    # isolation, but give each download its own headers, hooks and cookie jar.
+    async with canvas_authenticated_client() as authenticated:
+        async with httpx.AsyncClient(
+            headers={
+                name: authenticated.headers[name]
+                for name in ("Authorization", "User-Agent")
+            },
+            timeout=get_config().api_timeout,
+            event_hooks={"request": [scope_credentials]},
+        ) as client:
+            yield client
+
+
 async def make_canvas_request(
     method: str,
     endpoint: str,
@@ -408,7 +496,7 @@ async def make_canvas_request(
     use_form_data: bool = False,
     skip_anonymization: bool = False,
     files: dict[str, tuple[str, bytes, str]] | None = None,
-    api_root: Literal["rest", "quiz"] = API_ROOT_REST,
+    api_root: Literal["rest", "quiz", "graphql"] = API_ROOT_REST,
     _pagination: dict[str, str | None] | None = None,
 ) -> Any:
     """Make a request to the Canvas API with proper error handling.
@@ -423,7 +511,7 @@ async def make_canvas_request(
         use_form_data: Use form data instead of JSON
         skip_anonymization: Skip anonymization (used by paginated fetchers)
         files: Dictionary of file objects for multipart form uploads
-        api_root: Which Canvas API root to call ("rest" => /api/v<N>, "quiz" => /api/quiz/v1)
+        api_root: Which Canvas API root to call ("rest" => /api/v<N>, "quiz" => /api/quiz/v1, "graphql" => /api)
     """
 
     from .audit import log_data_access
@@ -459,7 +547,7 @@ async def make_canvas_request(
         )
         return RequestFailure("Invalid endpoint: '..' is not allowed in a request path", WriteOutcome.NOT_DISPATCHED)
 
-    if api_root not in (API_ROOT_REST, API_ROOT_QUIZ):
+    if api_root not in (API_ROOT_REST, API_ROOT_QUIZ, API_ROOT_GRAPHQL):
         return {"error": f"Unsupported api_root: {api_root}"}
 
     if req_creds:
@@ -707,13 +795,18 @@ async def upload_file_to_storage(
                 # Redirect - follow it to get file info from Canvas
                 redirect_url = response.headers.get('Location')
                 if redirect_url:
-                    # Follow the redirect to get file info. This goes back to the
-                    # Canvas API and needs auth; route through the shared
-                    # fail-closed resolver so HTTP mode never uses the server's
-                    # own token.
+                    # Storage chooses Location; only Canvas may get the token.
+                    confirm_url = response.url.join(redirect_url)
+                    if not is_canvas_origin(confirm_url):
+                        return {"error": (
+                            "Upload confirmation redirected outside Canvas and was not followed. "
+                            "The file may have reached storage without being confirmed."
+                        )}
                     try:
                         async with canvas_authenticated_client() as canvas_client:
-                            confirm_response = await canvas_client.get(redirect_url)
+                            confirm_response = await canvas_client.get(
+                                confirm_url, follow_redirects=False
+                            )
                             confirm_response.raise_for_status()
                             confirmed: dict[str, Any] = confirm_response.json()
                             return confirmed
@@ -744,7 +837,7 @@ async def fetch_all_paginated_results(
     endpoint: str,
     params: dict[str, Any] | None = None,
     skip_anonymization: bool = False,
-    api_root: Literal["rest", "quiz"] = API_ROOT_REST,
+    api_root: Literal["rest", "quiz", "graphql"] = API_ROOT_REST,
 ) -> Any:
     """Fetch all results from a paginated Canvas API endpoint.
 

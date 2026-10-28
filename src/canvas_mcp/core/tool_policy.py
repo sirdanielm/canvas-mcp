@@ -31,11 +31,14 @@ is explicit, and ``tests/security/test_tool_policy.py`` requires it to cover
 every tool and to agree with the annotations.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from fastmcp import FastMCP
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
 
 ALLOWLIST_ENV = "ALLOWED_WRITE_TOOLS"
 
@@ -55,15 +58,18 @@ class Effect(StrEnum):
 
 
 TOOL_EFFECTS: dict[str, Effect] = {
-    # --- READ (57) ---
+    # --- READ (72) ---
     "analyze_peer_review_quality": Effect.READ,
+    "calculate_grade_scenarios": Effect.READ,
     "check_enrollment": Effect.READ,
     "fetch_ufixit_report": Effect.READ,
+    "find_message_recipients": Effect.READ,
     "format_accessibility_summary": Effect.READ,
     "generate_peer_review_feedback_report": Effect.READ,
     "get_anonymization_status": Effect.READ,
     "get_assignment_analytics": Effect.READ,
     "get_assignment_details": Effect.READ,
+    "get_calendar_event": Effect.READ,
     "get_content_migration_status": Effect.READ,
     "get_conversation_details": Effect.READ,
     "get_course_content_overview": Effect.READ,
@@ -73,6 +79,9 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "get_discussion_topic_details": Effect.READ,
     "get_discussion_with_replies": Effect.READ,
     "get_front_page": Effect.READ,
+    "get_my_activity_stream": Effect.READ,
+    "get_group_members": Effect.READ,
+    "get_my_assignment_scores": Effect.READ,
     "get_my_course_grades": Effect.READ,
     "get_my_enrollments": Effect.READ,
     "get_my_peer_reviews_todo": Effect.READ,
@@ -87,6 +96,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "get_peer_review_comments": Effect.READ,
     "get_peer_review_completion_analytics": Effect.READ,
     "get_peer_review_followup_list": Effect.READ,
+    "get_quiz_details": Effect.READ,
     "get_rubric": Effect.READ,
     "get_rubric_assessment": Effect.READ,
     "get_student_analytics": Effect.READ,
@@ -95,25 +105,35 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "identify_problematic_peer_reviews": Effect.READ,
     "list_announcements": Effect.READ,
     "list_assignments": Effect.READ,
+    "list_calendar_events": Effect.READ,
     "list_code_api_modules": Effect.READ,
     "list_conversations": Effect.READ,
     "list_course_files": Effect.READ,
     "list_courses": Effect.READ,
     "list_discussion_entries": Effect.READ,
     "list_discussion_topics": Effect.READ,
+    "list_group_discussion_topics": Effect.READ,
+    "list_group_files": Effect.READ,
     "list_groups": Effect.READ,
     "list_module_items": Effect.READ,
     "list_modules": Effect.READ,
+    "list_my_announcements": Effect.READ,
+    "list_my_groups": Effect.READ,
     "list_pages": Effect.READ,
     "list_peer_reviews": Effect.READ,
+    "list_quizzes": Effect.READ,
+    "list_planner_notes": Effect.READ,
     "list_rubrics": Effect.READ,
     "list_submissions": Effect.READ,
+    "get_student_submission": Effect.READ,
     "list_users": Effect.READ,
     "parse_ufixit_violations": Effect.READ,
     "read_course_file": Effect.READ,
     "scan_course_content_accessibility": Effect.READ,
     "search_canvas_tools": Effect.READ,
-    # --- CANVAS_WRITE (41) ---
+    # --- CANVAS_WRITE (51) ---
+    "create_course_groups": Effect.CANVAS_WRITE,
+    "resume_course_group_creation": Effect.CANVAS_WRITE,
     "add_module_item": Effect.CANVAS_WRITE,
     "assign_peer_review": Effect.CANVAS_WRITE,
     "associate_rubric": Effect.CANVAS_WRITE,
@@ -127,6 +147,8 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "create_discussion_topic": Effect.CANVAS_WRITE,
     "create_module": Effect.CANVAS_WRITE,
     "create_page": Effect.CANVAS_WRITE,
+    "create_personal_calendar_event": Effect.CANVAS_WRITE,
+    "create_planner_note": Effect.CANVAS_WRITE,
     "create_rubric": Effect.CANVAS_WRITE,
     "create_rubric_from_csv": Effect.CANVAS_WRITE,
     "delete_announcement_with_confirmation": Effect.CANVAS_WRITE,
@@ -135,15 +157,20 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "delete_module": Effect.CANVAS_WRITE,
     "delete_module_item": Effect.CANVAS_WRITE,
     "delete_page": Effect.CANVAS_WRITE,
+    "delete_personal_calendar_event": Effect.CANVAS_WRITE,
+    "delete_planner_note": Effect.CANVAS_WRITE,
     "edit_page_content": Effect.CANVAS_WRITE,
     "fix_accessibility_issues": Effect.CANVAS_WRITE,
     "grade_with_rubric": Effect.CANVAS_WRITE,
     "mark_conversations_read": Effect.CANVAS_WRITE,
     "mark_module_item_done": Effect.CANVAS_WRITE,
+    "mark_planner_item_complete": Effect.CANVAS_WRITE,
     "post_discussion_entry": Effect.CANVAS_WRITE,
+    "reply_to_conversation": Effect.CANVAS_WRITE,
     "reply_to_discussion_entry": Effect.CANVAS_WRITE,
     "send_bulk_messages_from_list": Effect.CANVAS_WRITE,
     "send_conversation": Effect.CANVAS_WRITE,
+    "send_message": Effect.CANVAS_WRITE,
     "send_peer_review_followup_campaign": Effect.CANVAS_WRITE,
     "send_peer_review_inbox_messages": Effect.CANVAS_WRITE,
     "submit_assignment": Effect.CANVAS_WRITE,
@@ -152,6 +179,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "update_module": Effect.CANVAS_WRITE,
     "update_module_item": Effect.CANVAS_WRITE,
     "update_page_settings": Effect.CANVAS_WRITE,
+    "update_planner_note": Effect.CANVAS_WRITE,
     "update_rubric": Effect.CANVAS_WRITE,
     "update_syllabus": Effect.CANVAS_WRITE,
     "upload_course_file": Effect.CANVAS_WRITE,
@@ -237,6 +265,48 @@ def resolve_tool_policy(raw: str | None, transport: Transport) -> ToolPolicy:
     if "all" in lowered:
         allowed |= _ALL_KEYWORD_TOOLS
     return ToolPolicy(True, frozenset(allowed), ALLOWLIST_ENV)
+
+
+def policy_notice(
+    policy: ToolPolicy, served_tools: list[str], transport: Transport
+) -> str | None:
+    """Server instructions that explain withheld tools, or None if none are.
+
+    ``served_tools`` are the tool names left after registration and policy
+    filtering. The notice is built from those, not from ``policy.allowed``: an
+    allowlisted tool that a registration gate left out is not available and
+    must not be advertised.
+
+    A removed tool is simply absent, so a user asking for an edit sees what
+    looks like a missing feature. Every MCP client hands the server's
+    instructions to the model at connect time, which lets it say that the
+    deployment withholds the tool on purpose. Read-only text only: this never
+    changes which tools exist.
+    """
+    if not policy.enforced:
+        return None
+    allowed = sorted(name for name in served_tools if TOOL_EFFECTS.get(name) is not Effect.READ)
+    if allowed:
+        return (
+            "This Canvas MCP server offers only these tools that change anything "
+            f"(set by the operator in {ALLOWLIST_ENV}): {', '.join(allowed)}. "
+            "Other changes cannot be made through this server. If the user asks for "
+            "one, say so plainly and offer a draft they can apply in Canvas. Do not "
+            "look for a workaround."
+        )
+    text = (
+        "This Canvas MCP server is read-only: the operator has not enabled any "
+        f"tool that changes Canvas ({ALLOWLIST_ENV}). It can look up and analyze "
+        "course data. If the user asks to edit, grade, post or message, say that "
+        "this deployment cannot, and offer a draft they can paste into Canvas. Do "
+        "not look for a workaround."
+    )
+    if transport == "http":
+        text += (
+            " To make changes through an assistant, the user can run Canvas MCP "
+            "locally with their own Canvas token."
+        )
+    return text
 
 
 async def apply_tool_policy(mcp: FastMCP, policy: ToolPolicy) -> list[str]:

@@ -135,8 +135,8 @@ def test_persisted_transfer_reopens_with_stable_digest_and_native_state(
     plan = prepare(scenario)
     expected = digest(plan)
     path = tmp_path / "plan.json"
-    path.write_text(json.dumps(plan))
-    reopened = json.loads(path.read_text())
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    reopened = json.loads(path.read_text(encoding="utf-8"))
     assert digest(reopened) == expected
     revalidate_transfer(
         reopened,

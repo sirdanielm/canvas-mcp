@@ -27,6 +27,313 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   snapshots. Fork-main updates are not a new upstream package release, website
   upload or production deployment.
 
+### Fixed
+
+- The Claude Desktop extension explicitly selects Python 3.13 through `uv`, which downloads that interpreter when needed, instead of inheriting an untested system Python such as 3.15 and falling into a Windows `cffi` source build requiring a compiler ([#391](https://github.com/vishalsachdev/canvas-mcp/issues/391)).
+- Importing package metadata, configuration or write-policy data no longer
+  loads the server framework and its authentication dependencies. The public
+  `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main`.
+
+## [1.16.0] — 2026-10-24
+
+A security release. It fixes three privately reported issues and closes the last gap left by the 1.13.0 prompt-injection advisory. It also adds course group creation and an option to read submission text. Breaking for local code execution: the local sandbox now needs Node.js 22.18 or later.
+
+### Security
+
+- In local sandbox mode (the default whenever no container runtime is available), `execute_typescript` runs the caller's code with Node.js under its permission model instead of `tsx`. The code can read only the bundled code API, and Node refuses child processes, worker threads, native addons, `process.binding` and file writes. An inherited `NODE_OPTIONS` can no longer widen those limits. Outbound network blocking in local mode stays best-effort ([#157](https://github.com/vishalsachdev/canvas-mcp/issues/157)). [GHSA-7pp5-29mw-9jq3](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-7pp5-29mw-9jq3), reported by [@EQSTLab](https://github.com/EQSTLab).
+- File transfers limit Canvas credentials to the configured Canvas origin. Downloads from separate file hosts use their signed URLs without Canvas credentials, and upload confirmation is refused outside Canvas. [GHSA-7mj9-4mcg-hvhv](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-7mj9-4mcg-hvhv), reported by [@KKazuhaK](https://github.com/KKazuhaK).
+- Windows file downloads now prominently warn that owner-only access is not enforced and that access follows the destination folder's Windows permissions. The tool description explains the limitation before use; choose a folder with verified private permissions or use `read_course_file` to avoid saving a local copy. This is a documented limitation, not enforcement: [GHSA-qf6c-jv93-38gv](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-qf6c-jv93-38gv), reported by [@bruchris](https://github.com/bruchris).
+- `read_course_file` marks returned file contents as untrusted Canvas data while preserving the base64 payload. Registry tests check the file payload itself in addition to the filename. This closes the remaining gap in [GHSA-hmr8-mvr2-mvw5](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-hmr8-mvr2-mvw5).
+
+### Changed
+
+- Local sandbox mode needs Node.js 22.18 or later, and refuses to run code, with the reason, on an older Node. Code in local sandbox mode goes through Node's TypeScript type stripping: import types with `import type`, and use objects or unions instead of enums and namespaces. When a script fails on one of these, its error output says how to fix it. Container mode and `ENABLE_TS_SANDBOX=false` still run `tsx`.
+
+### Added
+
+- `list_submissions(include_body=True)` optionally returns submitted text after an explicit `manage_grades` permission check. Bodies retain anonymization redaction, are converted to plain text and fenced as untrusted data, and are bounded to 12,000 input characters per student and 60,000 output characters overall with clear truncation notices. The default compact output is unchanged; comments and attachments are excluded ([#513](https://github.com/vishalsachdev/canvas-mcp/issues/513)).
+- `create_course_groups` previews and then confirms a new course group set, groups and memberships from CSV. `resume_course_group_creation` resumes pending work using caller-owned recorded IDs, a fresh preview/token and current membership checks. Duplicate/conflicting input and all detected conflicting memberships are refused; existing groups are never adopted and students are never intentionally reassigned. Partial reports distinguish confirmed, failed, uncertain and pending work. Both educator tools follow the hosted write allowlist ([#520](https://github.com/vishalsachdev/canvas-mcp/issues/520)).
+
+## [1.15.0] — 2026-10-23
+
+A hardening release. Hosted (HTTP) callers are kept apart from each other, untrusted HTML is parsed in one bounded pass, and the release pipeline verifies what it publishes. One new tool reads a single student submission; no existing tool's name, arguments or output contract changed.
+
+### Security
+
+- Locked dependencies moved to patched releases: `mcp` 2.2.0 for [GHSA-84m7-p3x7-pcfv](https://github.com/advisories/GHSA-84m7-p3x7-pcfv), with the floor raised to `mcp>=2.2` ([#511](https://github.com/vishalsachdev/canvas-mcp/pull/511)); `certifi` 2026.10.19 for [GHSA-6q48-6c7w-9gw2](https://github.com/advisories/GHSA-6q48-6c7w-9gw2); `opentelemetry-api` 1.45.1 for [GHSA-xcq7-p3pf-p88h](https://github.com/advisories/GHSA-xcq7-p3pf-p88h) and the dev-only `black` 26.10.1 for [GHSA-cg8m-r9f2-5wm2](https://github.com/advisories/GHSA-cg8m-r9f2-5wm2) ([#522](https://github.com/vishalsachdev/canvas-mcp/pull/522)).
+- HTTP mode keeps each caller's state to that caller: course aliases and labels ([#480](https://github.com/vishalsachdev/canvas-mcp/pull/480)), course metadata caches, course-policy verdicts ([#491](https://github.com/vishalsachdev/canvas-mcp/pull/491)), the discussion REST-unservable hint ([#494](https://github.com/vishalsachdev/canvas-mcp/pull/494)) and anonymization statistics ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). `RequestCredentials` no longer shows its API token in its `repr` ([#490](https://github.com/vishalsachdev/canvas-mcp/pull/490)). Thanks [@KKazuhaK](https://github.com/KKazuhaK) for #490, #491 and #494.
+- An ambiguous course alias is refused before any read or write is sent ([#482](https://github.com/vishalsachdev/canvas-mcp/pull/482)).
+- Canvas error bodies stay out of student tool output, and student tool errors are fenced as untrusted data ([#481](https://github.com/vishalsachdev/canvas-mcp/pull/481)). Startup context and remote statistics are fenced as data too ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- Release pipeline: the MCP publisher binary is pinned and hash-verified, `id-token` is limited to the two publish jobs, packages are checked for local-only files, and the maintenance workflow separates agent analysis from posting ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). Interactive Claude review triggers are restricted ([#516](https://github.com/vishalsachdev/canvas-mcp/pull/516)).
+
+### Added
+
+- **`get_student_submission`** reads one student's current submission and its visible text comments ([#487](https://github.com/vishalsachdev/canvas-mcp/pull/487)). It requires the Canvas `manage_grades` permission, validates the requested and returned IDs, keeps anonymization and body redaction, and fences untrusted text. Input is bounded: 12,000 body characters and ten comments of 800 characters, with a notice when it truncates. It returns no attachments, URLs, media or submission history. `list_submissions` is unchanged.
+- When `ALLOWED_WRITE_TOOLS` withholds tools, the server's MCP instructions now say so: a read-only server states it is read-only (and, on HTTP, that the user can run Canvas MCP locally to make changes), and an allowlisted server names the write tools it offers. A missing write tool no longer looks like a bug to the user. No tool is added or changed ([#503](https://github.com/vishalsachdev/canvas-mcp/pull/503)).
+
+### Fixed
+
+- HTML and email text go through one bounded tokenizer that never rescans the rest of the input after malformed markup ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). It keeps scanning after a stray quote, accepts a null page body, handles compound underlines, and matches DesignPLUS IDs and manual bullets.
+- Accessibility scans parse tags and attributes, request page bodies, and report an error instead of a clean result when Canvas returns no content ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- Announcement deletion refuses a target that Canvas reports as an ordinary discussion ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- The package metadata gave a wrong maintainer email. It and `SECURITY.md` now name vishal@illinois.edu ([#521](https://github.com/vishalsachdev/canvas-mcp/pull/521)).
+
+### Documentation
+
+- Canvas OAuth scope inventory and institutional pilot matrix ([#486](https://github.com/vishalsachdev/canvas-mcp/pull/486)); corrected student planner write-confirmation claims ([#479](https://github.com/vishalsachdev/canvas-mcp/pull/479)); a link to the companion UIUC course discovery MCP server.
+
+## [1.14.0] — 2026-10-07
+
+### Security
+
+- Locked dependencies moved to patched releases: `pyjwt` 2.15.1 ([#432](https://github.com/vishalsachdev/canvas-mcp/pull/432)),
+  `urllib3` 2.8.0 ([#434](https://github.com/vishalsachdev/canvas-mcp/pull/434)) and `multidict` 6.9.1 ([#461](https://github.com/vishalsachdev/canvas-mcp/pull/461)). No code changes.
+
+### Added
+
+- **Student group tools (read-only, student profile).** ([#470](https://github.com/vishalsachdev/canvas-mcp/pull/470), [#472](https://github.com/vishalsachdev/canvas-mcp/pull/472); thanks [@KKazuhaK](https://github.com/KKazuhaK)) `list_my_groups` lists
+  the groups you belong to with the course ID and group ID, `get_group_members`
+  lists a group's members (names and user IDs, never emails), and
+  `list_group_files` lists a group's files. Each group-scoped tool re-reads
+  `/users/self/groups` first and refuses a group you are not in, even where
+  Canvas would allow the read. Discussions and announcements in a group are read
+  with the existing discussion tools' `group_id` (`list_discussion_topics` with
+  `include_announcements=True`, then `get_discussion_with_replies`); `list_my_groups`
+  prints the IDs and the call to make. Group topic records
+  (`/groups/{id}/discussion_topics`) are written by group members, so they are
+  anonymized in the `full` tier, which also covers the discussion tools' `group_id`
+  path; `group_category_id` marks a record as a group, so a group's own name is
+  no longer rewritten as a student pseudonym on `/users/self/groups`, and the
+  discussion `/view` `participants` list is treated as people. Group names,
+  descriptions, file names and member names are fenced as untrusted Canvas content.
+  A blank `course_identifier` on `list_my_groups` is an error rather than a
+  silent "all courses", and a failed Canvas request reports only its HTTP status
+  (any other failure text is truncated and fenced), never the response body.
+  A file's content type is printed only when it is a short ASCII MIME token with a
+  registered top-level type (classmates control the value); anything else shows as
+  "unknown type".
+- **Student Inbox messaging.** ([#467](https://github.com/vishalsachdev/canvas-mcp/pull/467), [#476](https://github.com/vishalsachdev/canvas-mcp/pull/476); thanks [@KKazuhaK](https://github.com/KKazuhaK)) `find_message_recipients` (read-only, always
+  on) looks up the people a student can message in a course and their user
+  IDs. `send_message` and `reply_to_conversation` are new student write tools,
+  off unless named in `STUDENT_WRITE_TOOLS` and subject to the per-course
+  syllabus policy and `ALLOWED_WRITE_TOOLS`. Both preview first and need a
+  single-use confirmation token bound to the recipients, subject and body.
+  To keep GHSA-hmr8 closed for students, recipients must be 1-5 individual
+  user IDs that Canvas lets the student message in that course (course,
+  section and group addresses are refused), replies reach only a
+  conversation's existing audience of at most 5 people, there are no
+  attachments or bulk sends, and text carrying UNTRUSTED CANVAS CONTENT
+  markers is refused. The checks fail closed: a reply is refused when the
+  conversation's course cannot be fully identified, including a malformed
+  `context_code` (while course policies are on), when the audience is not a
+  list, or when Canvas flags it `cannot_reply` in any form. A blank subject is
+  refused.
+- `/search/recipients` responses now use the same `free_text` anonymization
+  tier as `/conversations`: avatars and direct identifiers are removed. The
+  address book lists a whole course, so while `ENABLE_DATA_ANONYMIZATION` is
+  on, `find_message_recipients` and the `send_message` preview name only
+  course staff and show everyone else under the same `Student_<hash>`
+  pseudonym the `/courses/:id/users` tier uses. A name search then asks only
+  the course's staff sub-contexts (Canvas matches `search` against real
+  names, so a classmate's pseudonym would otherwise reveal whose it is) and
+  returns course staff only. Known limitation, documented in
+  `core/anonymization.py`: pseudonyms depend only on the user ID, so a person
+  named as staff in one shared course is not anonymous where they are a
+  student.
+- **`raw_dates` on `list_assignments`, `get_assignment_details` and
+  `get_discussion_topic_details`** (opt-in, default output unchanged). Appends a
+  JSON block with `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
+  for checkpointed discussions, `has_sub_assignments` and each checkpoint's dates,
+  exactly as Canvas returns them (`null` stays `null`). A checkpointed
+  discussion's parent `due_at` is null by design, which the summaries used to
+  report as "no due date". Metadata only: no submission, grade or user fields.
+- **Discussions inside group spaces.** ([#433](https://github.com/vishalsachdev/canvas-mcp/pull/433); thanks [@papatistos](https://github.com/papatistos)) The discussion read tools
+  (`list_discussion_topics`, `get_discussion_topic_details`,
+  `list_discussion_entries`, `get_discussion_entry_details`,
+  `get_discussion_with_replies`) take an optional `group_id`. Topics that
+  students start inside a group live only under `/groups/{id}/discussion_topics`
+  and have no course-level parent, so the course-scoped tools never returned
+  them. The group must belong to the named course.
+- `list_group_discussion_topics` lists the topics in every group of a course
+  (optionally one group set) in one call, with entry counts, and marks each
+  topic as a group copy of a course topic or as started in the group.
+- **Guarded body edits (issue 419).** `edit_page_content` and
+  `update_assignment` take optional `expect_updated_at` (refuse if the object
+  changed since it was read; `Z` and offset forms of one instant match),
+  `find`/`replace` (edit one fragment, which must occur exactly once, instead
+  of resending the whole body) and `require` (strings that must already be
+  present). Discussion topics and the syllabus have no `updated_at`, so
+  `update_discussion_topic` and `update_syllabus` take `expect_body_sha256`
+  instead, plus the same `find`/`replace`/`require`; `get_syllabus` and
+  `get_discussion_topic_details` now print that hash, and the syllabus
+  confirmation token is unchanged and independent.
+  A guarded write is read back and reported as confirmed only when the
+  read-back proves it (timestamp advanced where there is one, the whole stored
+  body equal to the expected body after whitespace-only normalization, every
+  other requested field as sent); otherwise it is reported unconfirmed. Calls without the new
+  parameters send exactly the same requests as before.
+- **Student "what's new" feed (read-only, student profile).** ([#468](https://github.com/vishalsachdev/canvas-mcp/pull/468), [#471](https://github.com/vishalsachdev/canvas-mcp/pull/471); thanks [@KKazuhaK](https://github.com/KKazuhaK))
+  `list_my_announcements` lists announcements across all active courses in one
+  call (default last 14 days, optional course filter), and
+  `get_my_activity_stream` summarises the Canvas activity stream by kind
+  (announcements, discussions, conversations, grades and submission comments,
+  notifications). Canvas-authored text is fenced. Previews that are shortened
+  name the tool that returns the full text.
+- **Student grade insight (read-only).** ([#469](https://github.com/vishalsachdev/canvas-mcp/pull/469), [#473](https://github.com/vishalsachdev/canvas-mcp/pull/473); thanks [@KKazuhaK](https://github.com/KKazuhaK)) `get_my_assignment_scores` lists every
+  assignment's score and status in a course, grouped by assignment group with
+  weights and drop rules. `calculate_grade_scenarios` recomputes the course grade
+  the way Canvas does (weighted or total points, drop lowest/highest and
+  never-drop, excused and omitted work), shows it next to Canvas's own current
+  score and flags disagreement, applies what-if scores, and reports the uniform
+  percentage needed on remaining work for a target percentage or letter. Both
+  register for the student and all profiles; the arithmetic is in
+  `core/grade_calc.py`. Both fail closed: they refuse a course that restricts
+  quantitative data or does not say whether it does, assignment data that is not
+  the documented shape (including non-numeric weights, points or scores and
+  duplicate IDs), and
+  submissions that arrive as a list (an observer token); a letter target is
+  refused when the course's real letter scheme is unknown.
+- **Read-only quiz awareness for students** ([#466](https://github.com/vishalsachdev/canvas-mcp/pull/466), [#474](https://github.com/vishalsachdev/canvas-mcp/pull/474); thanks [@KKazuhaK](https://github.com/KKazuhaK)) (student slice of issue 172):
+  `list_quizzes` lists a course's Classic quizzes and New Quizzes with dates,
+  limits and your submission state; `get_quiz_details` shows one quiz's settings
+  plus your own attempts used/remaining and kept score from the latest record.
+  Earlier attempt history is unavailable: its GET endpoint triggers grading of
+  overdue attempts even for students, so the read-only tool never calls it. Neither tool takes a
+  quiz, starts an attempt, or reads questions or answers. New Quizzes are found
+  by the assignment API's `is_quiz_lti_assignment` flag (not
+  `is_quiz_assignment`, which marks Classic quizzes); their settings and attempt
+  history are not exposed to students by the REST API, and the tools say so.
+- **Student calendar and planner tools.** ([#465](https://github.com/vishalsachdev/canvas-mcp/pull/465), [#475](https://github.com/vishalsachdev/canvas-mcp/pull/475); thanks [@KKazuhaK](https://github.com/KKazuhaK)) Student profile only.
+  `list_calendar_events` shows the Canvas calendar across the student's active
+  courses, their personal calendar and their groups (assignment due dates
+  included, batched to Canvas's 10 calendars per request), `get_calendar_event`
+  returns one event in full, and `list_planner_notes` lists the student's own
+  planner notes. These add what `get_my_upcoming_assignments` cannot show:
+  lectures, exams, office hours, personal events and the student's own to-dos.
+  Event and note text is fenced as untrusted content, and the reads never expose
+  other people (`user` and `child_events` are dropped).
+- **Calendar and planner writes, off by default.** `create_planner_note`,
+  `update_planner_note`, `delete_planner_note`, `mark_planner_item_complete`,
+  `create_personal_calendar_event` and `delete_personal_calendar_event` exist
+  only when the operator names them in `STUDENT_WRITE_TOOLS`. They act only on
+  the caller's own notes and `user_<id>` calendar; a note or planner item tied
+  to a course follows that course's agent policy; updates and deletes are two
+  calls (preview, then a single-use token); course, group and appointment
+  events are refused. `mark_planner_item_complete` on course content also needs
+  `mark_module_item_done` permitted, because Canvas syncs the planner override to
+  that module requirement, and it is marked destructive for the same reason.
+
+### Fixed
+
+- `get_my_submission_status` no longer reports graded `on_paper` or
+  `none` assignments as overdue. It now follows Canvas's own `missing` flag,
+  which is false for excused, graded and no-submission work and true when a
+  teacher marks work missing ([#423](https://github.com/vishalsachdev/canvas-mcp/pull/423); thanks [@lindsay-cheng](https://github.com/lindsay-cheng)).
+- **Full-content reads no longer cut text without saying so.** ([#458](https://github.com/vishalsachdev/canvas-mcp/pull/458), [#462](https://github.com/vishalsachdev/canvas-mcp/pull/462); thanks [@KKazuhaK](https://github.com/KKazuhaK))
+  `get_discussion_with_replies` returns whole entries and replies (they were cut
+  at 200 and 150 characters), `list_discussion_entries` with
+  `include_full_content=True` returns whole replies (they were cut at 200), and
+  `get_rubric` shows whole criterion and rating descriptions (they were cut at
+  200 and 100), block-fenced as untrusted Canvas content. `get_syllabus` stays
+  complete by default; its optional `max_chars` cap is kept, and a cut is always
+  marked with `[truncated at N characters]`. The reading tools
+  (`get_page_content`, `get_syllabus`, `get_front_page`,
+  `get_assignment_details`, `get_discussion_topic_details`,
+  `get_discussion_entry_details`, `get_discussion_with_replies`,
+  `list_discussion_entries`, `get_conversation_details`, `get_my_submission`,
+  `get_rubric`, `get_rubric_assessment`) now declare
+  `anthropic/maxResultSizeChars: 500000` in `tools/list`, so Claude Code
+  delivers a large result whole instead of capping it near 25k tokens; other
+  clients ignore the key.
+- Previews now say they are previews: `list_discussion_entries` without
+  `include_full_content` names that parameter, `list_rubrics` points to
+  `get_rubric` when it shortened a description, and
+  `get_course_content_overview` names `get_syllabus`, `list_pages` and
+  `list_modules` when it shows only a preview or the first few items.
+- **Course codes with spaces, course names and bare SIS IDs now resolve.** ([#457](https://github.com/vishalsachdev/canvas-mcp/pull/457); thanks [@KKazuhaK](https://github.com/KKazuhaK))
+  `get_course_id` only recognised codes containing an underscore, so a course
+  addressed as `COMPSCI 161`, by its name, or by its SIS ID was sent to Canvas
+  as typed and failed. A lookup that finds nothing in the cache now re-reads
+  the course list once (shared between concurrent callers, and not more often
+  than every 30 seconds, so a typo or garbage input cannot page through
+  `/courses` on every call) and matches the identifier against course code,
+  SIS ID and name, ignoring case and surrounding whitespace. An identifier
+  that names more than one of your courses is never guessed at. `get_course_id`
+  keeps its old pass-through for an identifier that matches nothing or several.
+- **`resolve_numeric_course_id`, a resolver that never returns an unvalidated
+  string.** It returns `(course_id, None)` or `(None, error)`, so its result is
+  safe in a request path. `sis_course_id:<token>` is looked up only when the
+  token is a single plain path segment (no `/`, backslash, `?`, `#`, `%`,
+  `..`, whitespace or control characters); any other value is refused without
+  a request. `list_course_files`, `read_course_file` and
+  `download_course_file` use it, so a course identifier such as `1/users/503`
+  or `../accounts/1` is refused with `Could not find course` before any file
+  request is made.
+- `assign_peer_review` no longer creates a placeholder submission. It scanned
+  one page (100) of submissions for the reviewee and, on a miss, POSTed a
+  placeholder on the student's behalf, so in a large assignment a truncated read
+  became a write. It now reads the reviewee's submission directly and refuses
+  when there is none. `reviewee_id` must be a numeric Canvas user ID (#420).
+- `list_conversations` reports `returned` and `more_available` instead of
+  presenting Canvas's first inbox page as the whole inbox (#420).
+- `list_peer_reviews` reads every page of each submission's reviews, reports
+  submissions whose reviews could not be read instead of skipping them, and
+  names the reviewer from `assessor_id` (it printed the reviewee as their own
+  reviewer) (#420).
+- `get_course_content_overview` states how many modules its item counts cover
+  (`Modules Analyzed for Items: 10 of N`) and any module it could not read (#420).
+- New guard test fails CI when a tool adds a single-request GET on a Canvas
+  collection endpoint (#420).
+- **Anonymous discussion topics no longer read as missing** (issue 421, part 1).
+  Canvas's REST API answers 404 for fully anonymous topics that its topic list
+  still includes. `list_discussion_topics` and `list_group_discussion_topics`
+  now show `Anonymity:` when Canvas reports an `anonymous_state`. On a 404,
+  `get_discussion_topic_details`, `list_discussion_entries` and
+  `get_discussion_with_replies` check the course's (or group's) topic list; a
+  listed topic gets a message that it exists, REST does not serve it, and it
+  can be opened in the Canvas UI. A 404 for an unlisted topic is still not found.
+- **Anonymous discussion topics can be read** (issue 421, part 2). ([#439](https://github.com/vishalsachdev/canvas-mcp/pull/439), [#442](https://github.com/vishalsachdev/canvas-mcp/pull/442); thanks [@papatistos](https://github.com/papatistos)) After the
+  part-1 404 check finds a topic in the list, the four topic read tools
+  (`get_discussion_entry_details` included) can read it through Canvas GraphQL when
+  the operator sets `DISCUSSION_GRAPHQL_ENABLED=true` (off by default), and
+  return the same output as for any other topic. Anonymous posts keep only
+  their anonymous alias, and replies nested deeper than one level are kept. A
+  topic read this way is remembered for ten minutes, so later reads take one
+  request. The client gains a `graphql` API root; every GraphQL response is
+  anonymized at the full tier. If GraphQL fails too, the part-1 message is
+  returned with the reason appended.
+- **Anonymous discussion updates are refused** (issue 421). Every
+  `update_discussion_topic` call reads the topic before writing. A listed topic
+  whose detail read returns 404 is explained as existing and unsupported by
+  REST; a readable topic marked anonymous is also refused. Neither path sends
+  an update or a GraphQL request. Guarded edits reuse the preflight read;
+  ordinary updates add one REST read before their existing write.
+- **Windows support.** The full test suite now passes on Windows. ([#456](https://github.com/vishalsachdev/canvas-mcp/pull/456), [#460](https://github.com/vishalsachdev/canvas-mcp/pull/460); thanks [@KKazuhaK](https://github.com/KKazuhaK), and [@bruchris](https://github.com/bruchris) for the UTF-8 groundwork in [#445](https://github.com/vishalsachdev/canvas-mcp/pull/445))
+  - `TIMEZONE` works on Windows: `tzdata` is installed there only (a Windows
+    platform marker), because Windows has no IANA time zone database and every
+    date fell back to UTC with a warning. Nothing changes on Linux or macOS.
+  - `reset_audit_state()` closes the audit handlers instead of dropping them, so
+    `audit.jsonl` is no longer left open (a leaked descriptor everywhere, and a
+    file Windows could not delete or rename).
+  - `.githooks/commit-msg` runs the first of `python3` and `python` that really
+    is Python 3.8 or newer. On Windows `python3` is usually the Microsoft Store
+    alias, which exits non-zero and used to reject every commit unscanned. With
+    no working Python the hook now rejects the commit with an installation/PATH
+    hint; the explicit `ALLOW_CLOSING_KEYWORD=1` bypass still works. A missing
+    checker file still skips the check, with CI as that case's backstop.
+  - Tests no longer assume POSIX: symlink tests fall back to a directory
+    junction or skip with a stated reason where Windows refuses symlinks,
+    permission-bit assertions skip on Windows, the audit tests clean up in the
+    right order, two subprocess tests pin UTF-8 and no longer depend on a global
+    `tsx`, and the `TIMEZONE` conversion tests run whenever the zone resolves
+    and assert the `-05:00` offset that `format_date` documents.
+
+### Changed
+
+- CI runs the suite on Python 3.14 (Ubuntu) and on Windows with Python 3.14,
+  with `PYTHONUTF8=1`. The required `test-enhancements` check now also depends
+  on the Windows job. The package metadata now declares Python 3.14.
+
 ## [1.13.0] — 2026-09-27
 
 ### Security

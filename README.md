@@ -13,7 +13,8 @@ with separately enabled educator and student actions. This is the SDM fork of
 [Vishal Sachdev's Canvas MCP](https://github.com/vishalsachdev/canvas-mcp).
 Available tools depend on Canvas permissions, role, operator allowlists and feature
 flags. The main MCP server, local gradebook worker and course mirror are separate
-interfaces.
+interfaces. The main-server source defines **up to 128 tools** and
+**8 agent skills**; operator and feature gates determine actual availability.
 
 ## Current goals
 
@@ -46,6 +47,7 @@ Canvas bindings.
 <a id="quick-start"></a>
 
 Use Python 3.11+ and a Canvas token issued under your institution's policy.
+Optional local TypeScript execution requires Node.js 22.18 or later.
 For a source checkout:
 
 ```bash
@@ -73,8 +75,11 @@ configuration. Do not include tokens or student records in a support report.
 <a id="available-tools"></a>
 <a id="for-ai-agents"></a>
 
-Students can inspect their own work; educators can inspect course work and use
-explicitly enabled grading/content tools. Learning-design tools cover course
+The main server provides **up to 128 tools**. Its default all-role profile
+registers fewer, and optional feature-gated tools can raise the total to 128;
+operator write restrictions can reduce availability. Students can inspect their
+own work; educators can inspect course work and use explicitly enabled
+grading/content tools. Learning-design tools cover course
 structure and accessibility. Use the [tool reference](tools/README.md) for exact
 contracts and [AGENTS.md](AGENTS.md) for agent rules. The
 [machine manifest](tools/TOOL_MANIFEST.json) describes the main server, excluding
@@ -83,7 +88,10 @@ the separate gradebook server.
 `search_canvas_tools` discovers registered MCP tools and TypeScript operations.
 Its schema version 2 response separates `mcp_tools` from `code_execution_api`.
 An absent write tool is an operator boundary; confirmation tokens bind requests
-and do not establish human approval.
+and do not establish human approval. Current source includes student calendar,
+group, quiz-awareness and grade-scenario reads, guarded content edits and
+separately gated course-group creation. Quiz-taking remains unavailable. See the
+tool guide for each permission and preview contract.
 
 <a id="-agent-skills"></a>
 
@@ -114,7 +122,9 @@ send.
 `execute_typescript` is disabled by default. Enabling it exposes privileged Canvas
 credentials and can bypass confirmation and content-fencing guarantees. Each run
 requires authorization for its intended effects; a dry run or local sandbox is
-not approval. See the [code API guide](src/canvas_mcp/code_api/README.md).
+not approval. The optional local sandbox now uses Node's permission model,
+which restricts filesystem access and child processes; network blocking remains
+best-effort. See the [code API guide](src/canvas_mcp/code_api/README.md).
 
 <a id="hosted-server-retired"></a>
 
@@ -137,6 +147,9 @@ and verified delivery are distinct states. A documentation/source merge does not
 restart a service, deploy the menu, release a package or send classroom grades.
 Tags and deployment/paid-review actions require separate authorization.
 
+The refreshed source incorporates upstream v1.16.0 security changes and later
+main-branch fixes. Upstream package releases and this fork's source or installed
+runtimes have separate release histories. This update alone installs no runtime.
 Release notes remain in [CHANGELOG.md](CHANGELOG.md); dated audits and design
 records remain linked from the current guides. The
 [pre-trim README](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/README.md)

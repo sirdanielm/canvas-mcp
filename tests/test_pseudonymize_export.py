@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,8 @@ _spec.loader.exec_module(module)
 
 @pytest.fixture
 def files(tmp_path):
+    if sys.platform == "win32":
+        pytest.skip("Private PIN archive fixture requires POSIX owner-only directories and O_NOFOLLOW")
     tmp_path.chmod(0o700)
     roster = tmp_path / "roster.xlsx"
     w = Workbook()
@@ -89,7 +92,7 @@ def test_canonical_multiline_label_becomes_one_pin(files):
 def test_conflicting_or_unknown_identity_holds_without_output(files, values, code):
     root, roster = files
     source, target = root / "source.csv", root / "archive.csv"
-    source.write_text("Student Name,Email\n" + ",".join(values) + "\n")
+    source.write_text("Student Name,Email\n" + ",".join(values) + "\n", encoding="utf-8")
     with pytest.raises(module.ExportHeld, match=code):
         module.sanitize_export(source, roster, target)
     assert not target.exists()
@@ -101,7 +104,7 @@ def test_ambiguous_name_requires_exact_unique_evidence(files):
     w.active["A3"] = "Fictional Alpha"
     w.save(roster)
     source, target = root / "source.csv", root / "archive.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
     with pytest.raises(module.ExportHeld, match="IDENTITY_CONFLICT_OR_AMBIGUITY"):
         module.sanitize_export(source, roster, target)
     assert not target.exists()
@@ -145,7 +148,7 @@ def test_uncached_formula_and_csv_injection_hold(files):
     with pytest.raises(module.ExportHeld, match="FORMULA_CACHE_MISSING"):
         module.sanitize_export(source, roster, target)
     csv_source = root / "source.csv"
-    csv_source.write_text("Student Name,Grade\nFictional Alpha,=1+1\n")
+    csv_source.write_text("Student Name,Grade\nFictional Alpha,=1+1\n", encoding="utf-8")
     with pytest.raises(module.ExportHeld, match="CSV_FORMULA_NOT_SUPPORTED"):
         module.sanitize_export(csv_source, roster, root / "archive.csv")
 
@@ -197,13 +200,14 @@ def test_csv_replaces_both_identity_columns_and_preserves_original(files):
     root, roster = files
     source, target = root / "source.csv", root / "archive.csv"
     source.write_text(
-        "Student Name,Email,Grade\nFictional Alpha,alpha@example.test,75\n"
+        "Student Name,Email,Grade\nFictional Alpha,alpha@example.test,75\n",
+        encoding="utf-8",
     )
     before = source.read_bytes()
     module.sanitize_export(source, roster, target)
     assert source.read_bytes() == before
-    assert "0123,0123,75" in target.read_text()
-    assert "Fictional Alpha" not in target.read_text()
+    assert "0123,0123,75" in target.read_text(encoding="utf-8")
+    assert "Fictional Alpha" not in target.read_text(encoding="utf-8")
 
 
 def test_media_payload_and_hidden_unknown_email_hold(files):
@@ -251,12 +255,12 @@ def shared_authority(files, monkeypatch):
         "pin_column": "Student Number",
         "name_columns": ["Canvas Name", "IC Name"],
     }
-    registry_path.write_text(json.dumps(registry))
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
     calls = []
 
     def binding(path):
         calls.append("binding")
-        bound = json.loads(path.read_text())
+        bound = json.loads(path.read_text(encoding="utf-8"))
         if module.fingerprint(roster) != bound["roster_sha256"]:
             raise ValueError("synthetic mismatch")
         return bound, roster, roster.read_bytes(), module.fingerprint(path)
@@ -314,9 +318,9 @@ def test_shared_mapping_conflict_is_not_replaced_by_local_mapping(shared_authori
     w = load_workbook(roster)
     w.active["D3"] = "0123"
     w.save(roster)
-    value = json.loads(registry.read_text())
+    value = json.loads(registry.read_text(encoding="utf-8"))
     value["roster_sha256"] = module.fingerprint(roster)
-    registry.write_text(json.dumps(value))
+    registry.write_text(json.dumps(value), encoding="utf-8")
     with pytest.raises(module.ExportHeld, match="SHARED_PIN_AUTHORITY_REJECTED"):
         module.registry_bound_export(
             roster, root / "archive.xlsx", registry, root / "shared.py"
@@ -337,10 +341,10 @@ def test_shared_default_resolves_canonical_worktree_sibling(tmp_path):
     canonical = tmp_path / "repos" / "canvas"
     gitdir = canonical / ".git" / "worktrees" / "isolated"
     gitdir.mkdir(parents=True)
-    (gitdir / "commondir").write_text("../..")
+    (gitdir / "commondir").write_text("../..", encoding="utf-8")
     worktree = tmp_path / "isolated"
     worktree.mkdir()
-    (worktree / ".git").write_text("gitdir: " + str(gitdir))
+    (worktree / ".git").write_text("gitdir: " + str(gitdir), encoding="utf-8")
     assert (
         module.default_shared_pin_tool(worktree)
         == canonical.parent / "LocalGrAss-github/scripts/export-student-pins.py"
@@ -355,7 +359,7 @@ def test_registry_change_during_rendering_prevents_archive(
 
     def changed_registry_save(book, destination):
         original_save(book, destination)
-        registry.write_text(registry.read_text() + " ")
+        registry.write_text(registry.read_text(encoding="utf-8") + " ", encoding="utf-8")
 
     monkeypatch.setattr(Workbook, "save", changed_registry_save)
     with pytest.raises(module.ExportHeld, match="SHARED_PIN_REGISTRY_CHANGED"):
@@ -393,23 +397,24 @@ def test_shared_normalized_name_ambiguity_is_preserved(shared_authority):
     book = load_workbook(roster)
     book.active["A3"] = "FICTIONAL ALPHA"
     book.save(roster)
-    bound = json.loads(registry.read_text())
+    bound = json.loads(registry.read_text(encoding="utf-8"))
     bound["roster_sha256"] = module.fingerprint(roster)
-    registry.write_text(json.dumps(bound))
+    registry.write_text(json.dumps(bound), encoding="utf-8")
     source, target = root / "source.csv", root / "archive.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
     with pytest.raises(module.ExportHeld, match="IDENTITY_CONFLICT_OR_AMBIGUITY"):
         module.registry_bound_export(source, target, registry, root / "shared.py")
     assert not target.exists()
     source.write_text(
-        "Student Name,Email,Note\nFictional Alpha,alpha@example.test,Fictional Alpha\n"
+        "Student Name,Email,Note\nFictional Alpha,alpha@example.test,Fictional Alpha\n",
+        encoding="utf-8",
     )
     with pytest.raises(module.ExportHeld, match="AMBIGUOUS_IDENTITY_REFERENCE"):
         module.registry_bound_export(source, target, registry, root / "shared.py")
     assert not target.exists()
-    source.write_text("Student Name,Email\nFictional Alpha,alpha@example.test\n")
+    source.write_text("Student Name,Email\nFictional Alpha,alpha@example.test\n", encoding="utf-8")
     module.registry_bound_export(source, target, registry, root / "shared.py")
-    assert "0123,0123" in target.read_text()
+    assert "0123,0123" in target.read_text(encoding="utf-8")
 
 
 def test_formula_and_value_readers_use_captured_source_bytes(files, monkeypatch):
@@ -445,7 +450,7 @@ def test_formula_and_value_readers_use_captured_source_bytes(files, monkeypatch)
 def test_input_changed_while_staging_is_held(files, monkeypatch, changed_input):
     root, roster = files
     source, target = root / "source.csv", root / "archive.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
     original_fsync = module.os.fsync
 
     def change_after_flush(fd):
@@ -464,7 +469,7 @@ def test_input_changed_while_staging_is_held(files, monkeypatch, changed_input):
 def test_private_output_binding_is_rechecked_before_publish(files, monkeypatch, change):
     root, roster = files
     source = root / "source.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
     directory = root / "archive"
     directory.mkdir(mode=0o700)
     target = directory / "copy.csv"
@@ -501,7 +506,7 @@ def test_private_output_binding_is_rechecked_before_publish(files, monkeypatch, 
 def test_after_publication_failure_is_explicitly_uncertain(files, monkeypatch, failure):
     root, roster = files
     source, target = root / "source.csv", root / "archive.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
     original_unlink, original_fsync, original_link = (
         module.os.unlink,
         module.os.fsync,
@@ -530,7 +535,7 @@ def test_after_publication_failure_is_explicitly_uncertain(files, monkeypatch, f
         module.ExportPublicationUncertain, match="ARCHIVE_PUBLICATION_UNCERTAIN"
     ):
         module.sanitize_export(source, roster, target)
-    assert "0123,75" in target.read_text()
+    assert "0123,75" in target.read_text(encoding="utf-8")
     assert target.stat().st_mode & 0o077 == 0
 
 
@@ -607,7 +612,7 @@ def test_cli_distinguishes_uncertain_publication_from_validation_hold(
 def test_temporary_replacement_is_not_published_or_deleted(files, monkeypatch):
     root, roster = files
     source, target = root / "source.csv", root / "archive.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
     original_fsync = module.os.fsync
     replaced = []
 
@@ -628,7 +633,7 @@ def test_temporary_replacement_is_not_published_or_deleted(files, monkeypatch):
 def test_concurrent_output_creation_is_preserved(files, monkeypatch):
     root, roster = files
     source, target = root / "source.csv", root / "archive.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
     original_fsync = module.os.fsync
 
     def create_after_flush(fd):
@@ -646,7 +651,8 @@ def test_malformed_csv_is_held_without_collapsing_rows(files):
     root, roster = files
     source, target = root / "source.csv", root / "archive.csv"
     source.write_text(
-        'Student Name,Grade,Note\nFictional Alpha,75,"unterminated\nFictional Beta,80,second row\n'
+        'Student Name,Grade,Note\nFictional Alpha,75,"unterminated\nFictional Beta,80,second row\n',
+        encoding="utf-8",
     )
     with pytest.raises(module.ExportHeld, match="CSV_INVALID"):
         module.sanitize_export(source, roster, target)
@@ -660,10 +666,11 @@ def test_valid_multiline_csv_preserves_rows_and_values(files):
     root, roster = files
     source, target = root / "source.csv", root / "archive.csv"
     source.write_text(
-        'Student Name,Grade,Note\nFictional Alpha,75,"first\nsecond"\nFictional Beta,80,third\n'
+        'Student Name,Grade,Note\nFictional Alpha,75,"first\nsecond"\nFictional Beta,80,third\n',
+        encoding="utf-8",
     )
     result = module.sanitize_export(source, roster, target)
-    with target.open(newline="") as handle:
+    with target.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.reader(handle, strict=True))
     assert rows[1:] == [["0123", "75", "first\nsecond"], ["0456", "80", "third"]]
     assert result["identity_rows_replaced"] == 2
@@ -703,7 +710,7 @@ def test_directory_moves_during_link_are_reported_as_publication_uncertain(
 ):
     root, roster = files
     source = root / "source.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
     directory = root / "archive"
     directory.mkdir(mode=0o700)
     target = directory / "copy.csv"
@@ -720,7 +727,7 @@ def test_directory_moves_during_link_are_reported_as_publication_uncertain(
     ):
         module.sanitize_export(source, roster, target)
     assert not target.exists()
-    assert "0123,75" in (moved / "copy.csv").read_text()
+    assert "0123,75" in (moved / "copy.csv").read_text(encoding="utf-8")
     assert not list(moved.glob(".pin-export-*"))
 
 
@@ -732,7 +739,8 @@ def test_registry_preflight_uses_complete_renderer_without_publisher(
     source = root / ("source" + suffix)
     if suffix == ".csv":
         source.write_text(
-            "Student Name,Email,Grade\nFictional Alpha,alpha@example.test,75\n"
+            "Student Name,Email,Grade\nFictional Alpha,alpha@example.test,75\n",
+            encoding="utf-8",
         )
     else:
         source.write_bytes(roster.read_bytes())
@@ -766,7 +774,7 @@ def test_registry_preflight_uses_complete_renderer_without_publisher(
 def test_expected_source_hash_holds_before_rendering(files, monkeypatch, validate_only):
     root, roster = files
     source = root / "source.csv"
-    source.write_text("Student Name,Grade\nFictional Alpha,75\n")
+    source.write_text("Student Name,Grade\nFictional Alpha,75\n", encoding="utf-8")
 
     def forbidden(*args, **kwargs):
         raise AssertionError("changed QC bytes must not be rendered")
@@ -786,7 +794,7 @@ def test_expected_source_hash_holds_before_rendering(files, monkeypatch, validat
 def test_preflight_preserves_unknown_identity_hold(shared_authority):
     root, roster, registry, _ = shared_authority
     source = root / "source.csv"
-    source.write_text("Student Name,Email\nFictional Alpha,unknown@example.test\n")
+    source.write_text("Student Name,Email\nFictional Alpha,unknown@example.test\n", encoding="utf-8")
     before = set(root.iterdir())
     with pytest.raises(module.ExportHeld, match="UNMAPPED_IDENTITY"):
         module.registry_bound_export(
@@ -805,7 +813,7 @@ def test_preflight_rechecks_authority_after_rendering(shared_authority, monkeypa
 
     def change_authority(book, destination):
         original(book, destination)
-        registry.write_text(registry.read_text() + " ")
+        registry.write_text(registry.read_text(encoding="utf-8") + " ", encoding="utf-8")
 
     monkeypatch.setattr(Workbook, "save", change_authority)
     with pytest.raises(module.ExportHeld, match="SHARED_PIN_REGISTRY_CHANGED"):

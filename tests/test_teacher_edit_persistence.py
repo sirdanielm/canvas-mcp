@@ -72,8 +72,8 @@ def test_tampered_saved_plan_cannot_be_loaded_as_original_authority(scenario, tm
     args, _ = scenario
     store = Store(tmp_path / "private-canvas")
     plan_id, path = store.save("review", prepare_transfer(**args))
-    body = json.loads(path.read_text())
+    body = json.loads(path.read_text(encoding="utf-8"))
     body["decision"]["feedback"] = "Changed after teacher authentication"
-    path.write_text(json.dumps(body))
+    path.write_text(json.dumps(body), encoding="utf-8")
     with pytest.raises(GradebookError, match="integrity"):
         store.load("review", plan_id)

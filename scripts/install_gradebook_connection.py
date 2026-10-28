@@ -83,7 +83,7 @@ def _add_controls(config_path: Path, controls: list[str], label: str) -> str:
     entry = before.get("mcp_servers", {}).get("canvas-gradebook")
     if not isinstance(entry, dict):
         raise ValueError("Existing gradebook connection is required.")
-    template = tomllib.loads((ROOT / "config/sdm-gradebook.toml.example").read_text())[
+    template = tomllib.loads((ROOT / "config/sdm-gradebook.toml.example").read_text(encoding="utf-8"))[
         "mcp_servers"
     ]["canvas-gradebook"]
     if (
@@ -106,7 +106,7 @@ def _add_controls(config_path: Path, controls: list[str], label: str) -> str:
         return f"{label} controls already enabled; no settings changed."
     new_tools = [*enabled, *added]
     table = re.search(
-        r"(?ms)^\[mcp_servers\.canvas-gradebook\]\n.*?(?=^\[|\Z)", original.decode()
+        r"(?ms)^\[mcp_servers\.canvas-gradebook\]\r?\n.*?(?=^\[|\Z)", original.decode()
     )
     if table is None:
         raise ValueError("Cannot locate exact gradebook table.")
@@ -152,7 +152,7 @@ def _add_controls(config_path: Path, controls: list[str], label: str) -> str:
         os.replace(name, config_path)
     finally:
         Path(name).unlink(missing_ok=True)
-    check = tomllib.loads(config_path.read_text())
+    check = tomllib.loads(config_path.read_text(encoding="utf-8"))
     assert check["mcp_servers"]["canvas-gradebook"]["enabled_tools"] == new_tools
     check["mcp_servers"]["canvas-gradebook"]["enabled_tools"] = enabled
     if check != before:
@@ -169,7 +169,7 @@ def add_batch_controls(config_path: Path) -> str:
     if config_path.is_symlink():
         raise ValueError("Refusing to replace a symlinked configuration.")
     entry = (
-        tomllib.loads(config_path.read_text())
+        tomllib.loads(config_path.read_text(encoding="utf-8"))
         .get("mcp_servers", {})
         .get("canvas-gradebook", {})
     )
@@ -185,8 +185,10 @@ def install(config_path: Path, upgrade: bool = False) -> str:
         raise ValueError("Refusing to replace a symlinked configuration.")
     original = config_path.read_bytes()
     parsed = tomllib.loads(original.decode())
-    addition = (ROOT / "config" / "sdm-gradebook.toml.example").read_text()
+    addition = (ROOT / "config" / "sdm-gradebook.toml.example").read_text(encoding="utf-8")
     desired = tomllib.loads(addition)["mcp_servers"]["canvas-gradebook"]
+    newline = "\r\n" if b"\r\n" in original else "\n"
+    formatted_addition = addition.replace("\n", newline)
     existing = parsed.get("mcp_servers", {}).get("canvas-gradebook")
     if existing is not None:
         if existing == desired:
@@ -206,8 +208,8 @@ def install(config_path: Path, upgrade: bool = False) -> str:
                 "An existing canvas-gradebook connection differs; no settings changed."
             )
         updated, replacements = re.subn(
-            r"(?ms)^\[mcp_servers\.canvas-gradebook\]\n.*?(?=^\[|\Z)",
-            lambda _: addition + "\n",
+            r"(?ms)^\[mcp_servers\.canvas-gradebook\]\r?\n.*?(?=^\[|\Z)",
+            lambda _: formatted_addition + newline,
             original.decode(),
             count=1,
         )
@@ -216,7 +218,7 @@ def install(config_path: Path, upgrade: bool = False) -> str:
         replacement = updated.encode()
         parsed["mcp_servers"].pop("canvas-gradebook")
     else:
-        replacement = original + b"\n" + addition.encode()
+        replacement = original + newline.encode() + formatted_addition.encode()
     check = tomllib.loads(replacement.decode())
     check["mcp_servers"].pop("canvas-gradebook")
     if check != parsed:
@@ -244,7 +246,7 @@ def install(config_path: Path, upgrade: bool = False) -> str:
     finally:
         Path(temporary).unlink(missing_ok=True)
     if (
-        tomllib.loads(config_path.read_text())["mcp_servers"]["canvas-gradebook"]
+        tomllib.loads(config_path.read_text(encoding="utf-8"))["mcp_servers"]["canvas-gradebook"]
         != desired
     ):
         raise ValueError("Configuration readback did not match.")

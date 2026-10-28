@@ -15,7 +15,7 @@ spec.loader.exec_module(module)
 
 
 def config(tmp_path, push=False):
-    text = (ROOT / "config/sdm-gradebook.toml.example").read_text()
+    text = (ROOT / "config/sdm-gradebook.toml.example").read_text(encoding="utf-8")
     import json
     import re
 
@@ -31,16 +31,16 @@ def config(tmp_path, push=False):
         )
     text += '\n[mcp_servers.other]\ncommand = "other"\nenabled_tools = ["do_other"]\n'
     p = tmp_path / "config.toml"
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     return p
 
 
 @pytest.mark.parametrize("push", [True, False])
 def test_add_only_control_names_preserves_every_other_setting(tmp_path, push):
     p = config(tmp_path, push)
-    before = tomllib.loads(p.read_text())
+    before = tomllib.loads(p.read_text(encoding="utf-8"))
     module.add_get_controls(p)
-    after = tomllib.loads(p.read_text())
+    after = tomllib.loads(p.read_text(encoding="utf-8"))
     old = before["mcp_servers"]["canvas-gradebook"]["enabled_tools"]
     assert (
         after["mcp_servers"]["canvas-gradebook"]["enabled_tools"]
@@ -67,14 +67,14 @@ def test_add_get_controls_preserves_existing_independent_comment_gate(tmp_path, 
     import json
 
     p = config(tmp_path)
-    text = p.read_text().replace(
+    text = p.read_text(encoding="utf-8").replace(
         'sdm_gradebook_launcher.py"]',
         'sdm_gradebook_launcher.py", ' + ", ".join(map(json.dumps, flags)) + "]",
     )
-    p.write_text(text)
-    before = tomllib.loads(p.read_text())
+    p.write_text(text, encoding="utf-8")
+    before = tomllib.loads(p.read_text(encoding="utf-8"))
     module.add_get_controls(p)
-    after = tomllib.loads(p.read_text())
+    after = tomllib.loads(p.read_text(encoding="utf-8"))
     enabled = before["mcp_servers"]["canvas-gradebook"]["enabled_tools"]
     assert after["mcp_servers"]["canvas-gradebook"]["enabled_tools"] == (
         enabled + module.GET_CONTROLS
@@ -86,7 +86,9 @@ def test_add_get_controls_preserves_existing_independent_comment_gate(tmp_path, 
 def test_repeated_action_flags_are_held_without_config_changes(tmp_path):
     p = config(tmp_path, push=True)
     p.write_text(
-        p.read_text().replace('"--enable-push"]', '"--enable-push", "--enable-push"]')
+        p.read_text(encoding="utf-8").replace(
+            '"--enable-push"]', '"--enable-push", "--enable-push"]'
+        ), encoding="utf-8",
     )
     original = p.read_bytes()
     with pytest.raises(ValueError):
@@ -98,7 +100,7 @@ def test_repeated_action_flags_are_held_without_config_changes(tmp_path):
 @pytest.mark.parametrize("change", ["command", "cwd", "args", "duplicates"])
 def test_unrecognized_binding_holds_without_replacement(tmp_path, change):
     p = config(tmp_path)
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     if change == "command":
         text = text.replace(".venv/bin/python", "other/python")
     elif change == "cwd":
@@ -113,7 +115,7 @@ def test_unrecognized_binding_holds_without_replacement(tmp_path, change):
             'enabled_tools = ["get_canvas_gradebook", "get_canvas_gradebook",',
             1,
         )
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     old = p.read_bytes()
     with pytest.raises(ValueError):
         module.add_get_controls(p)
@@ -133,7 +135,7 @@ def test_old_read_only_default_upgrades_to_protected_get_without_push(tmp_path):
     with pytest.raises(ValueError):
         module.install(p)
     module.install(p, upgrade=True)
-    entry = tomllib.loads(p.read_text())["mcp_servers"]["canvas-gradebook"]
+    entry = tomllib.loads(p.read_text(encoding="utf-8"))["mcp_servers"]["canvas-gradebook"]
     assert set(module.GET_CONTROLS) <= set(entry["enabled_tools"])
     assert "prepare_gradebook_refresh" not in entry["enabled_tools"]
     assert "confirm_gradebook_push" not in entry["enabled_tools"]
@@ -151,11 +153,11 @@ def test_default_upgrade_refuses_customized_push_profile(tmp_path):
 def test_known_previous_timeout_upgrades_without_changing_action_gates(tmp_path):
     p = config(tmp_path)
     module.install(p, upgrade=True)
-    old = p.read_text().replace("tool_timeout_sec = 300", "tool_timeout_sec = 180")
-    p.write_text(old)
-    before = tomllib.loads(p.read_text())
+    old = p.read_text(encoding="utf-8").replace("tool_timeout_sec = 300", "tool_timeout_sec = 180")
+    p.write_text(old, encoding="utf-8")
+    before = tomllib.loads(p.read_text(encoding="utf-8"))
     module.install(p, upgrade=True)
-    after = tomllib.loads(p.read_text())
+    after = tomllib.loads(p.read_text(encoding="utf-8"))
     assert after["mcp_servers"]["canvas-gradebook"]["tool_timeout_sec"] == 300
     after["mcp_servers"]["canvas-gradebook"]["tool_timeout_sec"] = 180
     assert after == before
@@ -175,16 +177,16 @@ def test_batch_controls_preserve_channels_and_unrelated_configuration(tmp_path, 
     import json
 
     p = config(tmp_path)
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     if flags:
         text = text.replace(
             'sdm_gradebook_launcher.py"]',
             'sdm_gradebook_launcher.py", ' + ", ".join(map(json.dumps, flags)) + "]",
         )
-    p.write_text(text)
-    before = tomllib.loads(p.read_text())
+    p.write_text(text, encoding="utf-8")
+    before = tomllib.loads(p.read_text(encoding="utf-8"))
     module.add_batch_controls(p)
-    after = tomllib.loads(p.read_text())
+    after = tomllib.loads(p.read_text(encoding="utf-8"))
     tools = after["mcp_servers"]["canvas-gradebook"]["enabled_tools"]
     assert set(module.BATCH_REVIEW_TOOLS) <= set(tools)
     enabled = "--enable-push" in flags or "--enable-comments" in flags

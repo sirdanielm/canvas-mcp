@@ -58,7 +58,7 @@ async def test_sparse_review_retains_old_conflict_context_and_fetches_once(
     assert "assignment_id" not in json.dumps(result)
     assert (
         "Private fictional helper"
-        not in (store.root / ("review-" + result["review_id"] + ".html")).read_text()
+        not in (store.root / ("review-" + result["review_id"] + ".html")).read_text(encoding="utf-8")
     )
 
 

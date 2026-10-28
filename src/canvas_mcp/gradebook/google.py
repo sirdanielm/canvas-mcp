@@ -33,14 +33,17 @@ WRITE_SCOPES = {
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/drive.file",
 }
+READ_SCOPES = {"https://www.googleapis.com/auth/spreadsheets.readonly", "https://www.googleapis.com/auth/drive.readonly"}
 GRADE_SHEETS = frozenset({"Core GET", "Adv GET", "Core Edit", "Adv Edit"})
+# Legacy native proofs retain complete protection objects, including editors
+# and descriptions. Capture them unchanged, preserving provider omissions.
 METADATA_FIELDS = (
-    "spreadsheetId,developerMetadata,"
-    "sheets(properties,protectedRanges,conditionalFormats,basicFilter)"
+    "spreadsheetId,developerMetadata,namedRanges,"
+    "sheets(properties,merges,protectedRanges,conditionalFormats,basicFilter)"
 )
 WORKBOOK_FIELDS = (
-    "spreadsheetId,developerMetadata,"
-    "sheets(properties,protectedRanges,conditionalFormats,basicFilter,"
+    "spreadsheetId,developerMetadata,namedRanges,"
+    "sheets(properties,merges,protectedRanges,conditionalFormats,basicFilter,"
     "data(startRow,startColumn,rowMetadata,columnMetadata,"
     "rowData(values(userEnteredValue,userEnteredFormat,note,dataValidation))))"
 )
@@ -111,6 +114,7 @@ class GoogleSheets:
         profile: str = "gradebook",
         transport: httpx.AsyncBaseTransport | None = None,
         *,
+        read_only: bool = False,
         max_grade_rows: int = 1000,
         max_grade_columns: int = 258,
         max_reference_cells: int = 50_000,
@@ -160,6 +164,9 @@ class GoogleSheets:
             for name, limit in (sheet_cell_limits or {}).items()
         ):
             raise GradebookError("Google sheet limits are invalid.")
+        if type(read_only) is not bool:
+            raise GradebookError("Google read-only mode must be explicit boolean.")
+        self.read_only = read_only
         self.workbook_id = workbook_id
         self.diagnostics = Diagnostics()
         self.url = f"https://sheets.googleapis.com/v4/spreadsheets/{workbook_id}"
@@ -218,6 +225,8 @@ class GoogleSheets:
         byte_limit: int | None = None,
         read_budget: _ReadBudget | None = None,
     ) -> tuple[int, dict[str, Any]]:
+        if self.read_only and method != "GET" and url == self.url + ":batchUpdate":
+            raise GradebookError("Read-only Google transport refuses batch writes.")
         allowed = {
             ("POST", TOKEN_URL),
             ("GET", TOKEN_INFO_URL),
@@ -411,11 +420,11 @@ class GoogleSheets:
                 audience = info.get("aud", info.get("issued_to"))
                 if audience is not None and audience != self._credential["client_id"]:
                     raise GradebookError("Google OAuth token audience did not match.")
-            if not isinstance(scope, str) or not WRITE_SCOPES.intersection(
-                scope.split()
-            ):
+            accepted_scopes = WRITE_SCOPES | READ_SCOPES if self.read_only else WRITE_SCOPES
+            if not isinstance(scope, str) or not accepted_scopes.intersection(scope.split()):
+                kind = "read" if self.read_only else "write"
                 raise GradebookError(
-                    "Google OAuth lacks a supported Sheets write scope (SCOPE_INSUFFICIENT)."
+                    f"Google OAuth lacks a supported Sheets {kind} scope (SCOPE_INSUFFICIENT)."
                 )
             self._access_token = access
             self._expires_at = time.monotonic() + expires - 60
@@ -501,6 +510,7 @@ class GoogleSheets:
     ) -> dict[str, Any]:
         result = await self._get({"fields": METADATA_FIELDS}, read_budget=_read_budget)
         self._sheets(result)
+        self._named_ranges(result)
         self._validated_token = self._access_token
         return result
 
@@ -525,41 +535,69 @@ class GoogleSheets:
             self._validated_token = None
             raise
 
+
+    @staticmethod
+    def _annotation_equal(left: Any, right: Any) -> bool:
+        # bool/number and omitted/empty are different native metadata facts.
+        try:
+            return json.dumps(left, sort_keys=True, allow_nan=False) == json.dumps(
+                right, sort_keys=True, allow_nan=False
+            )
+        except (TypeError, ValueError):
+            raise GradebookError("Google returned invalid annotation values.") from None
+
+    @staticmethod
+    def _named_ranges(raw: dict[str, Any]) -> list[dict[str, Any]] | None:
+        # Omitted is unknown, distinct from an actually returned empty array.
+        if "namedRanges" not in raw:
+            return None
+        value = raw["namedRanges"]
+        if not isinstance(value, list) or any(not isinstance(v, dict) for v in value):
+            raise GradebookError("Google returned invalid named ranges.")
+        return copy.deepcopy(value)
+
+    @classmethod
+    def _named_ranges_subset(cls, raw: dict[str, Any], expected: dict[str, Any]) -> bool:
+        actual, known = cls._named_ranges(raw), cls._named_ranges(expected)
+        if actual is None:
+            return True  # A range-limited response cannot certify the full set.
+        if known is None:
+            return False
+        remaining = iter(known)
+        return all(any(cls._annotation_equal(item, prior) for prior in remaining) for item in actual)
+
     @staticmethod
     def _header(sheet: dict[str, Any]) -> dict[str, Any]:
         result = {"properties": sheet["properties"]}
-        for key in ("protectedRanges", "conditionalFormats", "basicFilter"):
-            value = sheet.get(key, {} if key == "basicFilter" else [])
+        for key in ("protectedRanges", "merges", "conditionalFormats", "basicFilter"):
+            if key not in sheet:
+                continue  # Preserve omission; never manufacture empty metadata.
+            value = sheet[key]
             if (key == "basicFilter" and not isinstance(value, dict)) or (
-                key != "basicFilter"
-                and (
-                    not isinstance(value, list)
-                    or any(not isinstance(item, dict) for item in value)
-                )
+                key != "basicFilter" and (not isinstance(value, list)
+                or any(not isinstance(item, dict) for item in value))
             ):
                 raise GradebookError("Google returned invalid sheet-level metadata.")
-            result[key] = value
+            result[key] = copy.deepcopy(value)
         return result
 
     @classmethod
-    def _chunk_header_matches(
-        cls, sheet: dict[str, Any], expected: dict[str, Any]
-    ) -> bool:
+    def _chunk_header_matches(cls, sheet: dict[str, Any], expected: dict[str, Any]) -> bool:
         actual = cls._header(sheet)
         if actual["properties"] != expected["properties"]:
             return False
-        # Sheets filters range-related metadata in a range-limited response.
-        # Retain complete headers from the bracketing, unrestricted reads;
-        # any metadata returned here must still be an exact, ordered subset.
-        for key in ("protectedRanges", "conditionalFormats"):
+        # Range responses may filter annotations. Full bracketing metadata owns
+        # completeness; every returned annotation must match its ordered subset.
+        for key in ("protectedRanges", "merges", "conditionalFormats"):
+            if key not in actual:
+                continue
+            if key not in expected:
+                return False
             remaining = iter(expected[key])
             for item in actual[key]:
-                if not any(item == known for known in remaining):
+                if not any(cls._annotation_equal(item, known) for known in remaining):
                     return False
-        return (
-            not actual["basicFilter"]
-            or actual["basicFilter"] == expected["basicFilter"]
-        )
+        return not actual.get("basicFilter") or actual["basicFilter"] == expected.get("basicFilter")
 
     def _rectangles(
         self, inventory: dict[int, dict[str, Any]]
@@ -694,6 +732,8 @@ class GoogleSheets:
                 read_budget=budget,
             )
             inventory = self._sheets(part)
+            if not self._named_ranges_subset(part, initial):
+                raise GradebookError("Google named ranges changed between chunks.")
             if sid not in inventory or any(
                 key not in before or value != before[key]
                 for key, value in inventory.items()
@@ -721,8 +761,9 @@ class GoogleSheets:
         final = await self.metadata(_read_budget=budget)
         if (
             self._sheets(final) != before
-            or {s["properties"]["sheetId"]: self._header(s) for s in final["sheets"]}
-            != headers
+            or not self._annotation_equal(self._named_ranges(final), self._named_ranges(initial))
+            or not self._annotation_equal(
+                {s["properties"]["sheetId"]: self._header(s) for s in final["sheets"]}, headers)
         ):
             raise GradebookError(
                 "Google sheet metadata changed during read; workbook retained."
@@ -736,6 +777,8 @@ class GoogleSheets:
         return result
 
     def _batch_payload(self, requests: list[dict[str, Any]]) -> dict[str, Any]:
+        if self.read_only:
+            raise GradebookError("Read-only Google transport refuses batch writes.")
         if (
             not isinstance(requests, list)
             or not requests
@@ -771,6 +814,8 @@ class GoogleSheets:
         return await self._send_batch(self._batch_payload(requests))
 
     async def _send_batch(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if self.read_only:
+            raise GradebookError("Read-only Google transport refuses batch writes.")
         if (
             not self._authorized
             or not self._access_token
