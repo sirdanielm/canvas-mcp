@@ -1,13 +1,14 @@
 # Canvas MCP
 
-> Canvas MCP is an open-source Model Context Protocol (MCP) server that bridges AI assistants with Canvas Learning Management System (LMS). It defines up to 103 tools for students, educators, and developers; the all-role default registers 98 before operator write restrictions, and role, write and feature gates can reduce availability. It is designed for MCP-compatible clients and includes optional privacy controls for FERPA-conscious workflows.
+> Canvas MCP is an open-source Model Context Protocol (MCP) server that bridges AI assistants with Canvas Learning Management System (LMS). This SDM fork defines up to 128 MCP tools in the main server for students, educators, and developers; role, operator write policy and feature gates determine availability. The separate gradebook server and local course mirror have their own contracts. It is designed for MCP-compatible clients and includes optional privacy controls for FERPA-conscious workflows.
 
 Canvas MCP enables AI assistants to query courses, assignments, grades, discussions, and more through the Canvas API. Its code execution API can process bulk operations locally without loading every item into the model's context.
 
 ## Key Features
 
+- Latest release: v1.16.0 (upstream; MIT license). Fork source updates do not establish an installed package or deployment.
 - Natural language interface for Canvas LMS
-- Up to 103 MCP tools, subject to role, write and feature gates
+- Up to 128 MCP tools, subject to role, operator write policy and feature gates
 - 8 reusable agent skills (workflow recipes) installable into 40+ agents via skills.sh
 - Optional student identity anonymization
 - Code execution API for bulk grading and operations
@@ -21,11 +22,19 @@ Canvas MCP enables AI assistants to query courses, assignments, grades, discussi
 - [Learning Designer Guide](https://canvas-mcp.illinihunt.org/learning-designer-guide.html): Course structure audits, accessibility scanning, and module building
 - [Code API / Bulk Grading](https://canvas-mcp.illinihunt.org/bulk-grading.html): Developer documentation for the code execution API
 
+## SDM workflows
+
+- [Gradebook GET/EDIT workflow](sdm-gradebook-workflow.md): Preserve teacher edits and require separate exact approval before Canvas delivery
+- [Course mirror](course-mirror.md): Private content captures, offline comparison and proposals
+- [Student PIN policy](STUDENT-PIN-POLICY.md): Registry-bound private local student copies
+
 ## Source Code
+
+- [SDM fork](https://github.com/sirdanielm/canvas-mcp): Maintained authoring and gradebook integration
 
 - [GitHub Repository](https://github.com/vishalsachdev/canvas-mcp): Full source code, issues, and contributions
 - [PyPI Package](https://pypi.org/project/canvas-mcp/): Python package installation via pip
-- [MCP Server Registry](https://github.com/modelcontextprotocol/servers): Listed in the official MCP server registry
+- [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.vishalsachdev/canvas-mcp): Listed in the official MCP Registry as `io.github.vishalsachdev/canvas-mcp`
 
 ## Tool Categories
 
@@ -39,7 +48,7 @@ Canvas MCP provides tools in these categories:
 - Modules: list_modules, create_module, update_module, delete_module
 - Pages: list_pages, create_page, edit_page_content, get_page_content
 - Rubrics: list_rubrics, get_rubric, create_rubric, associate_rubric, grade_with_rubric
-- Student self-service: get_my_upcoming_assignments, get_my_course_grades, get_my_todo_items, get_my_peer_reviews_todo
+- Student self-service: get_my_upcoming_assignments, get_my_course_grades, get_my_todo_items, get_my_peer_reviews_todo, list_quizzes, get_quiz_details
 
 ## Use Cases
 

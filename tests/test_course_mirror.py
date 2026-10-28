@@ -70,7 +70,7 @@ async def test_capture_qc_and_audit(tmp_path):
     assert audit(snapshot)["counts"]["core"]["assignments"] == 1
     manifest = read_json(snapshot / "manifest.json")
     assert all(x["method"] == "GET" for x in manifest["entries"])
-    assert "synthetic-secret" not in (snapshot / "manifest.json").read_text()
+    assert "synthetic-secret" not in (snapshot / "manifest.json").read_text(encoding="utf-8")
     assert (snapshot / "manifest.json").stat().st_mode & 0o077 == 0
 
 
@@ -234,7 +234,7 @@ async def test_module_count_race_stops_capture(tmp_path):
 async def test_hash_and_manifest_scope_tampering_detected(tmp_path):
     snapshot = await make_snapshot(tmp_path)
     path = snapshot / "core/objects/assignments.json"
-    path.write_text("[]")
+    path.write_text("[]", encoding="utf-8")
     assert "HASH_MISMATCH" in verify(snapshot)["errors"]
     manifest = read_json(snapshot / "manifest.json")
     manifest["entries"] = [x for x in manifest["entries"] if x["key"] != "assignments"]

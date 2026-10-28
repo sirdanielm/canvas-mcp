@@ -11,7 +11,14 @@ permissions:
 jobs:
   claude-review:
     # Draft implementation work has no authorization for paid model review.
-    if: github.event.pull_request.draft == false
+    # Fork and Dependabot PR runs do not receive the Actions review secret.
+    # Application and security CI still run; skipped reviews need a separate
+    # maintainer review. Keep the unprivileged pull_request event.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,7 +43,7 @@ jobs:
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@756cc22e19660d20e8cc9496b4f242475a7f7790 # v1
+        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |

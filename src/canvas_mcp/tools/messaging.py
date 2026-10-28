@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.client import make_canvas_request
+from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     UNTRUSTED_NOTICE,
@@ -314,6 +315,10 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
         """
         List conversations for the current user.
 
+        Returns one page of the inbox (Canvas's default page size). `returned`
+        is how many conversations are in this response; `more_available` is
+        true when Canvas reported further pages that were not fetched.
+
         Args:
             scope: "unread", "starred", "sent", "archived", or "all"
             filter_ids: Conversation IDs to filter by
@@ -337,30 +342,68 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
                 params["filter[]"] = filter_ids
                 params["filter_mode"] = filter_mode
 
-            response = await make_canvas_request("get", "/conversations", params=params)
+            # One page on purpose: the inbox can be large, so the data read per
+            # call stays bounded. The next-link flag is reported instead of
+            # followed, so a partial page is never presented as the whole
+            # inbox (issue 420).
+            pagination: dict[str, str | None] = {}
+            response = await make_canvas_request(
+                "get", "/conversations", params=params, _pagination=pagination
+            )
+            more_available = bool(pagination.get("next"))
 
             if "error" in response:
                 error_response: dict[str, Any] = response
                 return error_response
 
+            # With include_all_conversation_ids, Canvas wraps the page in an
+            # object: {"conversations": [...], "conversation_ids": [...]}.
+            # Unwrap it so counting and fencing see the conversations.
+            conversation_ids: list[Any] | None = None
+            if isinstance(response, dict):
+                conversations = response.get("conversations")
+                ids = response.get("conversation_ids")
+                if isinstance(ids, list):
+                    conversation_ids = ids
+            else:
+                conversations = response
+            if not isinstance(conversations, list):
+                return {"error": "Unexpected response shape from Canvas for /conversations"}
+
             # Subjects and last-message previews are authored by whoever wrote
             # to the inbox (issue 239): fence them.
-            if isinstance(response, list):
-                for conversation in response:
+            for conversation in conversations:
+                if isinstance(conversation, dict):
                     _fence_conversation_fields(conversation)
 
-            return {
+            returned = len(conversations)
+            result: dict[str, Any] = {
                 "success": True,
                 "untrusted_content_notice": UNTRUSTED_NOTICE,
-                "conversations": response,
-                "count": len(response) if isinstance(response, list) else 0
+                "conversations": conversations,
+                "count": returned,
+                "returned": returned,
+                "more_available": more_available,
             }
+            if conversation_ids is not None:
+                # Canvas returns every matching ID here, not just this page's,
+                # so the total is knowable in this mode.
+                result["conversation_ids"] = conversation_ids
+                result["total"] = len(conversation_ids)
+            if more_available:
+                result["note"] = (
+                    f"Showing the first {returned} conversations; Canvas has more. "
+                    "Narrow with scope or filter_ids to see others."
+                )
+            return result
 
         except Exception as e:
             print(f"Error listing conversations: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to list conversations: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_conversation_details(
         conversation_id: str | int,
@@ -945,11 +988,14 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         """
 
         try:
-            # First, get peer review completion analytics using the Canvas API
-            from ..core.cache import get_course_id
+            # Resolve once for analytics, message composition, confirmation,
+            # and Canvas's numeric course context.
+            from ..core.cache import resolve_numeric_course_id
             from ..core.peer_reviews import PeerReviewAnalyzer
 
-            course_id = await get_course_id(course_identifier)
+            course_id, course_error = await resolve_numeric_course_id(course_identifier)
+            if course_id is None:
+                return {"error": course_error, "nothing_sent": True}
             analyzer = PeerReviewAnalyzer()
 
             analytics_result = await analyzer.get_completion_analytics(
@@ -1021,8 +1067,11 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
             composed_batches: list[dict[str, Any]] = []
             for label, ids, message, prefix in batch_specs:
+                # course_id, not course_identifier: _compose_reminder builds
+                # /courses/<x>/assignments/<id> from it, and Canvas only accepts
+                # a numeric id there. The raw course code would 404.
                 composed = await _compose_reminder(
-                    course_identifier, assignment_id, message, True, prefix
+                    course_id, assignment_id, message, True, prefix
                 )
                 if isinstance(composed, dict):
                     return composed
@@ -1062,6 +1111,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             if composed_batches:
                 fingerprint = _CAMPAIGN_GUARD.fingerprint(
                     str(course_identifier),
+                    course_id,
                     str(assignment_id),
                     json.dumps(sorted(urgent_ids)),
                     json.dumps(sorted(partial_ids)),
@@ -1110,13 +1160,13 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             # between the token check and the POST.
             for batch in composed_batches:
                 batch_result = await _post_conversation(
-                    course_identifier,
+                    course_id,
                     batch["recipient_ids"],
                     batch["subject"],
                     batch["body"],
                     group_conversation=True,
                     bulk_message=True,
-                    context_code=f"course_{course_identifier}",
+                    context_code=f"course_{course_id}",
                     mode="sync",
                     force_new=False,
                     attachment_ids=None,

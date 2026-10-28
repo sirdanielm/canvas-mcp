@@ -58,7 +58,7 @@ def test_malformed_or_inconsistent_coverage_holds_privately(field, value):
 
 def save(root, kind, value):
     artifact = desktop.digest(value)
-    (root / f"{kind}-{artifact}.json").write_text(json.dumps(value))
+    (root / f"{kind}-{artifact}.json").write_text(json.dumps(value), encoding="utf-8")
     return artifact
 
 
@@ -100,7 +100,7 @@ def test_receipt_tampering_or_another_request_cannot_report_success(tmp_path):
         desktop.verified_summary(tmp_path, BINDINGS,
                                  "11111111-2222-4333-8444-555555555555", op)
     path = tmp_path / f"receipt-{op['payload']['receipt_id']}.json"
-    path.write_text(path.read_text().replace('"canvas_writes": 0', '"canvas_writes": 1'))
+    path.write_text(path.read_text(encoding="utf-8").replace('"canvas_writes": 0', '"canvas_writes": 1'), encoding="utf-8")
     with pytest.raises(desktop.DesktopHold):
         desktop.verified_summary(tmp_path, BINDINGS, RID, op)
 
@@ -217,7 +217,7 @@ async def test_private_review_reads_once_and_invokes_only_preview_helpers(tmp_pa
         assert raw == {"fictional": "private source"}
         assert binding == BINDINGS[course]
         path = store.root / f"review-{course}.html"
-        path.write_text("Private fictional review")
+        path.write_text("Private fictional review", encoding="utf-8")
         return {"canvas_writes": 0, "changes": 1, "counts": {"review_required": 1},
                 "review_file": str(path), "names": "never expose", "coverage": coverage()}
     helper.prepare_review = prepare_review

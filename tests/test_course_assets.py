@@ -56,7 +56,7 @@ async def test_redirect_does_not_forward_token_and_bytes_verify(tmp_path):
     assert receipt["files"][0]["id"] == "17"
     assert receipt["files"][0]["size"] == 5
     assert (target / "core/files/17/content.bin").read_bytes() == b"hello"
-    assert "synthetic-secret" not in (target / "assets-manifest.json").read_text()
+    assert "synthetic-secret" not in (target / "assets-manifest.json").read_text(encoding="utf-8")
     assert len(seen) == 2
 
 
@@ -266,7 +266,7 @@ async def test_only_verified_three_host_chain_reaches_final_storage(tmp_path):
     assert len(seen) == 3
     assert (
         "synthetic-signed-token"
-        not in (tmp_path / "assets/assets-manifest.json").read_text()
+        not in (tmp_path / "assets/assets-manifest.json").read_text(encoding="utf-8")
     )
 
 

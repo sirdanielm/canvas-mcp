@@ -5,6 +5,14 @@ and separately authorized Canvas delivery. See [goals and status](goals-and-stat
 for current capabilities and next work. Source availability,
 local installation, teacher approval and verified delivery are different states.
 
+The general Canvas MCP supports Windows. This fork's separate local gradebook
+worker/publisher requires POSIX file locks and private filesystem semantics;
+its configured launcher and Desktop controls also require macOS Keychain.
+Windows CI retains portable model, workbook and PIN logic, and explicitly reports
+unsupported local-capability skips. The complete local-operation safety suite
+runs on Linux. Windows support for these local gradebook and private-archive
+operations remains unimplemented.
+
 ## Everyday use
 
 | Surface | What is available |

@@ -39,7 +39,28 @@ FORBIDDEN_WRITE_SCOPES = {"contents", "pull-requests", "packages", "actions",
 
 
 def _load(path: Path) -> dict:
-    return yaml.safe_load(path.read_text())
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+class TestClaudeReviewSecretBoundary:
+    def test_review_runs_only_in_secret_eligible_pr_contexts(self):
+        """Drafts stay unpaid; forks and Dependabot never require the review secret."""
+        job = _load(WORKFLOWS / "claude-code-review.yml")["jobs"]["claude-review"]
+        condition = " ".join(str(job.get("if", "")).split())
+        assert condition == (
+            "github.event.pull_request.draft == false && "
+            "github.event.pull_request.head.repo.full_name == github.repository && "
+            "github.actor != 'dependabot[bot]' && "
+            "github.event.pull_request.user.login != 'dependabot[bot]'"
+        ), "review must exclude drafts, forks, Dependabot actors and Dependabot-authored PRs"
+
+    def test_review_keeps_unprivileged_pull_request_trigger(self):
+        """Do not expose secrets by checking out fork code in a privileged event."""
+        workflow = _load(WORKFLOWS / "claude-code-review.yml")
+        # PyYAML's YAML 1.1 loader reads the unquoted Actions 'on' key as True.
+        events = workflow.get("on", workflow.get(True, {}))
+        assert set(events) == {"pull_request"}
+        assert events["pull_request"]["types"] == ["opened", "synchronize"]
 
 
 @pytest.mark.skipif(not AI_WORKFLOW.exists(), reason="workflow not present")
@@ -60,7 +81,7 @@ class TestWeeklyMaintenancePermissions:
 
     def test_issues_write_is_still_granted(self):
         """The job must remain able to do its one job."""
-        job = _load(AI_WORKFLOW)["jobs"]["maintenance"]
+        job = _load(AI_WORKFLOW)["jobs"]["publish-report"]
         assert job.get("permissions", {}).get("issues") == "write"
 
     def test_gh_is_not_unrestricted(self):
@@ -73,11 +94,11 @@ class TestWeeklyMaintenancePermissions:
             "Bash(gh:*) permits any GitHub mutation the token allows, including "
             "`gh api` against arbitrary endpoints"
         )
-        assert "gh issue create" in args, "the job still needs to file its report"
+        assert "gh issue create" not in args, "the model must not publish arbitrary local files"
 
     def test_untrusted_input_is_framed_as_data(self):
         """The prompt should tell the model that fetched content is not instructions."""
-        text = AI_WORKFLOW.read_text().lower()
+        text = AI_WORKFLOW.read_text(encoding="utf-8").lower()
         assert "untrusted" in text, (
             "the prompt does not mark issue/web content as untrusted data"
         )
@@ -124,7 +145,8 @@ class TestNoWorkflowReintroducesUnrestrictedGh:
             "  j:\n"
             "    steps:\n"
             "      - with:\n"
-            '          claude_args: \'--allowed-tools "Bash(gh:*),Read"\'\n'
+            '          claude_args: \'--allowed-tools "Bash(gh:*),Read"\'\n',
+            encoding="utf-8",
         )
         assert any("Bash(gh:*)" in arg for arg in _tool_args_in(sample))
 
@@ -151,3 +173,42 @@ class TestWorkflowPermissions:
             assert job.get("permissions", {}).get("contents") == "read", (
                 f"{workflow_name}:{job_name} should declare least-privilege checkout permissions"
             )
+
+
+class TestInteractiveClaudeBoundary:
+    def test_only_human_collaborator_mentions_reach_the_agent(self):
+        """Removing any sender/association gate exposes a write token to outsiders."""
+        job = _load(WORKFLOWS / "claude.yml")["jobs"]["claude"]
+        condition = " ".join(job["if"].split())
+        branches = []
+        for event, payload in [
+            ("issue_comment", "comment"),
+            ("pull_request_review_comment", "comment"),
+            ("pull_request_review", "review"),
+            ("issues", "issue"),
+        ]:
+            mention = f"contains(github.event.{payload}.body, '@claude')"
+            if event == "issues":
+                mention = f"({mention} || contains(github.event.issue.title, '@claude'))"
+            branches.append(
+                f"(github.event_name == '{event}' && "
+                "contains(fromJSON('[\"OWNER\",\"MEMBER\",\"COLLABORATOR\"]'), "
+                f"github.event.{payload}.author_association) && {mention})"
+            )
+        # Exact grouping matters: an extra OR must not bypass the human gate.
+        assert condition == (
+            "github.event.sender.type == 'User' && "
+            "!endsWith(github.actor, '[bot]') && ( " + " || ".join(branches) + " )"
+        )
+        agent = next(s for s in job["steps"] if "claude-code-action@" in s.get("uses", ""))
+        assert not agent["with"].get("allowed_non_write_users")
+        assert not agent["with"].get("allowed_bots")
+
+    def test_reply_permissions_are_explicit_and_bounded(self):
+        job = _load(WORKFLOWS / "claude.yml")["jobs"]["claude"]
+        assert job["permissions"] == {
+            "contents": "read", "pull-requests": "write",
+            "issues": "write", "actions": "read",
+        }
+        checkout = next(s for s in job["steps"] if "actions/checkout@" in s.get("uses", ""))
+        assert checkout["with"]["persist-credentials"] is False

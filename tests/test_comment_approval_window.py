@@ -140,7 +140,7 @@ async def test_extended_window_keeps_exact_source_binding(
     preview = await prepared_comment((publisher, state, envelope))
     clock[0] = 1900.0
     envelope["comment"] += " Changed after preview."
-    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope))
+    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope), encoding="utf-8")
     with pytest.raises(GradebookError, match="Source comment proposal changed"):
         await publisher.confirm_comment(
             "12", preview["operation_id"], preview["confirmation_token"]
@@ -154,7 +154,7 @@ async def test_registered_mcp_reports_exact_durable_extended_expiry(
 ) -> None:
     publisher, state, envelope = comment_system
     monkeypatch.setattr("canvas_mcp.gradebook.ledger.time.time", lambda: 1000.0)
-    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope))
+    (publisher.store.root / "inbox/comment.json").write_text(json.dumps(envelope), encoding="utf-8")
     server = create_server(
         publisher.client,
         publisher.store,

@@ -115,7 +115,7 @@ def private_write_bytes(path: Path, body: bytes) -> None:
 
 def read_json(path: Path) -> Any:
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise MirrorError("LOCAL_JSON_UNREADABLE") from exc
 

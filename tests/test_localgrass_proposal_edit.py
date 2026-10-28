@@ -65,7 +65,7 @@ async def test_unaccepted_pair_stages_and_reads_back_without_acceptance(
 
     def write(book, requests):
         receipts = sorted((output / digest(plan)).glob("receipt-*.json"))
-        assert json.loads(receipts[-1].read_text())["status"] == "SENDING"
+        assert json.loads(receipts[-1].read_text(encoding="utf-8"))["status"] == "SENDING"
         assert book == "fictional-book" and len(requests) == 1
         update = requests[0]["updateCells"]
         cell = update["rows"][0]["values"][0]
@@ -324,12 +324,12 @@ def test_proposal_configuration_rejects_decision_alias_and_missing_case(
 
     c, value, path, kwargs, owners = proposal_configured
     value["decision_id"] = value["result_id"]
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
     with pytest.raises(GradebookError, match="CONFIGURATION_INVALID"):
         application.load_configuration(path, kwargs()["expected_config_sha256"])
     value.pop("decision_id")
     value["result_id"] = "f" * 64
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
     factory = application.build_owner_factory(*owners(), **kwargs())
     with pytest.raises(GradebookError, match="LOCAL_EDIT_CASE_OR_CONFIG_HELD"):
         factory(c.domain.token, c.domain.csrf)

@@ -164,7 +164,7 @@ def integrated_source(tmp_path, snapshot, binding, monkeypatch, *, proposal=Fals
         }
     ]
     assignment_path = tmp_path / "existing-assignment-bindings.json"
-    assignment_path.write_text(json.dumps(assignments))
+    assignment_path.write_text(json.dumps(assignments), encoding="utf-8")
     kwargs = {
         "assignment_bindings_path": assignment_path,
         "expected_assignment_bindings_sha256": hashlib.sha256(
@@ -239,7 +239,7 @@ def test_real_cross_repo_authority_and_destination_changes_hold(integrated, chan
     elif change == "submission_time":
         context["current"]["cells"]["101:21"]["submitted_at"] = "2026-10-11T12:00:00Z"
     elif change == "target_file":
-        assignment_path.write_text("[]")
+        assignment_path.write_text("[]", encoding="utf-8")
     elif change == "source":
         domain.original.write_bytes(b"X" * domain.original.stat().st_size)
     elif change == "csrf":
@@ -393,7 +393,7 @@ async def test_existing_receipts_guard_one_native_batch_and_exact_replay(
 
     def write(book, requests):
         receipts = sorted((output / digest(plan)).glob("receipt-*.json"))
-        assert json.loads(receipts[-1].read_text())["status"] == "SENDING"
+        assert json.loads(receipts[-1].read_text(encoding="utf-8"))["status"] == "SENDING"
         assert book == "fictional-book" and len(requests) == 1
         update = requests[0]["updateCells"]
         assert update["start"] == {"sheetId": 2, "rowIndex": 5, "columnIndex": 2}
@@ -676,7 +676,7 @@ async def test_timeout_after_send_intent_retains_uncertainty_without_resend(
         )
     receipts = sorted((output / digest(plan)).glob("receipt-*.json"))
     assert (
-        json.loads(receipts[-1].read_text())["status"]
+        json.loads(receipts[-1].read_text(encoding="utf-8"))["status"]
         == "UNCERTAIN_RECONCILIATION_REQUIRED"
     )
     result = await execute_local_edit_once(

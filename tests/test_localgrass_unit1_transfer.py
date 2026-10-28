@@ -73,7 +73,7 @@ def unit1_source(tmp_path, snapshot, binding, *, proposal=False):
             }
         ]
         path = tmp_path / "reviewed-mapping.json"
-        path.write_text(json.dumps(mapping))
+        path.write_text(json.dumps(mapping), encoding="utf-8")
         store = Store(tmp_path / "canvas")
         connection_type = LocalGrAssEditConnection
         if proposal:
@@ -159,7 +159,7 @@ def test_typed_adapter_never_infers_mapping_or_converts_form_points(
 ):
     connection, context, _, mapping, path = unit1
     mapping[0][field] = value
-    path.write_text(json.dumps(mapping))
+    path.write_text(json.dumps(mapping), encoding="utf-8")
     connection.assignment_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
     with pytest.raises(GradebookError):
         connection.prepare(**context)
@@ -232,7 +232,7 @@ def percent_mapping(unit1):
     for state in (context["baseline"], context["current"]):
         state["assignments"][0]["points_possible"] = 100
     context["raw"] = initial_raw(context["baseline"], context["binding"])
-    path.write_text(json.dumps(mapping))
+    path.write_text(json.dumps(mapping), encoding="utf-8")
     connection.assignment_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
     return connection, context, domain, mapping, path
 
@@ -287,7 +287,7 @@ def test_unit1_percent_policy_uses_decimal_half_up(value, maximum, expected):
 def test_unit1_percent_map_requires_exact_form_maximum_and_policy(unit1, field, value):
     connection, context, _, mapping, path = percent_mapping(unit1)
     mapping[0][field] = value
-    path.write_text(json.dumps(mapping))
+    path.write_text(json.dumps(mapping), encoding="utf-8")
     connection.assignment_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
     with pytest.raises(GradebookError):
         connection.prepare(**context)
@@ -297,7 +297,7 @@ def test_unit1_percent_mapping_change_invalidates_retained_plan(unit1):
     connection, context, _, mapping, path = percent_mapping(unit1)
     plan = connection.prepare(**context)
     mapping[0]["scale_policy_ref"] = "sha256:" + "e" * 64
-    path.write_text(json.dumps(mapping))
+    path.write_text(json.dumps(mapping), encoding="utf-8")
     with pytest.raises(GradebookError):
         connection.revalidate(
             plan,
@@ -348,11 +348,11 @@ def test_unit1_factory_reuses_real_acceptance_without_generic_intake(configured,
         assignment_bindings_path=str(connection.assignment_path),
         assignment_bindings_sha256=connection.assignment_sha256,
     )
-    c.config_path.write_text(json.dumps(c.config))
+    c.config_path.write_text(json.dumps(c.config), encoding="utf-8")
     value["staging_config_sha256"] = hashlib.sha256(
         c.config_path.read_bytes()
     ).hexdigest()
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
     before = domain.fx.registry.connection.total_changes
     factory = application.build_owner_factory(
         domain.review, None, c.canvas, c.google, c.store, c.journal, **kwargs()

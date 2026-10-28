@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import sys
 from decimal import Decimal
 
 import pytest
@@ -14,7 +15,6 @@ from canvas_mcp.gradebook.percent_rounding import (
     plan_percent_rounding,
     round_score_percent,
 )
-from canvas_mcp.gradebook.publish import require_simple_target
 
 KEY = "12:101:21"
 
@@ -237,7 +237,10 @@ def test_rounding_cannot_clear_the_canonical_decrease_guard(snapshot):
     assert json.loads(json.dumps(out)) == out
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Final publisher target checks belong to the POSIX local gradebook")
 def test_canonical_paper_placeholder_needs_visibility_not_a_fabricated_online_attempt():
+    from canvas_mcp.gradebook.publish import require_simple_target
+
     context = {
         "assignment": {
             "published": True,

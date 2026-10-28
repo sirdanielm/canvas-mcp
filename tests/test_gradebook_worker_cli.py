@@ -76,9 +76,9 @@ def test_configure_stable_id_private_modes_and_no_start(configured):
     ],
 )
 def test_config_rejects_unsafe_or_unknown_fields(configured, changes):
-    value = json.loads(configured.read_text())
+    value = json.loads(configured.read_text(encoding="utf-8"))
     value.update(changes)
-    configured.write_text(json.dumps(value))
+    configured.write_text(json.dumps(value), encoding="utf-8")
     with pytest.raises(GradebookError):
         cli.load_config(configured)
 
@@ -368,10 +368,15 @@ def test_main_redacts_unexpected_exception(configured, monkeypatch, capsys):
 
 def test_fresh_import_disables_dotenv_before_canvas_package_load(tmp_path):
     sentinel = tmp_path / "synthetic.env"
-    sentinel.write_text("SDM_WORKER_DOTENV_SENTINEL=must_not_load\n")
+    sentinel.write_text(
+        "SDM_WORKER_DOTENV_SENTINEL=must_not_load\nCANVAS_API_TOKEN=must_not_load\n",
+        encoding="utf-8",
+    )
     worker_script = ROOT / "scripts/sdm_gradebook_worker.py"
     # Patch the real dotenv loader before importing the worker in a clean
-    # process. Its only possible file read is this synthetic sentinel file.
+    # process. Guard the first package import independently of eager/lazy
+    # config loading, then exercise the real deferred config path as well.
+    # The patched loader can read only this synthetic sentinel file.
     code = f"""
 import importlib.util
 import os
@@ -379,6 +384,14 @@ import sys
 import dotenv
 original = dotenv.load_dotenv
 calls = []
+imports = []
+class GuardCanvasImport:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname in ('canvas_mcp', 'canvas_mcp.core.config'):
+            assert os.environ.get('PYTHON_DOTENV_DISABLED') == '1', 'dotenv disabled after package import'
+            imports.append(fullname)
+        return None
+sys.meta_path.insert(0, GuardCanvasImport())
 def guarded(*args, **kwargs):
     assert os.environ.get('PYTHON_DOTENV_DISABLED') == '1', 'dotenv disabled too late'
     calls.append(True)
@@ -388,8 +401,15 @@ spec = importlib.util.spec_from_file_location('fresh_worker_fixture', {str(worke
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
-assert calls, 'fixture did not exercise the package dotenv load'
+assert imports and imports[0] == 'canvas_mcp', 'fixture did not guard a fresh package import'
+# A lazy package need not load config when importing the worker. Its later
+# config import must still reach the guarded real loader with dotenv disabled.
+from canvas_mcp.core.config import Config
+assert 'canvas_mcp.core.config' in imports
+assert calls, 'fixture did not exercise the real config dotenv load'
 assert 'SDM_WORKER_DOTENV_SENTINEL' not in os.environ
+assert 'CANVAS_API_TOKEN' not in os.environ
+assert Config().canvas_api_token == ''
 print('dotenv import guard verified')
 """
     environment = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path)}

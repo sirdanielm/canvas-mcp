@@ -144,12 +144,12 @@ def test_install_preserves_existing_config_and_is_idempotent(tmp_path):
     spec.loader.exec_module(module)
     config = tmp_path / "config.toml"
     original = 'model = "example"\n[mcp_servers.existing]\ncommand = "existing"\n'
-    config.write_text(original)
+    config.write_text(original, encoding="utf-8")
     assert "Installed" in module.install(config)
-    content = config.read_text()
+    content = config.read_text(encoding="utf-8")
     assert content.startswith(original)
     assert "already matches" in module.install(config)
-    assert config.read_text() == content
+    assert config.read_text(encoding="utf-8") == content
     assert len(list(tmp_path.glob("config.before-gradebook-*.toml"))) == 1
 
 
@@ -162,10 +162,10 @@ def test_install_refuses_conflicting_entry(tmp_path):
     spec.loader.exec_module(module)
     config = tmp_path / "config.toml"
     original = '[mcp_servers.canvas-gradebook]\ncommand = "different"\n'
-    config.write_text(original)
+    config.write_text(original, encoding="utf-8")
     with pytest.raises(ValueError):
         module.install(config)
-    assert config.read_text() == original
+    assert config.read_text(encoding="utf-8") == original
 
 
 def test_protection_preserves_values_and_unlocks_only_grade_cells(tmp_path):
@@ -221,7 +221,7 @@ def test_gradebook_upgrade_preserves_other_tables(tmp_path):
     spec.loader.exec_module(module)
     desired = (
         Path(__file__).parents[1] / "config/sdm-gradebook.toml.example"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     before = (
         desired[: desired.index("enabled_tools = ")]
         + 'enabled_tools = ["get_canvas_gradebook", "preview_gradebook_changes"]\n'
@@ -229,12 +229,12 @@ def test_gradebook_upgrade_preserves_other_tables(tmp_path):
     prefix = 'model = "unchanged"\n[mcp_servers.existing]\ncommand = "retain"\n'
     suffix = "\n[features]\nunchanged = true\n"
     config = tmp_path / "config.toml"
-    config.write_text(prefix + before + suffix)
+    config.write_text(prefix + before + suffix, encoding="utf-8")
     with pytest.raises(ValueError):
         module.install(config)
     assert "Installed" in module.install(config, upgrade=True)
-    assert config.read_text().startswith(prefix)
-    assert config.read_text().endswith(suffix)
-    assert "request_gradebook_get_refresh" in config.read_text()
-    assert "prepare_gradebook_refresh" not in config.read_text()
-    assert "confirm_gradebook_push" not in config.read_text()
+    assert config.read_text(encoding="utf-8").startswith(prefix)
+    assert config.read_text(encoding="utf-8").endswith(suffix)
+    assert "request_gradebook_get_refresh" in config.read_text(encoding="utf-8")
+    assert "prepare_gradebook_refresh" not in config.read_text(encoding="utf-8")
+    assert "confirm_gradebook_push" not in config.read_text(encoding="utf-8")
