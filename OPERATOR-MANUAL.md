@@ -4,6 +4,8 @@ Reference edition: 27 October 2026. Verified against maintained `main` commit [`
 
 This manual is for a teacher or local operator using Canvas MCP without needing a ChatGPT conversation. It is a reference, not an agent instruction file, controller, installation receipt, or authorization to change classroom records. Commands assume the repository root and a reviewed installation. Uppercase references such as `REQUEST_UUID` are placeholders to replace with actual private operation references. All student examples below are fictional; they are explanations, not live payloads.
 
+Start here for human operation. Use the maintained [documentation map](docs/documentation-map.md) to find the current procedure, [timing table](docs/sdm-gradebook-workflow.md#timing-and-freshness) for distinct approval/freshness windows, and [worker limits](docs/gradebook-reference-limits.md) for constructor versus launcher settings. The fixed source links below retain this edition's dated verification basis; they do not establish the loaded installation or current case eligibility.
+
 ## 1. Choose the correct surface
 
 Canvas MCP contains several distinct systems. Choosing the right one prevents a content refresh from becoming a gradebook synchronization or a local draft from being mistaken for delivered feedback.

@@ -212,6 +212,9 @@ replace UUIDs, renew an uncertain operation or resend its saved batch.
 | Request/plan lifetime | Ten/five minutes; expiry holds before dispatch. |
 | Sheets grade-data send | One batch, no transport retry; durable mode and sole-send evidence precede dispatch. |
 
+The [timing table](sdm-gradebook-workflow.md#timing-and-freshness) separates
+worker freshness from publisher approval and client timeouts.
+
 Larger bounded read chunks reduce request overhead while increasing per-response
 memory; pacing trades latency for quota headroom. These are source settings,
 not proof of a running process's loaded configuration.

@@ -7,7 +7,8 @@ history, approvals, installed pins and readback receipts remain private.
 
 ## Priorities
 
-The immediate classroom priority is teacher-ready Unit 2 A-day test results.
+The current scoped work order determines priority, including any repository-only
+work. For authorized grading, the aim is teacher-ready score/feedback proposals.
 Use retained evidence and existing domain engines; resolve actual source/policy
 holds and prepare reviewable score/feedback pairs before expanding infrastructure.
 Execution and delivery use the current work order's authorization and their
@@ -40,14 +41,19 @@ match. A paper reassessment label never supplies a Canvas attempt number.
 
 | Work | Review and staging method | Final delivery |
 | --- | --- | --- |
-| Ordinary participation | Source-bound participation proposal and private analysis → local QC/review → UNAPPROVED central EDIT draft | Fresh Canvas comparison, exact teacher approval and separately gated **score-only** publication |
-| Accepted tests | Saved academic result and full feedback → authenticated exact teacher decision → protected central EDIT transfer | Separate score and full-feedback permissions, transport histories and independent readback |
+| Formative participation | Canvas or paper/folder intake → source-bound participation proposal and private analysis → local QC/review → UNAPPROVED central EDIT draft | Fresh Canvas comparison, exact teacher approval and separately gated **score-only** publication |
+| Summative results | Canvas or paper/folder intake → literal reading → policy-bound scoring and full itemized feedback → the qualified accepted-decision or unapproved-proposal EDIT route | Separate score and full-feedback permissions, transport histories and independent readback |
 
 An ordinary draft may be staged before final teacher approval. It remains
 UNAPPROVED and supplies no Canvas publication authority. Participation analysis
 and local provenance notes are private; they are not student comments. Accepted
 test scores and full feedback derive from the same reviewed result and retain
 separate delivery evidence. Missing source or identity is a hold, never a zero.
+
+Retain supported readable feedback privately when a whole numeric total remains
+held. Do not coerce that hold into a numeric accepted-pair transfer. Feedback-only
+EDIT staging needs its own qualified route; its existence is not implied by a
+formatter, version label or the generic accepted-result bridge.
 
 ## Source and installed capability
 
@@ -57,7 +63,7 @@ separate delivery evidence. Missing source or identity is a hold, never a zero.
 | Authenticated Unit 1 decision to native EDIT | Source-accepted composition, typed owner-result adapter and exact preservation controls exist. One real case has a retained isolated-runtime qualification; that completed operation must not be replayed. |
 | Retained unapproved score/feedback pair to native EDIT | Concrete authenticated proposal sources and explicit configured owner-factory routes reuse native preservation and one-shot execution without teacher acceptance. Joined synthetic checks cover source/draft/identity/preimage drift and no replay; installation and real-case qualification remain separate. |
 | Ordinary participation receiver | Qualified locally with the existing source reader, owner, locks and history. The newer draft/provider/current-attempt implementation remains a private operational overlay pending portable source review. |
-| Proposal-preview source | Three commits remain unmerged on the existing remote review branch. That branch does not contain every private operational overlay or establish installed parity. |
+| Proposal-preview source | Retained review work does not contain every private operational overlay or establish installed parity. Verify the exact current branch/head and its remaining delta before promotion. |
 | Canvas score and comment delivery | Existing publishers have distinct approval, durable-intent and readback gates. EDIT staging and score parity do not verify feedback delivery. |
 | Older accepted-pair RELEASE prototype | Remains an offline, unconnected prototype; it is separate from the implemented native EDIT transfer. |
 
@@ -71,11 +77,11 @@ explicit authorization. See [transfer methods](teacher-edit-transfer.md),
 
 ## Next work and ownership
 
-| Order | Owner | Concrete next action and completion evidence |
+| Lane | Owner | Concrete next action and completion evidence |
 | --- | --- | --- |
-| 1 | GrAss/sdmGrAss source owners and LocalGrAss review owner | Resolve actual Unit 2 source, form/policy, page-completeness and identity holds using retained results, then present teacher-reviewable score/feedback pairs. Attachment-byte membership is not page interpretation or teacher acceptance. |
-| 2 | Canvas and LocalGrAss owners | Resume a separately authorized case from its first unfinished gate in the [restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence). Reuse valid admission and approval; retain completed canaries and uncertain histories without replay. |
-| 3 | Canvas source owner | Keep one review lane for the three unmerged proposal commits. Separate private launcher dependencies and exact owner bindings from portable source, reconcile newer operational documentation, and validate the exact candidate before promotion. |
+| Proposals | GrAss/sdmGrAss source owners and LocalGrAss review owner | Resolve actual Unit 2 source, form/policy, page-completeness and identity holds using retained results, then present teacher-reviewable score/feedback pairs. Attachment-byte membership is not page interpretation or teacher acceptance. |
+| Staging and delivery | Canvas and LocalGrAss owners | Resume a separately authorized case from its first unfinished gate in the [restart sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence). Reuse valid admission and approval; retain completed canaries and uncertain histories without replay. |
+| Source review | Canvas source owner | Keep one source review lane. Separate private launcher dependencies and exact owner bindings from portable source, reconcile current documentation, and validate the exact candidate before promotion. |
 
 Canvas owns exact targets, observations, transport and installed Canvas bindings.
 LocalGrAss owns shared review/workbench tools. Domain owners retain academic
@@ -96,6 +102,13 @@ resource. Within an authorized bounded task, eligible Sheet projection and
 ordinary UNAPPROVED EDIT drafts do not need a new project confirmation merely to
 advance a stage. Teacher acceptance, mandatory tool confirmations and the
 current paid/publication limits remain effective.
+
+Retain separate evidence for source revision, installed owner/pin, real-case
+qualification, teacher decision, EDIT readback, score outcome and comment
+outcome. A dated case qualification covers its bound case, not current service
+liveness or a rollout. The sole EDIT owner reconciles locks and original history
+before another send, preserving manual Student Info fields, catalog names,
+teacher notes, accepted results and completed transfers.
 
 Use the [documentation map](documentation-map.md) to select a procedure and
 [repository maintenance](repository-maintenance.md) before source or checkout

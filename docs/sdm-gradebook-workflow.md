@@ -66,6 +66,30 @@ renumber or recycle a PIN. Missing or conflicting joins remain held. See the
 [Student PIN policy](STUDENT-PIN-POLICY.md); originals and private crosswalks stay
 outside Git and public reports.
 
+## Timing and freshness
+
+These are separate source contracts, not one universal permission window:
+
+| Mechanism | Source behavior | Boundary |
+| --- | --- | --- |
+| General MCP confirmation | Default 300 seconds | Process/request-bound; a token is not human approval. |
+| Legacy score preview | 600 seconds; at most 25 changes | Exact review, one-use confirmation and fresh target checks. |
+| Legacy comment preview | Default 600; configurable integer 600–1800 seconds | Future previews only; retain each existing operation's expiry. |
+| Immutable score/comment batch grant | Default 7200; bounded to 600–28800 seconds | Bound to the exact manifest; chunk dispatch still checks source, target and grant. |
+| Worker request / refresh plan | 600 / 300 seconds | Admission/dispatch freshness, not publication approval. |
+| GET-only READY | No more than 90 seconds old in GET_ONLY | Readiness is not finalized completion. |
+| Client or transport timeout | Specific to the client/transport | Neither approval expiry nor proof an interrupted write was unsent. |
+
+See the [publisher ledger](../src/canvas_mcp/gradebook/ledger.py),
+[batch publisher](../src/canvas_mcp/gradebook/batch_publish.py),
+[general confirmation](../src/canvas_mcp/core/write_confirmation.py) and
+[worker](../src/canvas_mcp/gradebook/worker.py) for those distinct contracts.
+Preserve original history on expiry and determine whether anything could have
+been sent. Reconcile possible sends through that operation's read-only recovery;
+prepare a fresh preview only when the original history permits it. Never edit
+expiry or clear claims to bypass uncertainty. A source setting or requested
+change does not establish loaded configuration.
+
 ## Available tools
 
 These belong to the separate gradebook connection, rather than the general

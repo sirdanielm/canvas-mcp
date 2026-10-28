@@ -7,6 +7,10 @@ has joined synthetic coverage and retains separate installation qualification.
 The ordinary participation receiver is a qualified private overlay awaiting
 portable source review. Inspect the [capability table](goals-and-status.md#source-and-installed-capability)
 before selecting a route. These staging routes grant no Canvas publication authority.
+Match every case to its exact source, installed binding and retained readback;
+an earlier successful transfer does not qualify a changed adapter or a new case.
+Reuse valid unchanged implementation qualification while performing each case's
+source, target, attempt and preimage checks; do not repeat a completed live canary.
 The [current agenda](goals-and-status.md#next-work-and-ownership) owns next work;
 this page owns procedures and their gates.
 

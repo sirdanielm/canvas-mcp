@@ -7,10 +7,19 @@ counts allocated rows multiplied by allocated columns, including empty cells;
 it is neither a student count nor a limit on grades.
 
 All other reference sheets retain the default 50,000-cell cap. A smaller named
-override remains effective. Grade-sheet row/column limits, the aggregate
-1,000,000-cell cap, 10,000-cell chunks, request/time/response-byte budgets and
-complete native-field verification remain enforced. No oversized input is
-silently truncated or partially accepted.
+override remains effective. The reusable
+[`GoogleSheets` constructor](../src/canvas_mcp/gradebook/google.py) defaults to
+10,000 allocated cells per chunk and 1.1-second pacing. The
+[`google_client` worker factory](../scripts/sdm_gradebook_worker.py) explicitly
+selects 100,000 cells per chunk and 5.0-second pacing with the named override.
+
+Grade-sheet row/column limits, the aggregate 1,000,000-cell cap, 20 MB per
+response, 80 MB cumulative response data, 200 chunks and 180-second whole-read
+limit remain enforced. Decimal response-byte bounds are not Python memory
+guarantees. Larger chunks reduce request/pacing overhead but increase
+per-response memory; allocated shape, response density and latency determine
+whether a capture fits. No oversized input is silently truncated or partially
+accepted. Source values do not prove a loaded process uses those settings.
 
 Nine synthetic cases cover the worker factory, 58,000 accepted, 58,001 rejected,
 default and exact-name behavior, smaller overrides and retained aggregate/grade

@@ -1585,7 +1585,7 @@ Get a prioritized list of students needing follow-up on peer review completion.
 - `assignment_id`: Assignment ID
 - `priority_filter` (optional): `urgent`, `medium`, `low`, or `all` (default: all)
 - `include_contact_info` (optional): Include email addresses (default: false)
-- `days_threshold` (optional): Days since assignment for urgency calculation (default: 3)
+- `days_threshold` (optional, default: 3): Copied into reported `days_since_assigned`; it is not measured age or an urgency cutoff. Priority is based on completion status.
 
 **Example:**
 ```
