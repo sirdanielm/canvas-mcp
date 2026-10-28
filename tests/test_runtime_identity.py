@@ -82,7 +82,7 @@ def normal_fictional_leaf():
         root = Path(directory).resolve()
         name = "portability_leaf_" + root.name
         relative = name + ".py"
-        (root / relative).write_text("def probe():\n    return 7\n")
+        (root / relative).write_text("def probe():\n    return 7\n", encoding="utf-8")
         original_path = list(sys.path)
         try:
             sys.path.insert(0, str(root))
@@ -123,10 +123,10 @@ class IdentityTests(unittest.TestCase):
         self.loaded = {self.module_name: self.module}
         self.metadata = self.root / helper._DIST_REL
         self.metadata.parent.mkdir(parents=True)
-        self.metadata.write_text("Metadata-Version: 2.4\nName: canvas-mcp\nVersion: 1.16.0\n\nFICTIONAL DESCRIPTION\n")
+        self.metadata.write_text("Metadata-Version: 2.4\nName: canvas-mcp\nVersion: 1.16.0\n\nFICTIONAL DESCRIPTION\n", encoding="utf-8")
 
     def load(self, source):
-        self.file.write_text(source)
+        self.file.write_text(source, encoding="utf-8")
         module = types.ModuleType(self.module_name)
         module.__file__ = str(self.file)
         module.__spec__ = importlib.machinery.ModuleSpec(self.module_name, None, origin=str(self.file))
@@ -143,7 +143,7 @@ class IdentityTests(unittest.TestCase):
     @requires_safe_filesystem()
     def test_loaded_code_and_later_disk_bytes_are_distinct(self):
         before = self.target()
-        self.file.write_text("def probe():\n    return 'FICTIONAL_NEW'\n")
+        self.file.write_text("def probe():\n    return 'FICTIONAL_NEW'\n", encoding="utf-8")
         after = self.target()
         self.assertEqual(before["loaded_code_sha256"], after["loaded_code_sha256"])
         self.assertNotEqual(before["disk_source_sha256"], after["disk_source_sha256"])
@@ -237,7 +237,7 @@ class IdentityTests(unittest.TestCase):
     @requires_safe_filesystem(symlink=True)
     def test_symlink_file_rejected(self):
         other = self.root / "other.py"
-        other.write_text("FICTIONAL OTHER")
+        other.write_text("FICTIONAL OTHER", encoding="utf-8")
         self.file.unlink()
         self.file.symlink_to(other)
         self.assertEqual(self.target()["status"], "UNKNOWN")
@@ -271,7 +271,7 @@ class IdentityTests(unittest.TestCase):
             raw = original_read(fd, count)
             if os.fstat(fd).st_ino == inode and not changed:
                 changed = True
-                self.file.write_text("FICTIONAL RACE\n")
+                self.file.write_text("FICTIONAL RACE\n", encoding="utf-8")
             return raw
 
         with mock.patch.object(helper.os, "read", side_effect=racing_read):
@@ -636,9 +636,14 @@ class IntegrationTests(unittest.TestCase):
         def track(name, globals=None, locals=None, fromlist=(), level=0):
             observed.append((name, level))
             return normal_import(name, globals, locals, fromlist, level)
-        with mock.patch("builtins.__import__", side_effect=track), \
-             mock.patch.object(os, "getenv", side_effect=AssertionError("environment read")):
-            wire = asyncio.run(tool())
+        async def invoke_with_import_spy():
+            # Event-loop setup may import platform stdlib modules (for example
+            # Windows _socket). Observe the diagnostic body after loop setup.
+            with mock.patch("builtins.__import__", side_effect=track), \
+                 mock.patch.object(os, "getenv", side_effect=AssertionError("environment read")):
+                return await tool()
+
+        wire = asyncio.run(invoke_with_import_spy())
         self.assertEqual(observed, [("runtime_identity", 2)])
         for text in (str(self.root), "/Users/", "FICTIONAL_PRIVATE", "co_code", "co_consts"):
             self.assertNotIn(text, wire)

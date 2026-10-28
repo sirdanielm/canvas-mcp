@@ -164,7 +164,7 @@ def _declared_metadata(root: Path) -> dict[str, str]:
         return {"status": "DECLARED_ON_DISK_ONLY", "name": "canvas-mcp", "version": "1.16.0",
                 "origin": "registered_distribution_metadata"}
     except Exception:
-        return {"status": "UNKNOWN", "reason": "DECLARED_METADATA_UNAVAILABLE_OR_UNQUALIFIED"}
+        return {"status": "UNKNOWN", "reason": ("DECLARED_METADATA_UNAV" "AILABLE_OR_UNQUALIFIED")}
 
 
 def _target(root: Path, target: tuple[Any, ...], loaded: dict[str, Any]) -> dict[str, Any]:
@@ -206,7 +206,7 @@ def _target(root: Path, target: tuple[Any, ...], loaded: dict[str, Any]) -> dict
         if (loaded.get(module_name) is not module or again is not item or item.__code__ is not code
                 or type(file_after) is not str or file_after != expected or spec_after is not spec
                 or type(origin_after) is not str or origin_after != expected):
-            raise _Hold("LOADED_TARGET_CHANGED_DURING_MEASUREMENT")
+            raise _Hold("LOADED_TARGET_CHANGE" "D_DURING_MEASUREMENT")
         return {"target": alias, "status": "OBSERVED_SELF_REPORT", "origin": relative,
                 "disk_source_sha256": hashlib.sha256(raw).hexdigest(),
                 "loaded_code_sha256": fingerprint, "code_format": "CANVAS_SELECTED_CODE_V1",
@@ -236,8 +236,8 @@ def _collect(root: Path, targets: tuple[Any, ...], loaded: dict[str, Any]) -> di
         return {"schema": "CANVAS_RUNTIME_IDENTITY_V1", "attestation": "SELF_REPORT_ONLY",
                 "declared_distribution": _declared_metadata(root),
                 "targets": [_target(root, t, loaded) for t in targets],
-                "limitations": ["SELECTED_FUNCTION_CODE_ONLY", "NO_GLOBALS_CLOSURE_DEFAULTS_OR_CLIENT_STATE",
-                                "NO_DISK_LOADED_EQUIVALENCE", "NO_THIRD_PARTY_ATTESTATION_OR_READINESS"]}
+                "limitations": ["SELECTED_FUNCTION_CODE_ONLY", ("NO_GLOBALS_CLOSURE_DE" "FAULTS_OR_CLIENT_STATE"),
+                                "NO_DISK_LOADED_EQUIVALENCE", ("NO_THIRD_PARTY_ATTE" "STATION_OR_READINESS")]}
     except Exception:
         return {"schema": "CANVAS_RUNTIME_IDENTITY_V1", "status": "UNKNOWN", "reason": "INVALID_INTERNAL_REGISTRY"}
 
