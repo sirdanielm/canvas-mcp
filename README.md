@@ -15,7 +15,7 @@ with separately enabled educator and student actions. This is the SDM fork of
 [Vishal Sachdev's Canvas MCP](https://github.com/vishalsachdev/canvas-mcp).
 Available tools depend on Canvas permissions, role, operator allowlists and feature
 flags. The main MCP server, local gradebook worker and course mirror are separate
-interfaces. The main-server source defines **up to 128 tools** and
+interfaces. The main-server source defines **up to 129 tools** and
 **8 agent skills**; operator and feature gates determine actual availability.
 
 ## Current goals
@@ -77,8 +77,8 @@ configuration. Do not include tokens or student records in a support report.
 <a id="available-tools"></a>
 <a id="for-ai-agents"></a>
 
-The main server provides **up to 128 tools**. Its default all-role profile
-registers fewer, and optional feature-gated tools can raise the total to 128;
+The main server provides **up to 129 tools**. Its default all-role profile
+registers fewer, and optional feature-gated tools can raise the total to 129;
 operator write restrictions can reduce availability. Students can inspect their
 own work; educators can inspect course work and use explicitly enabled
 grading/content tools. Learning-design tools cover course

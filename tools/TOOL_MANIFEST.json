@@ -1150,6 +1150,17 @@
       "notes": "Optional guards (issue 419): expect_body_sha256, find/replace on message, require. Any guard makes the tool fetch the topic first, refuse on a failed check without writing, and read it back after: confirmed only if the stored message equals the expected message (whole body, whitespace-normalized HTML) and every other requested field reads back as sent, otherwise reported unconfirmed, with old and new body SHA-256. Omitting every guard parameter leaves the call unchanged."
     },
     {
+      "name": "get_runtime_identity",
+      "category": "developer",
+      "description": "Report bounded, self-reported software identity; separate declared version, current disk hashes and selected already-loaded function-code fingerprints",
+      "parameters": [],
+      "returns": "JSON text with schema CANVAS_RUNTIME_IDENTITY_V1, SELF_REPORT_ONLY attestation, declared_distribution, up to three fixed targets and limitations; unavailable or unqualified evidence returns fixed UNKNOWN reasons",
+      "examples": [
+        "Which selected software functions does this connection report as loaded?"
+      ],
+      "notes": "Zero arguments; read_only_hint=True and explicit Effect.READ. Shared registration makes it available in student, educator and all general-server profiles, including enforced read-only transports. Discloses fixed software identifiers, version metadata, relative software origins and hashes; no absolute private paths, credentials, account/connection details, config, student data, source or bytecode. Optional targets are inspected only if already loaded. No disk-loaded equivalence, third-party attestation or authorization/readiness claim. Dedicated canvas-gradebook server excluded. Source availability does not prove installation or deployment."
+    },
+    {
       "name": "search_canvas_tools",
       "category": "developer",
       "description": "Search registered MCP tools AND Canvas code API operations by keyword",

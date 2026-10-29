@@ -41,9 +41,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # 51 tools by default (student + shared), 62 with every student write tool enabled
-CANVAS_ROLE=educator   # 96 tools by default, 98 with every gated tool enabled
-CANVAS_ROLE=all        # Default profile; 115 tools by default, 128 with all feature-gated tools enabled
+CANVAS_ROLE=student    # 52 tools by default (student + shared), 63 with every student write tool enabled
+CANVAS_ROLE=educator   # 97 tools by default, 99 with every gated tool enabled
+CANVAS_ROLE=all        # Default profile; 116 tools by default, 129 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -549,6 +549,32 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 4. **Validation (422):** Check parameter types and required fields
 
 ## Tool Discovery
+
+### Software Identity Diagnostic
+
+If `get_runtime_identity` is available on the intended authenticated general-server
+connection, its empty argument object `{}` requests bounded software metadata only.
+Use it for a separately authorized identity check; source documentation, discovery
+listing and SOURCE_PASS do not themselves authorize a live call or prove adoption.
+
+It is read-only in all three general-server bundles: `student` (shared plus student
+tools), `educator` (shared plus educator tools), and `all` (both, the default).
+It remains available under enforced read-only transport policy. Existing account
+permissions, authentication and write protections are unchanged; READ tool names
+must not be placed in `ALLOWED_WRITE_TOOLS`. The dedicated gradebook server is
+excluded, even if an optional already-loaded gradebook target can be measured in
+the invoking general-server process.
+
+The JSON text separates `declared_distribution` metadata, each target's current
+`disk_source_sha256`, and selected `loaded_code_sha256`. It includes fixed software
+aliases and relative origins, version metadata, fixed status/reason codes and
+`disk_loaded_equivalence: NOT_ATTESTED`. Absent optional modules, missing filesystem
+safeguards or unqualified evidence remain UNKNOWN; do not import targets, invent
+selectors, retry through another route, or interpret UNKNOWN as a matching version.
+No absolute private path, source/bytecode/constants, environment/configuration,
+credentials, account/connection details, student data or grades are exported.
+Self-report is not third-party attestation, permission, whole-process equivalence,
+grade readiness or runtime readiness. See the [full contract](runtime-identity-contract.md).
 
 ### Runtime Discovery
 Use the `search_canvas_tools` MCP tool to find both registered MCP tools
