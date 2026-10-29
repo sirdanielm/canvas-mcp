@@ -8,9 +8,62 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+
+
+def _write_asset_plan(
+    output: Path, roots: tuple[Path, ...], report: dict[str, Any]
+) -> None:
+    """Write one new private report through no-follow directory descriptors."""
+    from canvas_mcp.mirror.asset_plan import _secure_open_available
+    from canvas_mcp.mirror.core import MirrorError, encoded
+
+    if not _secure_open_available():
+        raise MirrorError("ASSET_PLAN_SECURE_OPEN_UNAVAILABLE")
+    absolute = output.absolute()
+    if ".." in output.parts or any(
+        path.is_symlink() for path in (absolute, *absolute.parents)
+    ):
+        raise MirrorError("ASSET_PLAN_OUTPUT_HELD")
+    if absolute.exists() or any(
+        absolute.is_relative_to(root.absolute())
+        or absolute.resolve().is_relative_to(root.resolve())
+        for root in roots
+    ):
+        raise MirrorError("ASSET_PLAN_OUTPUT_HELD")
+    directory = os.open(absolute.anchor, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for component in absolute.parts[1:-1]:
+            try:
+                os.mkdir(component, mode=0o700, dir_fd=directory)
+            except FileExistsError:
+                # The no-follow directory open below validates existing entries.
+                pass
+            child = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=directory,
+            )
+            os.close(directory)
+            directory = child
+        descriptor = os.open(
+            absolute.name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=directory,
+        )
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encoded(report))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.fsync(directory)
+    except OSError as exc:
+        raise MirrorError("ASSET_PLAN_OUTPUT_HELD") from exc
+    finally:
+        os.close(directory)
 
 
 def main() -> int:
@@ -95,6 +148,14 @@ def main() -> int:
     )
     assets_verify.add_argument("destination", type=Path)
     assets_verify.add_argument("snapshot", type=Path)
+    assets_plan = sub.add_parser(
+        "assets-plan",
+        help="Plan offline from complete pinned captures; never downloads",
+    )
+    assets_plan.add_argument("baseline_snapshot", type=Path)
+    assets_plan.add_argument("baseline_assets", type=Path)
+    assets_plan.add_argument("current_snapshot", type=Path)
+    assets_plan.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     os.umask(0o077)
     try:
@@ -156,10 +217,41 @@ def main() -> int:
             from canvas_mcp.mirror.assets import verify_assets
 
             result = verify_assets(args.destination, args.snapshot)
+        elif args.command == "assets-plan":
+            from canvas_mcp.mirror.asset_plan import plan_asset_refresh
+
+            result = plan_asset_refresh(
+                baseline_snapshot=args.baseline_snapshot,
+                baseline_assets=args.baseline_assets,
+                current_snapshot=args.current_snapshot,
+            )
+            _write_asset_plan(
+                args.output,
+                (args.baseline_snapshot, args.baseline_assets, args.current_snapshot),
+                result,
+            )
         else:
             result = check_proposal(args.snapshot, args.proposal)
-        if getattr(args, "output", None) and args.command != "stage-description":
+        if getattr(args, "output", None) and args.command not in {
+            "stage-description",
+            "assets-plan",
+        }:
             private_write(args.output, result)
+        if args.command == "assets-plan":
+            result = {
+                key: result[key]
+                for key in (
+                    "ok",
+                    "status",
+                    "counts",
+                    "bytes",
+                    "source_admission",
+                    "download_authorized",
+                    "network_requests",
+                    "canvas_writes",
+                    "google_writes",
+                )
+            }
         if args.command == "links":
             result = {k: v for k, v in result.items() if k != "links"}
         if args.command == "repo-diff":

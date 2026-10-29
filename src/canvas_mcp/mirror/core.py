@@ -13,6 +13,7 @@ import os
 import re
 import uuid
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from pathlib import Path
@@ -113,9 +114,16 @@ def private_write_bytes(path: Path, body: bytes) -> None:
         os.fsync(stream.fileno())
 
 
-def read_json(path: Path) -> Any:
+def read_json(
+    path: Path, *, read_bytes: Callable[[Path], bytes] | None = None
+) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        body = (
+            path.read_text(encoding="utf-8")
+            if read_bytes is None
+            else read_bytes(path).decode("utf-8")
+        )
+        return json.loads(body)
     except (OSError, ValueError) as exc:
         raise MirrorError("LOCAL_JSON_UNREADABLE") from exc
 
@@ -354,8 +362,12 @@ def checked_path(root: Path, relative: str) -> Path:
     return target
 
 
-def verify(snapshot: Path) -> dict[str, Any]:
-    manifest = read_json(snapshot / "manifest.json")
+def verify(
+    snapshot: Path, *, read_bytes: Callable[[Path], bytes] | None = None
+) -> dict[str, Any]:
+    """Verify a capture, optionally using a caller's bounded local reader."""
+    reader = Path.read_bytes if read_bytes is None else read_bytes
+    manifest = read_json(snapshot / "manifest.json", read_bytes=read_bytes)
     errors: list[str] = []
     if not isinstance(manifest, dict):
         raise MirrorError("MANIFEST_SHAPE_INVALID")
@@ -394,7 +406,7 @@ def verify(snapshot: Path) -> dict[str, Any]:
             path = checked_path(snapshot, f"{label}/objects/{key}.json")
             if not legacy and entry.get("path") != f"{label}/objects/{key}.json":
                 raise MirrorError("ENDPOINT_PATH_MISMATCH")
-            body = path.read_bytes()
+            body = reader(path)
             if sha(body) != entry.get("sha256"):
                 raise MirrorError("HASH_MISMATCH")
             value = json.loads(body)
@@ -437,7 +449,8 @@ def verify(snapshot: Path) -> dict[str, Any]:
             ):
                 try:
                     for item in read_json(
-                        snapshot / label / "objects" / f"{base}.json"
+                        snapshot / label / "objects" / f"{base}.json",
+                        read_bytes=read_bytes,
                     ):
                         if (label, f"{prefix}/{course_id(item[field])}") not in seen:
                             errors.append("DETAIL_ENDPOINT_MISSING")
@@ -452,8 +465,10 @@ def verify(snapshot: Path) -> dict[str, Any]:
     }
 
 
-def require_valid(snapshot: Path) -> dict[str, Any]:
-    result = verify(snapshot)
+def require_valid(
+    snapshot: Path, *, read_bytes: Callable[[Path], bytes] | None = None
+) -> dict[str, Any]:
+    result = verify(snapshot, read_bytes=read_bytes)
     if not result["ok"]:
         raise MirrorError("SNAPSHOT_FAILED_QC")
     return result
