@@ -287,6 +287,58 @@ and local integrity evidence, not proof of server-side atomicity or external-lin
 completeness. A top-level completeness receipt must bind the content snapshot,
 file-assets manifest and editable derivative, and retain remaining gaps.
 
+### Plan an incremental file refresh offline
+
+```bash
+mkdir -p local_gradebooks/course_mirror/plans
+.venv/bin/python scripts/course_mirror.py assets-plan OLD_SNAPSHOT OLD_ASSETS CURRENT_SNAPSHOT --output local_gradebooks/course_mirror/plans/unique-plan.json
+```
+
+This compares two already saved, complete current-format content captures and
+the verified file-byte archive bound to the old capture. It does not contact
+Canvas or Google, load credentials, download anything or alter the inputs. The
+new plan is private, exclusive-create and must be outside all three input roots.
+Missing output directories are created privately after validation. Existing
+outputs and symlink paths are rejected. Standard output contains aggregate
+counts and byte totals only.
+
+The planner requires POSIX secure-open support on macOS/Linux. Platforms without
+the required no-follow/directory-opening capabilities stop with
+`ASSET_PLAN_SECURE_OPEN_UNAVAILABLE`; they retain the existing mirror commands.
+
+Every valid plan remains `REVIEW_REQUIRED` with `download_authorized: false` and
+source admission `NOT_ESTABLISHED`. Decisions mean:
+
+- `BASELINE_BYTES_REUSE_CANDIDATE`: the same course/file identity has verified
+  old bytes, valid revision evidence and exactly identical metadata.
+- `HOLD_METADATA_CHANGED`: any metadata differs, including timestamps or a
+  download URL. This is uncertainty about reuse, not proof that bytes changed.
+- `HOLD_VERSION_UNVERIFIED`: revision evidence cannot support
+  reuse. A file ID, byte count or MIME type alone is insufficient.
+- `NEW_IDENTITY_REVIEW_REQUIRED`: the current inventory contains a new identity;
+  the plan authorizes no fetch.
+- `OBSERVED_ABSENCE_NO_DELETE`: the identity is absent from the current inventory;
+  the plan authorizes no deletion.
+
+Malformed, legacy, incomplete, differently scoped or incorrectly pinned inputs
+stop planning. A missing, modified or symlinked baseline file also stops the
+complete-baseline comparison. An incomplete archive retained after an access
+error cannot become a retry list or imply that unvisited files are newly added.
+
+Planning retains the 100 MiB per-file and 250 MiB per-inventory byte limits.
+JSON is bounded to 16 MiB per file and 64 MiB across the inputs, with at most
+4,096 endpoint records per snapshot and 10,000 objects per endpoint/file list.
+Larger inputs require a separately reviewed capacity change.
+
+The plan pins the input manifests, preserves original download times and keeps
+the captures' observation intervals separate. Rechecking local bytes costs disk
+reads proportional to the archive size; it avoids trusting an old receipt alone.
+Exact metadata comparison can hold harmless URL changes, trading some manual
+review for stronger protection against reusing stale bytes. Captures still
+observe intervals rather than an atomic server state. No plan establishes live
+freshness, curriculum authority or teaching/grading admission. This command is
+separate from `files-get` and does not plan submission ZIPs or Google exports.
+
 The historical sources remain separate from current curriculum authority. Review
 slides and study guides may be reused through an explicit teacher choice; the
 current year's rewritten learning intentions are authoritative. Neither a clean

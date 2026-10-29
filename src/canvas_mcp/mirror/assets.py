@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -250,20 +251,28 @@ async def download_files(
     }
 
 
-def verify_assets(destination: Path, snapshot: Path) -> dict[str, Any]:
+def verify_assets(
+    destination: Path,
+    snapshot: Path,
+    *,
+    read_bytes: Callable[[Path], bytes] | None = None,
+) -> dict[str, Any]:
     """Check bytes against a separately pinned verified source inventory, offline."""
-    require_valid(snapshot)
-    source = read_json(snapshot / "manifest.json")
+    reader = Path.read_bytes if read_bytes is None else read_bytes
+    require_valid(snapshot, read_bytes=read_bytes)
+    source = read_json(snapshot / "manifest.json", read_bytes=read_bytes)
     expected = {
         (label, str(file["id"])): file
         for label in source["courses"]
-        for file in read_json(snapshot / label / "objects/files.json")
+        for file in read_json(
+            snapshot / label / "objects/files.json", read_bytes=read_bytes
+        )
     }
-    manifest = read_json(destination / "assets-manifest.json")
+    manifest = read_json(destination / "assets-manifest.json", read_bytes=read_bytes)
     errors = set()
     if (
         manifest.get("source_manifest_sha256")
-        != sha((snapshot / "manifest.json").read_bytes())
+        != sha(reader(snapshot / "manifest.json"))
         or manifest.get("source_snapshot") != snapshot.name
         or manifest.get("courses") != source["courses"]
         or manifest.get("expected_count") != len(expected)
@@ -297,9 +306,12 @@ def verify_assets(destination: Path, snapshot: Path) -> dict[str, Any]:
         ):
             errors.add("ASSET_SOURCE_PATH_MISMATCH")
         try:
-            data = checked_path(destination, entry["path"]).read_bytes()
-            metadata = checked_path(destination, entry["metadata_path"]).read_bytes()
-            value = read_json(checked_path(destination, entry["metadata_path"]))
+            data = reader(checked_path(destination, entry["path"]))
+            metadata = reader(checked_path(destination, entry["metadata_path"]))
+            value = read_json(
+                checked_path(destination, entry["metadata_path"]),
+                read_bytes=read_bytes,
+            )
             if (
                 entry.get("status") != "COMPLETE"
                 or sha(data) != entry.get("sha256")
