@@ -161,6 +161,11 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "parse_ufixit_violations": _fenced("fence_untrusted_fields"),
     "read_course_file": _fenced("fence_untrusted"),
     "scan_course_content_accessibility": _fenced("fence_untrusted_fields"),
+    "get_runtime_identity": _safe(
+        "Returns only fixed software identifiers, relative origins, declared version, "
+        "bounded hashes and fixed status/reason codes; no caller-selected targets "
+        "or Canvas-authored content. Self-report supplies no authority or readiness."
+    ),
     "search_canvas_tools": _safe(
         "Returns registered tool and bundled source metadata, not Canvas content."
     ),
