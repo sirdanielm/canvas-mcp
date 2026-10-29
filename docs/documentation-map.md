@@ -16,6 +16,7 @@ not establish current service liveness or publication authority.
 | Agent tool usage and catalog | [Tool usage](agent-usage.md), [main tool manifest](../tools/TOOL_MANIFEST.json) |
 | GET/EDIT gradebook operation | [Workflow](sdm-gradebook-workflow.md), [worker and recovery](sdm-gradebook-worker.md) |
 | Gradebook snapshots, previews and status without writer or refresh controls | [Read-only connection](gradebook-read-only-profile.md) |
+| Offline UNAPPROVED reviews of source-bound proposals | [Proposal preview](unapproved-proposal-preview.md) |
 | Accepted decisions and ordinary draft staging | [Transfer methods and restart](teacher-edit-transfer.md), [exact preservation](teacher-edit-preservation.md) |
 | Repository ownership and domain contracts | [Integration boundaries](grass-workflow-integration.md), [architecture pointer](GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md), [capture port](grass-capture-contract.md) |
 | Offline accepted-pair RELEASE prototype | [Unit 1 preview contract](unit1-pair-preview-contract.md) |
