@@ -67,7 +67,7 @@ def read_only_service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
 
         def __getattr__(self, name: str) -> Any:
             events.append("unexpected-client-access:" + name)
-            raise AssertionError("Unexpected Canvas client access")
+            raise AttributeError("Unexpected Canvas client access")
 
     monkeypatch.setattr(client_module, "GradebookClient", NoNetworkCanvas)
     launcher_path = Path(__file__).resolve().parents[1] / "scripts/sdm_gradebook_launcher.py"
