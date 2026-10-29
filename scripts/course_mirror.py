@@ -40,6 +40,7 @@ def _write_asset_plan(
             try:
                 os.mkdir(component, mode=0o700, dir_fd=directory)
             except FileExistsError:
+                # The no-follow directory open below validates existing entries.
                 pass
             child = os.open(
                 component,
