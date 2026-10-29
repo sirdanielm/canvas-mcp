@@ -8,12 +8,31 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from sdm_canvas_launcher import SERVICE, keychain, read_connection
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 COURSES = {"core": "363308", "advanced": "374070"}
+READ_ONLY_TOOLS = frozenset(
+    {
+        "get_canvas_gradebook",
+        "preview_gradebook_changes",
+        "get_gradebook_push_status",
+    }
+)
+
+
+async def apply_read_only_profile(server: FastMCP) -> None:
+    """Retain exactly the reviewed snapshot, comparison and local-status tools."""
+    for tool in await server.list_tools(run_middleware=False):
+        if tool.name not in READ_ONLY_TOOLS:
+            server.local_provider.remove_tool(tool.name)
+    surviving = {tool.name for tool in await server.list_tools(run_middleware=False)}
+    if surviving != READ_ONLY_TOOLS:
+        raise RuntimeError("The explicit read-only gradebook profile is unavailable")
 
 
 def main() -> int:
@@ -50,6 +69,11 @@ def main() -> int:
     )
     parser.add_argument("--state-dir", type=Path, default=ROOT / "local_gradebooks")
     parser.add_argument(
+        "--read-only",
+        action="store_true",
+        help="Expose only snapshot, EDIT comparison and push status; exclude worker coordination",
+    )
+    parser.add_argument(
         "--enable-push",
         action="store_true",
         help="Register the separately confirmed Canvas write tool",
@@ -66,10 +90,16 @@ def main() -> int:
         help="Future comment preview approval window (600–1800 seconds); score windows stay 600.",
     )
     args = parser.parse_args()
+    if args.read_only and (args.enable_push or args.enable_comments):
+        parser.error("--read-only cannot be combined with writer enablement")
+    if args.read_only and args.call is not None and args.call not in READ_ONLY_TOOLS:
+        parser.error("--read-only excludes this tool")
     if not 600 <= args.comment_approval_seconds <= 1800:
         parser.error("--comment-approval-seconds must be between 600 and 1800")
     # Prevent unrelated .env files from enabling features or logging identities.
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+    from sdm_canvas_launcher import SERVICE, keychain, read_connection
+
     from canvas_mcp.gradebook.client import GradebookClient, GradebookError
     from canvas_mcp.gradebook.model import summary
     from canvas_mcp.gradebook.server import create_server
@@ -107,26 +137,39 @@ def main() -> int:
 
             asyncio.run(fetch())
         else:
-            bindings = json.loads(
-                (ROOT / "config/sdm-gradebook-workbooks.json").read_text()
+            bindings = (
+                {}
+                if args.read_only
+                else json.loads(
+                    (ROOT / "config/sdm-gradebook-workbooks.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
             )
             # Optional local controller; a missing worker configuration does not
             # disable the existing standalone Canvas snapshot/review tools.
             get_control = None
-            from sdm_gradebook_worker import DEFAULT_CONFIG, google_client, load_config
-
-            if DEFAULT_CONFIG.exists():
-                config = load_config(DEFAULT_CONFIG)
-                if Path(config["state_dir"]).resolve() != store.root.resolve():
-                    raise GradebookError("Worker and MCP gradebook stores differ.")
-                from canvas_mcp.gradebook.get_refresh_control import GetRefreshControl
-
-                get_control = GetRefreshControl(
-                    lambda: google_client(config, bindings),
-                    store,
-                    bindings,
-                    config["instance_id"],
+            if not args.read_only:
+                from sdm_gradebook_worker import (
+                    DEFAULT_CONFIG,
+                    google_client,
+                    load_config,
                 )
+
+                if DEFAULT_CONFIG.exists():
+                    config = load_config(DEFAULT_CONFIG)
+                    if Path(config["state_dir"]).resolve() != store.root.resolve():
+                        raise GradebookError("Worker and MCP gradebook stores differ.")
+                    from canvas_mcp.gradebook.get_refresh_control import (
+                        GetRefreshControl,
+                    )
+
+                    get_control = GetRefreshControl(
+                        lambda: google_client(config, bindings),
+                        store,
+                        bindings,
+                        config["instance_id"],
+                    )
             server = create_server(
                 client,
                 store,
@@ -137,6 +180,8 @@ def main() -> int:
                 get_refresh_control=get_control,
                 comment_approval_seconds=args.comment_approval_seconds,
             )
+            if args.read_only:
+                asyncio.run(apply_read_only_profile(server))
             if args.call:
                 from fastmcp import Client
 

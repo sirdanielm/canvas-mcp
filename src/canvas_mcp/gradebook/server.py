@@ -372,6 +372,12 @@ def create_server(
             plan = store.load("push", operation["plan_id"])
             if (plan["course_id"], plan["origin"]) != (resolve(course), client.origin):
                 raise GradebookError("Push belongs to a different course or origin.")
+            if "owner_binding" in plan:
+                # A legacy ledger summary cannot establish the qualified
+                # source owner's outcome. This server has no owner adapter.
+                raise GradebookError(
+                    "Source-owned push status requires its qualified owner."
+                )
             return publisher.ledger.summary(operation_id)
         except GradebookError as exc:
             return {"error": str(exc)}
