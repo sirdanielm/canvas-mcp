@@ -32,8 +32,8 @@ dependencies = [
     # Security floors for OAuth signature/claim validation and DNS decompression.
     "authlib>=1.9.1,<2",
     "dnspython>=2.9.0,<3",
-    # Security floor for FastMCP/Authlib's transitive JOSE implementation.
-    "joserfc>=1.7.5,<2",
+    # GHSA-9pg5-8c7x-5hfx: reject oversized compact JWS before splitting it.
+    "joserfc>=1.7.6,<2",
     # Security floors for shared TLS trust and FastMCP trace-context parsing.
     "certifi>=2026.10.19",
     "opentelemetry-api>=1.45.1,<2",
