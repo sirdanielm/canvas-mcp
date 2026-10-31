@@ -1,30 +1,20 @@
-# Runtime identity diagnostic: source-integrated candidate
+# Runtime identity diagnostic
 
-## Disposition and approved boundary
+## Source status and operational boundary
 
-**SOURCE_INTEGRATED_CANDIDATE_NOT_ADOPTED.** This isolated five-file candidate
-adds `get_runtime_identity` to the general server discovery registration and
-explicitly classifies it as `Effect.READ`. It has not been merged, installed,
-restarted, activated, deployed or called through a real connection. Distinct
-combined-source review remains required. The earlier distinct SOURCE_PASS covers
-only the unchanged helper and its prior tests/contract, not this integration.
+`get_runtime_identity` is merged general-server source from
+[PR44](https://github.com/sirdanielm/canvas-mcp/pull/44), with an explicit
+`Effect.READ` classification. Merge and source tests do not install it, expose
+it on a client's connection, or establish current service health. The October 31
+supported-interface investigation obtained no connected diagnostic response;
+actual loaded runtime identity remains **UNKNOWN**.
 
-The human approval of October 28, 2026 at 20:20:17 UTC was given in response to
-an exact source/testing/review question disclosing all three general-server
-profiles, relative software paths, version metadata and code fingerprints.
-Approval does not expand data sharing, dedicated gradebook coverage, runtime
-operations, authentication, write access, grading, or publication authority.
-The exact approved proposal and human evidence are retained outside these public
-source files in the private review index. No private deployment locator belongs
-in this contract.
-
-The five source paths are `src/canvas_mcp/runtime_identity.py`,
-`src/canvas_mcp/tools/discovery.py`, `src/canvas_mcp/core/tool_policy.py`,
-`tests/test_runtime_identity.py`, and this document. The helper is byte-identical
-to its reviewed starting material. The registration and policy postimages match
-the exact approved proposal. Only this test file and contract change further to
-cover the actual integrated source behavior. Original application, installed,
-editable, dirty and previously frozen sources remain untouched.
+The original source/testing approval and subsequent publication covered fixed
+software metadata in all three general-server profiles. They did not expand
+sharing, account permissions, dedicated gradebook coverage, write access,
+grading or runtime operations. Private deployment bindings stay outside this
+contract. The [earlier qualification record](https://github.com/sirdanielm/canvas-mcp/blob/5f9f0ee41252556654b3c26d8c4bb0e83520543b/docs/runtime-identity-contract.md)
+retains the initial five-file stage and its dated test/review history.
 
 ## Tool, registration and audience
 
@@ -37,8 +27,8 @@ existing `search_canvas_tools` validation decorator remains unchanged.
 
 The existing registration path is `canvas_mcp.server:main` ->
 `register_all_tools` -> shared `register_discovery_tools` -> `apply_tool_policy`.
-The new name is registered before the profile branches, so the prospective tool
-surface expands for all three profiles:
+The name is registered before the profile branches, so the source includes the
+tool in all three profiles:
 
 | Profile | Application meaning |
 | --- | --- |
@@ -47,7 +37,7 @@ surface expands for all three profiles:
 | all | Default combination of both role bundles |
 
 Profiles select tool bundles; they do not confer Canvas account permissions.
-Any caller already admitted to a future adopted general-server tool surface can
+Any caller admitted to an installed general-server tool surface can
 request this fixed software metadata, including callers using student/read-only
 profiles. Existing authentication and all other tool classifications and write
 protections remain unchanged and are not qualified by this source work.
@@ -60,14 +50,14 @@ READ tool in `ALLOWED_WRITE_TOOLS` remains invalid; do not add it there. No
 resolver/filter function or existing side-effect membership changes.
 
 The dedicated `canvas_mcp.gradebook.server` entrypoint does not register discovery
-and is excluded. This candidate does not change it or provide identity for all
+and is excluded. This diagnostic does not change it or provide identity for all
 served routes/processes. Optional gradebook targets being observable only when
 already loaded is not coverage of the separate gradebook service.
 
-SDK serverInfo, initialize and discover contracts remain untouched. The accepted
+SDK serverInfo, initialize and discover contracts remain untouched. The
 application has no application-owned `server_info` handler. The SDK property may
 default to a FastMCP library version and is not Canvas package identity. This
-new tool returns a separate JSON text result; it adds no field to SDK identity.
+tool returns a separate JSON text result; it adds no field to SDK identity.
 
 ## Result contract
 
@@ -140,46 +130,25 @@ actual account permissions and whole-process readiness are outside this evidence
 `disk_loaded_equivalence` is always NOT_ATTESTED. Equal versions or hashes do not
 establish disk-to-loaded equivalence, third-party attestation, approval, case
 admission, scientific correctness, grade readiness, delivery or runtime readiness.
-Actual connected runtime/target identity remains UNKNOWN until a separately
-admitted future invocation through an existing authenticated connection.
+Actual connected runtime/target identity remains UNKNOWN without a valid
+response through the intended existing authenticated connection.
 
-## Software-only verification and remaining gates
+## Verification and use
 
-The unchanged helper reuses its prior 26 helper checks and 12 independent checks.
-Two prior unattached-wiring/policy assertions are updated for this integration.
-New focused tests call the exact registration function extracted without changing
-its body, using a labelled minimal recording implementation of the public MCP
-decorator/list/remove protocol. Signature-derived protocol schema and literal
-annotation kwargs are checked; this is not actual FastMCP-generated JSON Schema
-or live SDK serialization evidence. The existing validation collaborator is
-fictional for the pre-existing search tool; the new zero-argument tool does not
-call that collaborator.
+Repository tests cover fictional module/file cases, fail-closed filesystem
+capabilities, portable UNKNOWN results, pure tool-policy/profile behavior,
+controlled SDK registration/schema checks and mixed repository collection.
+These source tests do not inspect a live server or qualify account permissions,
+scientific results, grade delivery or whole-process readiness.
 
-The isolated helper and maintained pure policy module use normal imports in a
-fresh test-process namespace package. General-server construction wiring is
-checked through its exact extracted registration function with labelled fictional
-registration/config branch collaborators, never real configuration or clients.
-The matrix exercises the real pure resolver/filter across all three profiles,
-both transports and the disclosed policy modes. A fictional classification corpus
-checks existing READ/write/code-execution membership; it does not claim every
-profile registers every tool. Dedicated gradebook exclusion and unchanged source
-functions/classifications are checked explicitly.
+If the diagnostic is available through the intended authenticated general-server
+connection and the current task admits the read, use its empty argument object.
+Do not import optional targets, construct a fresh local application, install an
+endpoint or substitute process inspection to manufacture loaded-runtime proof.
+An unavailable tool or unqualified target remains UNKNOWN. See
+[tool usage](agent-usage.md#software-identity-diagnostic) for the calling surface.
 
-Full discovery/application imports are deliberately not executed: discovery
-imports FastMCP and application validation; validation imports logging with global
-logger setup and environment-dependent behavior. This job does not load those
-application/SDK contexts or start a server to manufacture a test result. No
-sys.modules injection, official class replacement or fake current authority is
-used. Missing-helper tests intercept only that exact import to exercise the
-fixed-error path. Prior helper fixtures remain wholly fictional.
-
-Distinct combined-source review follows this freeze. Before any later promotion,
-normal repository CI and mandatory new-tool catalog/guidance requirements must
-be addressed in a separately admitted publication scope; `tools/README.md`,
-`tools/TOOL_MANIFEST.json`, and relevant `docs/agent-usage.md` updates are outside
-this exact five-file source stage. Dynamic discovery already lists the live
-registry and needs no additional API module. No merge/publication is performed.
-The original deployment owner retains future target qualification and separately
-authorized installation/restart/activation. Source PASS or merge establishes none
-of those operations. Historical denied/uncertain communication and all academic,
-manifest-sharing, destination and grade-publication holds remain separate.
+The original deployment owner retains installation/restart/activation work.
+Keep source publication, installed binding, observed loaded code and service
+health as separate evidence. Earlier denied/uncertain operations and all
+academic, destination and publication holds retain their original scope.
