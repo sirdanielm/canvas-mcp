@@ -53,6 +53,7 @@ route requires its own actual qualification.
 | GET-only mirror | Source preserves EDIT content and original Sync baselines. Operation-specific heartbeat, finalized receipt and complete readback are required; a merge is not current worker readiness. |
 | Unit 1 decision to native EDIT | Source-accepted composition and one retained local canary. Keep its receipt; never replay that operation or treat it as Unit 2 proof. |
 | Retained unapproved score/feedback pairs | Maintained authenticated composition has joined synthetic coverage. Installation, exact-case admission and real destination readback remain separate. |
+| Offline proposal preview | The [UNAPPROVED preview library](unapproved-proposal-preview.md) retains exact source/identity/attempt bindings, lane policy and documentary holds. It constructs no client, registers no live caller and stages/publishes nothing; private adapters and installed parity remain separate. |
 | Ordinary participation receiver | Qualified private local overlay using the existing owner, locks and history; newer provider/current-attempt work is not automatically portable or deployed. |
 | Canvas score/comment publishers | Distinct approval, durable-intent and readback gates; local EDIT is not Canvas publication. |
 | Runtime identity diagnostic | Merged general-server source; dedicated gradebook server excluded. The October 31 supported-interface check obtained no live diagnostic response, so loaded service identity/health remains UNKNOWN. |
