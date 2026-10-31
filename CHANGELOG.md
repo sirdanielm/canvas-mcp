@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Raised the JOSE dependency floor and lock to `joserfc 1.7.6` for
+  [CVE-2026-119284](https://github.com/advisories/GHSA-9pg5-8c7x-5hfx),
+  which checks compact JWS size before allocating split segments. The advisory
+  database corrected its fixed-version metadata on October 30, 2026. This
+  source change does not upgrade or restart an installed server.
+
 ### SDM fork maintenance
 
 - Added immutable private GET capture receipts and a canonical permanent-PIN case port for LocalGrAss. Academic IDs remain separate from Canvas targets; original-byte admission and teacher/release authority remain separate local-core responsibilities. No grading/write permission or background service is enabled.
