@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "canvas-mcp"
-version = "1.16.0"
+version = "1.16.1"
 description = "A Model Context Protocol server for Canvas LMS integration"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -33,7 +33,7 @@ dependencies = [
     "authlib>=1.9.1,<2",
     "dnspython>=2.9.0,<3",
     # GHSA-9pg5-8c7x-5hfx: reject oversized compact JWS before splitting it.
-    "joserfc>=1.7.6,<2",
+    "joserfc>=1.7.7,<2",
     # Security floors for shared TLS trust and FastMCP trace-context parsing.
     "certifi>=2026.10.19",
     "opentelemetry-api>=1.45.1,<2",
