@@ -564,7 +564,7 @@ async def test_authentication_revoked_after_durable_intent_is_known_not_sent(
 
     def revoke(path, value):
         original_write(path, value)
-        if value.get("status") == "SENDING":
+        if isinstance(value, dict) and value.get("status") == "SENDING":
             domain.source.csrf = "revoked"
 
     monkeypatch.setattr(connection.files, "write", revoke)

@@ -18,6 +18,7 @@ SOURCE_REQUIREMENTS = {
     "canvas_mcp.gradebook.worker": "POSIX flock and owner-only refresh journal",
     "canvas_mcp.gradebook.diagnostics": "POSIX flock for private operation telemetry",
     "canvas_mcp.gradebook.google_authorize": "POSIX O_NOFOLLOW/getuid/fchmod credential protection",
+    "canvas_mcp.gradebook.unit2_private_proposed_owner": "POSIX flock and inode-bound private EDIT ownership",
     "canvas_mcp.mirror.core": "POSIX owner-only private course mirror files",
     "canvas_mcp.mirror.export_materializer": "POSIX owner-only export files and directory fsync",
 }
@@ -31,6 +32,17 @@ TEST_REQUIREMENTS = {
     "test_gradebook_get_controls_install": "macOS local connection installer and private backups",
     "test_teacher_edit_runtime": "POSIX O_NOFOLLOW/getuid immutable local runtime",
     "test_gradebook_worker_cli": "dynamically loaded POSIX refresh worker and private configuration",
+    "test_unit2_typed_capture": "POSIX O_NOFOLLOW/getuid/directory fsync typed-capture fixtures",
+    "test_unit2_manual_partial_owner": "POSIX O_NOFOLLOW/getuid immutable source-owner fixtures",
+}
+
+
+# The compatibility fixture is explicitly loaded under this package name by
+# test_reviewed_whole_private_bridge. Resolve its relative imports as Python
+# actually does, rather than treating the on-disk tests/ path as its package.
+DYNAMIC_MODULE_NAMES = {
+    Path("tests/private_proposal_predecessor.py"):
+        "canvas_mcp.gradebook.private_proposal_predecessor_fixture",
 }
 
 
@@ -42,7 +54,8 @@ def module_index(root: Path) -> dict[str, Path]:
             if parts[-1] == "__init__":
                 parts = parts[:-1]
             if parts:
-                result[".".join(parts)] = path
+                name = DYNAMIC_MODULE_NAMES.get(path.relative_to(root), ".".join(parts))
+                result[name] = path
     return result
 
 

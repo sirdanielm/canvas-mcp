@@ -4,20 +4,23 @@ from __future__ import annotations
 
 import hashlib
 import html
+import inspect
 import json
 import math
 import os
 import re
-from collections.abc import Callable
-from dataclasses import asdict
+from collections.abc import Awaitable, Callable
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any
+from functools import partial
+from typing import Any, cast
 
 import httpx
 
 from canvas_mcp.core.untrusted_content import contains_fence_markers
 
 from .client import GradebookClient, GradebookError
+from .comment_policy import inspect_body as inspect_unit2_body
 from .ledger import Ledger
 from .model import compare_edits, digest, grade_value, identifier, submission_cell
 from .store import Store
@@ -139,6 +142,7 @@ def comment_envelope(value: dict[str, Any], origin: str, course_id: str) -> None
         "WRONG_ASSIGNMENT",
         "FORMATIVE_CORRECTION",
         "UNIT1_FEEDBACK",
+        "UNIT2_FEEDBACK",
     }:
         raise GradebookError("Comment category is outside the reviewed scope.")
     if value["attempt"] is not None and (
@@ -152,10 +156,20 @@ def comment_envelope(value: dict[str, Any], origin: str, course_id: str) -> None
         or body != body.strip()
         or "\r" in body
         or contains_fence_markers(body)
+        or re.search(r"(?i)\[\[(?:END\s+)?UNIT2\s+UNAPPROVED\b", body)
     ):
         raise GradebookError(
             "Exact normalized feedback is required; provenance markers are forbidden."
         )
+
+    # Unit2 science/QC and exact transport are separate checks. This is the
+    # existing compact-format policy, not permission to grade or publish.
+    if value["category"] == "UNIT2_FEEDBACK":
+        issues = inspect_unit2_body(body)
+        if issues:
+            raise GradebookError(
+                "Unit2 compact feedback policy: " + str(issues[0]["code"])
+            )
 
 
 def parse_comment_state(
@@ -174,11 +188,38 @@ def parse_comment_state(
     )
 
 
+def _comment_timing_changes(
+    before: ExactObservation, after: ExactObservation
+) -> dict[str, dict[str, Any]]:
+    """Describe observed timing deltas, independently of readback acceptance.
+
+    Keep absent fields distinct from explicit null. These private receipt facts
+    grant no authority and do not change the comparator's permitted differences.
+    """
+    changes: dict[str, dict[str, Any]] = {}
+    for name in ("updated_at", "posted_at", "seconds_late"):
+        old, new = (value.submission_field(name) for value in (before, after))
+        if (
+            old.present != new.present
+            or type(old.value) is not type(new.value)
+            or old.value != new.value
+        ):
+            changes[name] = {
+                "before_present": old.present,
+                "before": old.value,
+                "after_present": new.present,
+                "after": new.value,
+            }
+    return changes
+
+
 async def comment_state(
     client: GradebookClient, target: CanvasTarget
 ) -> dict[str, Any]:
     root = f"{client.origin}/api/v1/courses/{target.course_id}/assignments/{target.assignment_id}"
-    assignment = await client._get(root)
+    # Upstream's checkpoint protection field is conditional on this include.
+    # An absent/null field remains unknown; requesting it supplies no default.
+    assignment = await client._get(root, [("include[]", "checkpoints")])
     submission = await client._get(
         root + "/submissions/" + target.user_id,
         [("include[]", "visibility"), ("include[]", "submission_comments")],
@@ -201,6 +242,42 @@ async def comment_state(
             "coverage_complete": True,
         },
     }
+
+
+def _comment_protection_fields(
+    target: CanvasTarget, state: dict[str, Any]
+) -> dict[str, str]:
+    """Private diagnostic labels only; never an authority or state rewrite."""
+    try:
+        observation = parse_comment_state(target, state)
+    except GradebookError:
+        return {"original_byte_parser": "REJECTED; inspect private original bodies"}
+    result: dict[str, str] = {}
+    for scope, name in (
+        ("assignment", "has_sub_assignments"),
+        ("assignment", "in_closed_grading_period"),
+        ("submission", "excused"),
+        ("submission", "in_closed_grading_period"),
+    ):
+        field = (
+            observation.assignment_field(name)
+            if scope == "assignment"
+            else observation.submission_field(name)
+        )
+        result[scope + "." + name] = (
+            "ABSENT"
+            if not field.present
+            else (
+                "PRESENT_NULL"
+                if field.value is None
+                else (
+                    "PRESENT_FALSE"
+                    if field.value is False
+                    else "PRESENT_TRUE" if field.value is True else "WRONG_TYPE"
+                )
+            )
+        )
+    return result
 
 
 def comment_spec(
@@ -360,6 +437,56 @@ class WriteRejected(GradebookError):
     """Canvas explicitly rejected this individual request."""
 
 
+class WriteHeldBeforeSend(GradebookError):
+    """An owner control refused before HTTP transmission; no request was sent."""
+
+
+@dataclass(frozen=True)
+class OwnerControls:
+    """Trusted owner callbacks, never supplied through tool arguments.
+
+    Refresh occurs before the final Canvas context GET. Synchronous controls
+    run after that GET and again immediately before the single HTTP request.
+    The immutable plan records its owner binding before creating a token.
+    bind_plan is preparation-only; the trusted owner's current checks must
+    authenticate the retained plan binding before confirmation and each send.
+    """
+
+    fresh_before_context: Callable[[str, dict[str, Any]], Awaitable[None]]
+    check_before_send: Callable[[str, dict[str, Any]], Any]
+    bind_plan: Callable[[dict[str, Any]], dict[str, Any]]
+    record_response: Callable[[str, dict[str, Any], httpx.Response], Any] | None = None
+    record_readback: Callable[[str, dict[str, Any], dict[str, Any]], Any] | None = None
+
+
+def _owner_check(controls: OwnerControls, course_id: str, item: dict[str, Any]) -> None:
+    result = controls.check_before_send(course_id, item)
+    if result is not None:
+        if inspect.iscoroutine(result):
+            result.close()
+        raise GradebookError("Owner controls must complete synchronously.")
+
+
+def _owner_controls(controls: OwnerControls | None) -> None:
+    if controls is not None and (
+        type(controls) is not OwnerControls
+        or not all(
+            callable(getattr(controls, field))
+            for field in (
+                "fresh_before_context",
+                "check_before_send",
+                "bind_plan",
+            )
+        )
+        or any(
+            getattr(controls, field) is not None
+            and not callable(getattr(controls, field))
+            for field in ("record_response", "record_readback")
+        )
+    ):
+        raise GradebookError("Trusted owner controls are invalid.")
+
+
 def target_key(origin: str, course_id: str, change: dict[str, Any]) -> str:
     return ":".join((origin, course_id, change["user_id"], change["assignment_id"]))
 
@@ -462,7 +589,12 @@ def require_simple_target(ctx: dict[str, Any], proposed: Any) -> None:
 
 
 async def put_once(
-    client: GradebookClient, course_id: str, change: dict[str, Any]
+    client: GradebookClient,
+    course_id: str,
+    change: dict[str, Any],
+    *,
+    current_control_check: Callable[[], Any] | None = None,
+    response_sink: Callable[[httpx.Response], Any] | None = None,
 ) -> None:
     """One PUT only. No grade comments, posting-policy or status changes."""
     value = grade_value(change["proposed"])
@@ -477,12 +609,127 @@ async def put_once(
         f"{client.origin}/api/v1/courses/{identifier(course_id)}/assignments/"
         f"{identifier(change['assignment_id'])}/submissions/{identifier(change['user_id'])}"
     )
+    prior_request_hooks: list[Any] = []
+    owned_http = None
+    restore_owned_state = None
+    if current_control_check is not None:
+        owned_http = client.http
+        prior_origin = client.origin
+        prior_headers = httpx.Headers(owned_http.headers)
+        prior_auth = owned_http.auth
+        prior_request_hooks = list(owned_http.event_hooks["request"])
+        prior_response_hooks = list(owned_http.event_hooks["response"])
+        prior_redirects = owned_http.follow_redirects
+
+        def restore() -> None:
+            client.http = owned_http
+            client.origin = prior_origin
+            owned_http.headers = prior_headers
+            # HTTPX accepts None here, although its setter annotation omits it.
+            cast(Any, owned_http).auth = prior_auth
+            owned_http.follow_redirects = prior_redirects
+            owned_http.event_hooks["request"] = list(prior_request_hooks)
+            owned_http.event_hooks["response"] = list(prior_response_hooks)
+
+        restore_owned_state = restore
+
+        def exact_client(expected_hooks: list[Any]) -> None:
+            if (
+                client.http is not owned_http
+                or client.origin != prior_origin
+                or owned_http.headers.raw != prior_headers.raw
+                or owned_http.auth is not prior_auth
+                or owned_http.follow_redirects is not prior_redirects
+                or owned_http.event_hooks["request"] != expected_hooks
+                or owned_http.event_hooks["response"] != prior_response_hooks
+            ):
+                raise GradebookError("Owned Canvas client changed before transmission.")
+
+        try:
+            # Owned score publication supports the canonical client without
+            # unrelated hooks/auth flows. A prior awaited hook could revoke
+            # authority after a source check, so refuse it before transmission.
+            if (
+                prior_request_hooks
+                or prior_response_hooks
+                or prior_auth is not None
+                or prior_redirects is not False
+            ):
+                raise GradebookError(
+                    "Unreviewed HTTP hooks or authentication are held."
+                )
+            # Freeze the authenticated envelope before any owner callback.
+            expected_request = owned_http.build_request("PUT", url, json=payload)
+            expected_headers = list(expected_request.headers.raw)
+            exact_client(prior_request_hooks)
+            result = current_control_check()
+            if result is not None:
+                if inspect.iscoroutine(result):
+                    result.close()
+                raise GradebookError("Owner controls must complete synchronously.")
+            exact_client(prior_request_hooks)
+        except BaseException as exc:
+            restore()
+            if not isinstance(exc, Exception):
+                raise
+            raise WriteHeldBeforeSend(
+                "Owner controls changed before transmission; no request was sent."
+            ) from exc
+
+        async def final_owned_hook(request: httpx.Request) -> None:
+            def exact_request() -> None:
+                exact_client([final_owned_hook])
+                if (
+                    request.method != "PUT"
+                    or request.url != expected_request.url
+                    or request.content != expected_request.content
+                    or request.headers.raw != expected_headers
+                ):
+                    raise GradebookError(
+                        "Owned grade request changed before transmission."
+                    )
+
+            try:
+                exact_request()
+                result = current_control_check()
+                if result is not None:
+                    if inspect.iscoroutine(result):
+                        result.close()
+                    raise GradebookError("Owner controls must complete synchronously.")
+                exact_request()
+            except Exception as exc:
+                raise WriteHeldBeforeSend(
+                    "Owner controls changed before transmission; no request was sent."
+                ) from exc
+
+        owned_http.event_hooks["request"] = [final_owned_hook]
     try:
-        response = await client.http.put(url, json=payload)
+        response = await (owned_http or client.http).put(url, json=payload)
     except httpx.HTTPError as exc:
         raise WriteUncertain(
             "Canvas write transport failed; readback required, no retry."
         ) from exc
+    finally:
+        if restore_owned_state is not None:
+            restore_owned_state()
+    if response_sink is not None:
+        try:
+            result = response_sink(response)
+            if result is not None:
+                if inspect.iscoroutine(result):
+                    result.close()
+                raise GradebookError(
+                    "Owned response evidence must be saved synchronously."
+                )
+            if owned_http is not None:
+                exact_client(prior_request_hooks)
+        except Exception as exc:
+            raise WriteUncertain(
+                "Canvas response evidence could not be saved; GET readback only."
+            ) from exc
+        finally:
+            if restore_owned_state is not None:
+                restore_owned_state()
     if response.status_code in (400, 401, 403, 404, 409, 422, 429):
         raise WriteRejected(
             f"Canvas rejected the write with HTTP {response.status_code}; no retry."
@@ -612,7 +859,10 @@ push can make grades visible under the course's existing Canvas posting policy.<
         raise GradebookError("Review file must not be a symlink.")
     try:
         with open(
-            path, "x", encoding="utf-8", opener=lambda p, flags: os.open(p, flags, 0o600)
+            path,
+            "x",
+            encoding="utf-8",
+            opener=lambda p, flags: os.open(p, flags, 0o600),
         ) as stream:
             stream.write(content)
     except FileExistsError:
@@ -640,8 +890,19 @@ class Publisher:
         self.client, self.store, self.ledger = client, store, ledger
         self.comment_approval_seconds = comment_approval_seconds
 
-    async def prepare(self, course_id: str, review_id: str) -> dict[str, Any]:
+    async def prepare(
+        self,
+        course_id: str,
+        review_id: str,
+        *,
+        owner_controls: OwnerControls | None = None,
+    ) -> dict[str, Any]:
+        _owner_controls(owner_controls)
         review = self.store.load("review", review_id)
+        if "unit1_pair_score_intent" in review and owner_controls is None:
+            raise GradebookError(
+                "This approved intent requires its source owner controls."
+            )
         baseline = self.store.load("snapshot", review["baseline_id"])
         if (baseline["course_id"], baseline["origin"]) != (
             course_id,
@@ -681,6 +942,8 @@ class Publisher:
             )
         items = []
         for change in fresh["changes"]:
+            if owner_controls is not None:
+                await owner_controls.fresh_before_context(course_id, change)
             ctx = await context(
                 self.client, course_id, change["user_id"], change["assignment_id"]
             )
@@ -690,6 +953,8 @@ class Publisher:
                     "Canvas changed during push preparation; prepare a new review."
                 )
             require_simple_target(ctx, change["proposed"])
+            if owner_controls is not None:
+                _owner_check(owner_controls, course_id, {**change, "expected": ctx})
             items.append({**change, "expected": ctx})
         plan = {
             "schema_version": 1,
@@ -700,6 +965,13 @@ class Publisher:
             "created_at": datetime.now(UTC).isoformat(),
             "items": items,
         }
+        if owner_controls is not None:
+            import copy
+
+            binding = owner_controls.bind_plan(copy.deepcopy(plan))
+            if type(binding) is not dict or not binding:
+                raise GradebookError("Owner plan binding is unavailable.")
+            plan["owner_binding"] = copy.deepcopy(binding)
         plan_id, _ = self.store.save("push", plan)
         operation_id, token = self.ledger.prepare(
             plan_id, [target_key(self.client.origin, course_id, c) for c in items]
@@ -724,13 +996,19 @@ class Publisher:
         *,
         independent_targets: bool = False,
         authorization_check: Callable[[], Any] | None = None,
+        owner_controls: OwnerControls | None = None,
     ) -> dict[str, Any]:
+        _owner_controls(owner_controls)
         operation = self.ledger.operation(operation_id)
         plan = self.store.load("push", operation["plan_id"])
         if plan.get("kind") == COMMENT_PLAN:
             raise GradebookError(
                 "Use the separately enabled comment confirmation tool."
             )
+        if "owner_binding" in plan and owner_controls is None:
+            raise GradebookError("This operation requires its source owner controls.")
+        if owner_controls is not None and "owner_binding" not in plan:
+            raise GradebookError("This operation has no immutable owner binding.")
         if (plan["course_id"], plan["origin"]) != (course_id, self.client.origin):
             raise GradebookError(
                 "Push operation belongs to a different course or origin."
@@ -778,6 +1056,8 @@ class Publisher:
                     if authorization_check is not None:
                         authorization_check()
                     try:
+                        if owner_controls is not None:
+                            await owner_controls.fresh_before_context(course_id, item)
                         live = await context(
                             self.client,
                             course_id,
@@ -801,9 +1081,36 @@ class Publisher:
                         continue
                     if authorization_check is not None:
                         authorization_check()
+                    if owner_controls is not None:
+                        _owner_check(owner_controls, course_id, item)
                     self.ledger.mark(operation_id, index, "sending")
                     try:
-                        await put_once(self.client, course_id, item)
+                        if owner_controls is None:
+                            await put_once(self.client, course_id, item)
+                        else:
+                            await put_once(
+                                self.client,
+                                course_id,
+                                item,
+                                current_control_check=partial(
+                                    _owner_check,
+                                    owner_controls,
+                                    course_id,
+                                    item,
+                                ),
+                                response_sink=(
+                                    partial(
+                                        owner_controls.record_response,
+                                        course_id,
+                                        item,
+                                    )
+                                    if owner_controls.record_response is not None
+                                    else None
+                                ),
+                            )
+                    except WriteHeldBeforeSend:
+                        self.ledger.mark(operation_id, index, "not_sent")
+                        break
                     except WriteRejected:
                         self.ledger.mark(operation_id, index, "rejected")
                         if independent_targets:
@@ -814,6 +1121,7 @@ class Publisher:
                         if independent_targets:
                             continue
                         break
+                    result: dict[str, Any] | None = None
                     try:
                         result = await context(
                             self.client,
@@ -826,6 +1134,26 @@ class Publisher:
                         if not independent_targets:
                             raise
                         verified = False
+                    if (
+                        result is not None
+                        and owner_controls is not None
+                        and owner_controls.record_readback is not None
+                    ):
+                        try:
+                            saved = owner_controls.record_readback(
+                                course_id, item, result
+                            )
+                            if saved is not None:
+                                if inspect.iscoroutine(saved):
+                                    saved.close()
+                                raise WriteUncertain(
+                                    "Canvas readback evidence could not be saved."
+                                )
+                        except Exception:
+                            self.ledger.mark(operation_id, index, "uncertain")
+                            raise WriteUncertain(
+                                "Canvas readback evidence could not be saved."
+                            ) from None
                     self.ledger.mark(
                         operation_id, index, "verified" if verified else "uncertain"
                     )
@@ -911,7 +1239,29 @@ class Publisher:
             envelope["user_id"],
         )
         state = await comment_state(self.client, target)
-        _, spec = comment_spec(target, state, envelope, author)
+        try:
+            _, spec = comment_spec(target, state, envelope, author)
+        except GradebookError as exc:
+            # Failed previews used to discard the original GETs before any
+            # plan was saved. Retain them privately, without creating a plan,
+            # token, target lock or send; expose only the immutable filename.
+            _, path = self.store.save(
+                "receipt",
+                {
+                    "kind": "GRADEBOOK_COMMENT_PREVIEW_HOLD_V1",
+                    "observed_at": datetime.now(UTC).isoformat(),
+                    "target": asdict(target),
+                    "envelope_sha256": digest(envelope),
+                    "error": str(exc),
+                    "state": state,
+                    "protection_fields": _comment_protection_fields(target, state),
+                    "canvas_writes": 0,
+                    "plan_created": False,
+                },
+            )
+            raise GradebookError(
+                str(exc) + " Private observation receipt: " + path.name + "."
+            ) from None
         plan = {
             "kind": COMMENT_PLAN,
             "schema_version": 1,
@@ -968,6 +1318,7 @@ class Publisher:
         """One explicit confirmation uses the existing durable ledger, no retries."""
         plan = self._comment_plan(course_id, operation_id)
         envelope = plan["envelope"]
+        comment_envelope(envelope, self.client.origin, course_id)
         target = CanvasTarget(
             self.client.origin,
             course_id,
@@ -1020,10 +1371,11 @@ class Publisher:
                 self.ledger.save_comment_response(operation_id, 0, cid)
                 after_state = await comment_state(self.client, target)
                 observed_at = datetime.now(UTC).isoformat()
+                after = parse_comment_state(target, after_state)
                 result = compare_comment_readback(
                     spec,
                     before,
-                    parse_comment_state(target, after_state),
+                    after,
                     publisher_author_id=plan["author"],
                     response_received=True,
                     response_comment_id=cid,
@@ -1042,6 +1394,9 @@ class Publisher:
                         "send_preflight": fresh,
                         "send_preflight_at": preflight_at,
                         "comparison_before": "send_preflight",
+                        "observed_submission_timing_changes": _comment_timing_changes(
+                            before, after
+                        ),
                         "posting_observation_window": [preflight_at, observed_at],
                         "after": after_state,
                         "comparison": asdict(result),
@@ -1099,10 +1454,11 @@ class Publisher:
                 ).isoformat(),
             )
             cid = operation["items"][0]["response_comment_id"]
+            after = parse_comment_state(target, after_state)
             result = compare_comment_readback(
                 spec,
                 before,
-                parse_comment_state(target, after_state),
+                after,
                 publisher_author_id=plan["author"],
                 response_received=cid is not None,
                 response_comment_id=cid,
@@ -1117,6 +1473,10 @@ class Publisher:
                     "delivery_id": spec.component_sha256,
                     "response_comment_id": cid,
                     "after": after_state,
+                    "comparison_before": "original_preview",
+                    "observed_submission_timing_changes": _comment_timing_changes(
+                        before, after
+                    ),
                     "posting_observation_window": list(posting_window),
                     "comparison": asdict(result),
                     "at": datetime.now(UTC).isoformat(),

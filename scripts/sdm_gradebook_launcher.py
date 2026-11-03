@@ -89,7 +89,17 @@ def main() -> int:
         default=600,
         help="Future comment preview approval window (600–1800 seconds); score windows stay 600.",
     )
+    parser.add_argument(
+        "--owner-adapter", type=Path,
+        help="Explicit private owner-policy Python file; never a tool argument",
+    )
+    parser.add_argument(
+        "--owner-adapter-sha256",
+        help="Reviewed SHA-256 pin of the exact private owner-policy source",
+    )
     args = parser.parse_args()
+    if (args.owner_adapter is None) != (args.owner_adapter_sha256 is None):
+        parser.error("--owner-adapter and --owner-adapter-sha256 are required together")
     if args.read_only and (args.enable_push or args.enable_comments):
         parser.error("--read-only cannot be combined with writer enablement")
     if args.read_only and args.call is not None and args.call not in READ_ONLY_TOOLS:
@@ -170,6 +180,15 @@ def main() -> int:
                         bindings,
                         config["instance_id"],
                     )
+            # Source publication does not adopt an operator's private policy.
+            # Missing configuration retains a source-owner hold on score sends.
+            owner_options = {}
+            if not args.read_only:
+                from canvas_mcp.gradebook.owner_config import load_owner_policy
+
+                owner_options = load_owner_policy(
+                    args.owner_adapter, args.owner_adapter_sha256
+                ).server_options()
             server = create_server(
                 client,
                 store,
@@ -177,6 +196,7 @@ def main() -> int:
                 bindings,
                 enable_push=args.enable_push,
                 enable_comments=args.enable_comments,
+                **owner_options,
                 get_refresh_control=get_control,
                 comment_approval_seconds=args.comment_approval_seconds,
             )

@@ -17,6 +17,7 @@ from collections.abc import Callable
 from typing import Any
 
 from . import native
+from .channel_policy import lane_delivery
 from .client import GradebookError
 from .model import compare_edits, digest, grade_value, identifier
 from .native_edit_review import extract_native_edits
@@ -45,7 +46,13 @@ RECORD_FIELDS = (
     "proposed_score",
     "score_scale",
 )
-OPTIONAL_RECORD_FIELDS = ("score_scale_policy_ref", "canvas_attempt_observation")
+OPTIONAL_RECORD_FIELDS = (
+    "score_scale_policy_ref",
+    "canvas_attempt_observation",
+    "source_lane",
+    "delivery_policy",
+)
+OPTIONAL_DECISION_FIELDS = ("source_lane", "delivery_policy")
 DECISION_FIELDS = (
     "evaluation_id",
     "source_revision",
@@ -72,6 +79,22 @@ def _portable_state(raw: dict[str, Any]) -> dict[str, Any]:
 
 def _number(value: Any) -> bool:
     return type(value) in (int, float) and math.isfinite(value)
+
+
+def _delivery_policy(record: dict[str, Any], decision: dict[str, Any]) -> str:
+    fields = ("source_lane", "delivery_policy")
+    if not any(field in value for value in (record, decision) for field in fields):
+        # Existing accepted summative decisions retain their exact selection hash.
+        return "SCORE_AND_FEEDBACK"
+    _need(
+        all(field in value for value in (record, decision) for field in fields),
+        "DELIVERY_POLICY_CHANGED",
+    )
+    _need(
+        all(record[field] == decision[field] for field in fields),
+        "DELIVERY_POLICY_CHANGED",
+    )
+    return lane_delivery(record["source_lane"], record["delivery_policy"])
 
 
 def _selection(record: dict[str, Any], decision: dict[str, Any]) -> None:
@@ -151,12 +174,18 @@ def _selection(record: dict[str, Any], decision: dict[str, Any]) -> None:
         and 0 <= decision["total_score"] <= decision["points_possible"],
         "TEACHER_FINAL_SCORE_OUT_OF_RANGE",
     )
-    _need(
-        type(decision["feedback"]) is str
-        and decision["feedback"].strip()
-        and len(decision["feedback"]) <= 45_000,
-        "EXACT_FULL_TEACHER_FEEDBACK_REQUIRED",
-    )
+    policy = _delivery_policy(record, decision)
+    feedback = decision["feedback"]
+    if policy == "SCORE_AND_FEEDBACK":
+        _need(
+            type(feedback) is str and feedback.strip() and len(feedback) <= 45_000,
+            "EXACT_FULL_TEACHER_FEEDBACK_REQUIRED",
+        )
+    else:
+        _need(
+            feedback is None or type(feedback) is str and len(feedback) <= 45_000,
+            "FORMATIVE_ANALYSIS_INVALID",
+        )
 
 
 def _pins(pin_binding: dict[str, Any], record: dict[str, Any]) -> None:
@@ -349,6 +378,14 @@ def _prepare_native_transfer(
         }
     )
     final = {field: copy.deepcopy(decision[field]) for field in selection_fields}
+    final.update(
+        {
+            field: copy.deepcopy(decision[field])
+            for field in OPTIONAL_DECISION_FIELDS
+            if field in decision
+        }
+    )
+    delivery_policy = _delivery_policy(selected, final)
     _need(
         (baseline["origin"], baseline["course_id"])
         == (current["origin"], current["course_id"])
@@ -491,41 +528,67 @@ def _prepare_native_transfer(
         ),
         "CANVAS_COMPARISON_HELD",
     )
-    notes = [
-        note_factory(prefix, selection_sha256, final["feedback"])
-        for prefix in (canonical_note, "")
-    ]
     after = copy.deepcopy(before)
     requests = []
-    # An exact operator-bound prefix can precede an already completed transfer.
-    # Require the complete current marker/feedback block at its note boundary.
-    preserved_note_matches = preservation is not None and old_note.endswith(
-        "\n\n" + note_factory("", selection_sha256, final["feedback"])
-    )
-    if old_value == score and (old_note in notes or preserved_note_matches):
-        status = "NO_CHANGE"
-    else:
-        if preservation is None:
-            _need(
-                old_value in (grade_value(prior_context["cell"]["value"]), score),
-                "EXISTING_TEACHER_EDIT_PRESERVED",
-            )
-            _need(old_note in ("", canonical_note), "EXISTING_TEACHER_NOTE_PRESERVED")
-        replacement = {
-            "userEnteredValue": {"numberValue": score},
-            "note": note_factory(old_note, selection_sha256, final["feedback"]),
-        }
-        after["sheets"][sid]["cells"].setdefault(address, {}).update(replacement)
-        requests = [
-            {
-                "updateCells": {
-                    "start": {"sheetId": sid, "rowIndex": row, "columnIndex": col},
-                    "rows": [{"values": [replacement]}],
-                    "fields": "userEnteredValue,note",
+    if delivery_policy == "SCORE_ONLY":
+        if old_value == score:
+            status = "NO_CHANGE"
+        else:
+            if preservation is None:
+                _need(
+                    old_value in (grade_value(prior_context["cell"]["value"]), score),
+                    "EXISTING_TEACHER_EDIT_PRESERVED",
+                )
+            replacement: dict[str, Any] = {"userEnteredValue": {"numberValue": score}}
+            after["sheets"][sid]["cells"].setdefault(address, {}).update(replacement)
+            requests = [
+                {
+                    "updateCells": {
+                        "start": {"sheetId": sid, "rowIndex": row, "columnIndex": col},
+                        "rows": [{"values": [replacement]}],
+                        "fields": "userEnteredValue",
+                    }
                 }
-            }
+            ]
+            status = "PREPARED_LOCAL_EDIT_ONLY"
+    else:
+        notes = [
+            note_factory(prefix, selection_sha256, final["feedback"])
+            for prefix in (canonical_note, "")
         ]
-        status = "PREPARED_LOCAL_EDIT_ONLY"
+        after = copy.deepcopy(before)
+        requests = []
+        # An exact operator-bound prefix can precede an already completed transfer.
+        # Require the complete current marker/feedback block at its note boundary.
+        preserved_note_matches = preservation is not None and old_note.endswith(
+            "\n\n" + note_factory("", selection_sha256, final["feedback"])
+        )
+        if old_value == score and (old_note in notes or preserved_note_matches):
+            status = "NO_CHANGE"
+        else:
+            if preservation is None:
+                _need(
+                    old_value in (grade_value(prior_context["cell"]["value"]), score),
+                    "EXISTING_TEACHER_EDIT_PRESERVED",
+                )
+                _need(
+                    old_note in ("", canonical_note), "EXISTING_TEACHER_NOTE_PRESERVED"
+                )
+            replacement = {
+                "userEnteredValue": {"numberValue": score},
+                "note": note_factory(old_note, selection_sha256, final["feedback"]),
+            }
+            after["sheets"][sid]["cells"].setdefault(address, {}).update(replacement)
+            requests = [
+                {
+                    "updateCells": {
+                        "start": {"sheetId": sid, "rowIndex": row, "columnIndex": col},
+                        "rows": [{"values": [replacement]}],
+                        "fields": "userEnteredValue,note",
+                    }
+                }
+            ]
+            status = "PREPARED_LOCAL_EDIT_ONLY"
     plan = {
         "contract": contract,
         "status": status,
@@ -544,6 +607,8 @@ def _prepare_native_transfer(
         "canvas_writes": 0,
         "sheets_writes": 0,
     }
+    if "delivery_policy" in selected:
+        plan["delivery_policy"] = delivery_policy
     if preservation is not None:
         plan["preservation"] = copy.deepcopy(preservation)
         plan["baseline_reconciled"] = reconciled
@@ -617,9 +682,7 @@ def classify_readback(
     status = (
         "PLANNED_OUTPUT_OBSERVED"
         if actual == plan["after_state"]
-        else "BEFORE_STILL_PRESENT"
-        if actual == plan["before_state"]
-        else "DIVERGED"
+        else "BEFORE_STILL_PRESENT" if actual == plan["before_state"] else "DIVERGED"
     )
     return {
         "contract": CONTRACT,

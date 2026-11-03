@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from .capture import build_case_receipt, intake_digest
+from .channel_policy import lane_delivery
 from .client import GradebookError
 from .model import digest
 from .store import Store
@@ -95,6 +96,7 @@ class LocalGrAssEditConnection:
         registry_path: Path,
         shared_tool: Path,
         preservation: dict[str, Any] | None = None,
+        source_lane: str | None = None,
     ) -> None:
         files = self._source_files(source)
         _need(isinstance(canvas_store, Store), "EXISTING_CANVAS_STORE_REQUIRED")
@@ -110,6 +112,10 @@ class LocalGrAssEditConnection:
         self.assignment_path = assignment_bindings_path
         self.assignment_sha256 = expected_assignment_bindings_sha256
         self.preservation = copy.deepcopy(preservation)
+        self.source_lane = source_lane
+        self.delivery_policy = (
+            lane_delivery(source_lane) if source_lane is not None else None
+        )
         self.section, self.registry_path, self.shared_tool = (
             section,
             registry_path,
@@ -285,6 +291,12 @@ class LocalGrAssEditConnection:
             score_units="CANVAS_POINTS",
             feedback=snapshot["decision"]["feedback"],
         )
+        if self.source_lane is not None:
+            _need(self.source_lane == "GRASS_SUMMATIVE", "DELIVERY_POLICY_CHANGED")
+            for value in (record, decision):
+                value.update(
+                    source_lane=self.source_lane, delivery_policy=self.delivery_policy
+                )
         return record, decision
 
     def _project_unit1_record(

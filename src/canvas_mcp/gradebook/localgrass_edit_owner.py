@@ -1,8 +1,8 @@
-"""Application composition for authenticated local EDIT staging, off by default.
+"""Application composition for source-verified local EDIT staging, off by default.
 
 Reuse existing configured clients, private staging history and workbook lock.
 This module creates no clients, credentials, decisions, queue or publication
-permission. An installed application must supply its authenticated connection.
+permission. An installed application supplies the exact known source connection.
 """
 
 from __future__ import annotations
@@ -16,8 +16,10 @@ from typing import Any
 from .client import GradebookClient, GradebookError
 from .get_only_refresh import validate_get_workbook
 from .google import GoogleSheets
+from .localgrass_draft_edit import LocalGrAssDraftEditConnection
 from .localgrass_edit_execution import execute_local_edit_once
 from .localgrass_teacher_edit import LocalGrAssEditConnection
+from .model import digest, identifier
 from .worker import RefreshJournal
 
 
@@ -38,7 +40,7 @@ class LocalGrAssEditOwner:
 
     def __init__(
         self,
-        connection: LocalGrAssEditConnection,
+        connection: LocalGrAssEditConnection | LocalGrAssDraftEditConnection,
         canvas: GradebookClient,
         google: GoogleSheets,
         journal: RefreshJournal,
@@ -48,7 +50,9 @@ class LocalGrAssEditOwner:
         binding: dict[str, Any],
     ) -> None:
         _need(
-            isinstance(connection, LocalGrAssEditConnection)
+            isinstance(
+                connection, (LocalGrAssEditConnection, LocalGrAssDraftEditConnection)
+            )
             and isinstance(canvas, GradebookClient)
             and isinstance(google, GoogleSheets)
             and isinstance(journal, RefreshJournal),
@@ -123,6 +127,23 @@ class LocalGrAssEditOwner:
             preservation == self.connection.preservation,
             "EXACT_EDIT_PRESERVATION_CHANGED",
         )
+        review_keys = {"current_attempt_review_path", "current_attempt_review_sha256"}
+        review_present = review_keys.intersection(config)
+        _need(
+            not review_present or review_present == review_keys,
+            "EXACT_CURRENT_ATTEMPT_CONFIG_REQUIRED",
+        )
+        review_binding = None
+        if review_present:
+            review_binding = {
+                "path": str(files.local_path(config["current_attempt_review_path"])),
+                "sha256": config["current_attempt_review_sha256"],
+            }
+        _need(
+            review_binding
+            == getattr(self.connection, "current_attempt_review_binding", None),
+            "EXACT_CURRENT_ATTEMPT_CONFIG_REQUIRED",
+        )
         bindings_path = (
             files.local_path(config["canvas_repo"])
             / "config/sdm-gradebook-workbooks.json"
@@ -165,6 +186,32 @@ class LocalGrAssEditOwner:
         pins = self._pin_module.canonical_pin_binding(
             self.connection.registry_path, self.runtime_root
         )
+        if isinstance(self.connection, LocalGrAssDraftEditConnection):
+            # Generic snapshots omit external-tool metadata. Reuse the existing
+            # owner client to bind fresh raw target details before draft staging.
+            # Enrich only this context copy; retained baselines stay unchanged.
+            current = copy.deepcopy(current)
+            targets = self.connection.assignment_targets(
+                course_id=current["course_id"], pin_binding=pins
+            )
+            for assignment_id in targets:
+                _need(
+                    type(assignment_id) is str
+                    and identifier(assignment_id) == assignment_id,
+                    "EXACT_CENTRAL_ASSIGNMENT_REQUIRED",
+                )
+                metadata = await self.canvas.get(
+                    f"/courses/{current['course_id']}/assignments/{assignment_id}"
+                )
+                matches = [
+                    a for a in current["assignments"] if a["id"] == assignment_id
+                ]
+                _need(
+                    type(metadata) is dict and len(matches) == 1,
+                    "ASSIGNMENT_METADATA_REQUIRED",
+                )
+                matches[0]["assignment_metadata"] = copy.deepcopy(metadata)
+                matches[0]["assignment_metadata_sha256"] = digest(metadata)
         # Last network read before preflight: native access/token and the full
         # destination preimage are checked together by the existing transport.
         raw = await self.google.read_workbook()

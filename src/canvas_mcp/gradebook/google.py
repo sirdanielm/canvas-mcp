@@ -535,6 +535,59 @@ class GoogleSheets:
             self._validated_token = None
             raise
 
+    async def read_registered_unit2_typed_ranges(
+        self, config: dict[str, Any], request: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Bounded typed GET for an explicitly registered Unit2 file sink.
+
+        This is not read_workbook, a generic proxy, a write grant or a snapshot
+        transaction. Requested native CellData is passed unchanged to the sink.
+        """
+        from .unit2_typed_capture import (
+            PROPERTY_FIELDS,
+            TYPED_FIELDS,
+            registered_properties,
+            validate_native_response,
+            validate_request,
+        )
+
+        if not self.read_only:
+            raise GradebookError("Unit2 typed capture requires read-only transport mode.")
+        bounds = validate_request(config, request)
+        if self.workbook_id != config["spreadsheet_id"]:
+            raise GradebookError("Canonical client workbook does not match registration.")
+        budget = _ReadBudget()
+        self._validated_token = None
+        try:
+            async with asyncio.timeout(self.read_timeout_seconds):
+                before = await self._get({"fields": PROPERTY_FIELDS}, read_budget=budget)
+                expected = registered_properties(config, before, bounds)
+                headers = {s["properties"]["title"]: self._header(s)
+                           for s in before["sheets"] if s["properties"]["title"] in bounds}
+                named_ranges = self._named_ranges(before)
+                params = [("includeGridData", "true"), ("fields", TYPED_FIELDS)]
+                params.extend(("ranges", value) for value in request["ranges"])
+                response = await self._get(params, read_budget=budget)
+                validate_native_response(config, request, response)
+                if registered_properties(config, response, bounds) != expected:
+                    raise GradebookError("Unit2 metadata changed during typed capture.")
+                if (not self._named_ranges_subset(response, before) or any(
+                    not self._chunk_header_matches(s, headers[s["properties"]["title"]])
+                    for s in response["sheets"] if s["properties"]["title"] in bounds
+                )):
+                    raise GradebookError("Unit2 annotations changed during typed capture.")
+                after = await self._get({"fields": PROPERTY_FIELDS}, read_budget=budget)
+                if (registered_properties(config, after, bounds) != expected
+                    or not self._annotation_equal(self._named_ranges(after), named_ranges)
+                    or not self._annotation_equal({s["properties"]["title"]: self._header(s)
+                        for s in after["sheets"] if s["properties"]["title"] in bounds}, headers)):
+                    raise GradebookError("Unit2 metadata changed after typed capture.")
+                return response
+        except TimeoutError:
+            raise GradebookError("Unit2 typed capture timed out; no partial proof accepted.") from None
+        finally:
+            # Read proof never enables a preflighted batch write.
+            self._validated_token = None
 
     @staticmethod
     def _annotation_equal(left: Any, right: Any) -> bool:
@@ -584,7 +637,7 @@ class GoogleSheets:
     @classmethod
     def _chunk_header_matches(cls, sheet: dict[str, Any], expected: dict[str, Any]) -> bool:
         actual = cls._header(sheet)
-        if actual["properties"] != expected["properties"]:
+        if not cls._annotation_equal(actual["properties"], expected["properties"]):
             return False
         # Range responses may filter annotations. Full bracketing metadata owns
         # completeness; every returned annotation must match its ordered subset.
@@ -597,7 +650,10 @@ class GoogleSheets:
             for item in actual[key]:
                 if not any(cls._annotation_equal(item, known) for known in remaining):
                     return False
-        return not actual.get("basicFilter") or actual["basicFilter"] == expected.get("basicFilter")
+        return "basicFilter" not in actual or (
+            "basicFilter" in expected
+            and cls._annotation_equal(actual["basicFilter"], expected["basicFilter"])
+        )
 
     def _rectangles(
         self, inventory: dict[int, dict[str, Any]]

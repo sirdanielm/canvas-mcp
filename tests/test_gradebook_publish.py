@@ -32,6 +32,7 @@ def comment_system(system, tmp_path):
             "has_sub_assignments": False,
             "rubric_settings": None,
             "post_manually": False,
+            "in_closed_grading_period": False,
         }
     )
     state["submission"].update(

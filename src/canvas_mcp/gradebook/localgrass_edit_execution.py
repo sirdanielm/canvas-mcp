@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import inspect
+import json
 import math
 import re
 import uuid
@@ -20,6 +21,8 @@ from pathlib import Path
 from typing import Any
 
 from .client import GradebookError
+from .localgrass_draft_edit import CONTRACT as DRAFT_CONTRACT
+from .localgrass_draft_edit import LocalGrAssDraftEditConnection
 from .localgrass_teacher_edit import LocalGrAssEditConnection
 from .model import digest
 
@@ -62,7 +65,7 @@ def _targets(plan: dict[str, Any]) -> tuple[str, str, set[str]]:
 
 
 async def _execute_local_edit_once(
-    connection: LocalGrAssEditConnection,
+    connection: LocalGrAssEditConnection | LocalGrAssDraftEditConnection,
     plan: dict[str, Any],
     *,
     expected_plan_sha256: str,
@@ -80,9 +83,12 @@ async def _execute_local_edit_once(
     needs an idle workbook and current separately authorized local staging scope.
     """
     _need(
-        isinstance(connection, LocalGrAssEditConnection),
+        isinstance(
+            connection, (LocalGrAssEditConnection, LocalGrAssDraftEditConnection)
+        ),
         "AUTHENTICATED_CONNECTION_REQUIRED",
     )
+    contract = connection.contract
     connection.validate_plan(plan, expected_plan_sha256=expected_plan_sha256)
     _need(
         type(enabled) is bool and type(reconcile_only) is bool,
@@ -115,7 +121,19 @@ async def _execute_local_edit_once(
             )
         else:
             _need(not reconcile_only, "RETAINED_NATIVE_PLAN_REQUIRED")
-            files.write(plan_path, plan)
+            # Match the existing bounded loader before retaining any history.
+            # Pretty output can exceed its cap even when the same JSON fits.
+            retained_bytes = json.dumps(
+                plan,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            maximum = min(
+                getattr(files, "MAX_JSON", 64 * 1024 * 1024), 64 * 1024 * 1024
+            )
+            _need(len(retained_bytes) <= maximum, "NATIVE_PLAN_EXCEEDS_LOAD_LIMIT")
+            files.write(plan_path, retained_bytes)
         receipts = sorted(session.glob("receipt-*.json"))
         previous = files.load(receipts[-1]) if receipts else None
         if previous is not None:
@@ -184,6 +202,13 @@ async def _execute_local_edit_once(
                 "score_delivery_authorized": False,
                 "comment_delivery_authorized": False,
             }
+            if contract == DRAFT_CONTRACT:
+                receipt.update(
+                    review_state="UNAPPROVED",
+                    teacher_approval=False,
+                    source_lane="SDMGRASS_FORMATIVE",
+                    delivery_policy="SCORE_ONLY",
+                )
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
             files.write(
                 session / ("receipt-" + stamp + "-" + uuid.uuid4().hex[:8] + ".json"),
@@ -247,7 +272,7 @@ async def _execute_local_edit_once(
             return record("HELD_BEFORE_SEND")
         record("SENDING")  # Existing atomic write/fsync primitive; before any request.
         try:
-            # Recheck the authenticated teacher/source immediately after the
+            # Recheck the selected source authority immediately after the
             # durable checkpoint, without another network context read.
             connection.revalidate(
                 plan,
@@ -279,7 +304,7 @@ async def _execute_local_edit_once(
 
 
 async def execute_local_edit_once(
-    connection: LocalGrAssEditConnection,
+    connection: LocalGrAssEditConnection | LocalGrAssDraftEditConnection,
     plan: dict[str, Any],
     *,
     expected_plan_sha256: str,

@@ -213,3 +213,7 @@ and private receipts. Keep original evidence, permits, baselines, plans and
 transport history outside Git and the website tree. The older accepted-pair
 [RELEASE prototype](unit1-pair-preview-contract.md) retains its separate offline
 limits; this native EDIT path does not activate it.
+
+## Participation channel and source compatibility
+
+Ordinary participation stages the score while preserving the existing EDIT note. Summative accepted decisions retain their complete feedback and note marker. Delivery policy is bound into the selected source and decision; neither route grants Canvas publication authority. The LocalGrAss adapter checks planner capability before forwarding an explicit current-attempt review; an older planner is a fixed hold, never an implicit baseline change. Private dependency pins and integration checks follow the [operational source boundaries](operational-source-boundaries.md).
