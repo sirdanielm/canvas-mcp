@@ -146,7 +146,7 @@ and verified delivery are distinct states. A documentation/source merge does not
 restart a service, deploy the menu, release a package or send classroom grades.
 Tags and deployment/paid-review actions require separate authorization.
 
-The refreshed source incorporates upstream v1.16.0 security changes and later
+The refreshed source incorporates upstream v1.16.1 security changes and later
 main-branch fixes. Upstream package releases and this fork's source or installed
 runtimes have separate release histories. This update alone installs no runtime.
 Release notes remain in [CHANGELOG.md](CHANGELOG.md); dated audits and design

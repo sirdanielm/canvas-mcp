@@ -840,6 +840,9 @@ List all assignments for a course.
 ---
 
 #### `get_assignment_details`
+Use `include_description_sha256=true` to append a literal HTML digest for the
+verified unpublished description-only update route. The default output is unchanged.
+
 Get detailed information about a specific assignment.
 
 **Parameters:**
@@ -973,11 +976,22 @@ Create a new assignment in a course.
 #### `update_assignment`
 Update an existing assignment in a course.
 
+For an authorized unpublished description edit, optionally pass
+`expected_description_sha256` from `get_assignment_details(include_description_sha256=true)` with `description`
+only. The existing tool checks the live draft, skips identical content, sends at
+most one PUT, then GETs the result to verify description and preserved metadata.
+`HELD` means no write; `UNKNOWN`/`UNVERIFIED` require reconciliation, never blind
+replay. There is no time-based readiness gate. This content hash does not grant
+publication authority or change operator/tool enablement. Do not combine this hash with the existing
+`expect_updated_at`, `find`/`replace`, or `require` guards. Calls omitting the
+hash retain their existing behavior.
+
 **Parameters:**
 - `course_identifier`: Course code or ID (required)
 - `assignment_id`: ID of the assignment to update (required)
 - `name`: New assignment name/title
 - `description`: New HTML content for the assignment body
+- `expected_description_sha256`: Optional lowercase SHA-256 of literal source HTML; enables the verified unpublished description-only route
 - `submission_types`: Comma-separated list of allowed types
 - `due_at`: New due date in ISO 8601 format
 - `unlock_at`: New availability date (ISO 8601)

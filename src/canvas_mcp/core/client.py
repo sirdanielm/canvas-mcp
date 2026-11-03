@@ -498,6 +498,7 @@ async def make_canvas_request(
     files: dict[str, tuple[str, bytes, str]] | None = None,
     api_root: Literal["rest", "quiz", "graphql"] = API_ROOT_REST,
     _pagination: dict[str, str | None] | None = None,
+    retry_rate_limits: bool = True,
 ) -> Any:
     """Make a request to the Canvas API with proper error handling.
 
@@ -512,6 +513,7 @@ async def make_canvas_request(
         skip_anonymization: Skip anonymization (used by paginated fetchers)
         files: Dictionary of file objects for multipart form uploads
         api_root: Which Canvas API root to call ("rest" => /api/v<N>, "quiz" => /api/quiz/v1, "graphql" => /api)
+        retry_rate_limits: Retry HTTP 429; disable for a caller requiring a single write attempt
     """
 
     from .audit import log_data_access
@@ -674,7 +676,7 @@ async def make_canvas_request(
 
                 except httpx.HTTPStatusError as e:
                     # Handle rate limiting with exponential backoff
-                    if e.response.status_code == 429 and attempt < MAX_RETRIES:
+                    if e.response.status_code == 429 and retry_rate_limits and attempt < MAX_RETRIES:
                         # Check for Retry-After header
                         retry_after = e.response.headers.get('Retry-After')
                         if retry_after:

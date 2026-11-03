@@ -28,6 +28,7 @@ from ..core.write_confirmation import (
     preview_with_token,
     redeem_confirmation,
 )
+from .assignment_drafts import description_sha256, update_draft_description
 from .rubrics import (
     RUBRIC_GRADE_UNCONFIRMED,
     build_rubric_assessment_form_data,
@@ -139,7 +140,8 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
     )
     @validate_params
     async def get_assignment_details(
-        course_identifier: str | int, assignment_id: str | int, raw_dates: bool = False
+        course_identifier: str | int, assignment_id: str | int, raw_dates: bool = False,
+        include_description_sha256: bool = False,
     ) -> str:
         """Get detailed information about a specific assignment.
 
@@ -149,6 +151,8 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
             raw_dates: Append a JSON block with due_at, unlock_at, lock_at,
                 updated_at, all_dates and checkpoint dates exactly as Canvas
                 returns them (null stays null). Default False.
+            include_description_sha256: Append the literal HTML SHA-256 for an
+                authorized unpublished description-only edit. Default False.
         """
         course_id = await get_course_id(course_identifier)
 
@@ -188,6 +192,8 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         result = f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
+        if include_description_sha256:
+            result += f"\nDescription SHA-256: {description_sha256(response.get('description') or '')}"
         if raw_dates:
             result += render_raw_dates(assignment_raw_dates(response))
         return result
@@ -1025,6 +1031,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         find: str | None = None,
         replace: str | None = None,
         require: list[str] | None = None,
+        expected_description_sha256: str | None = None,
     ) -> str:
         """Update an existing assignment in a course.
 
@@ -1052,12 +1059,15 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             peer_reviews: Enable peer reviews
             automatic_peer_reviews: Auto-assign peer reviews
             allowed_extensions: Comma-separated file extensions (e.g., "pdf,docx,txt")
+            expected_description_sha256: Source HTML hash for an unpublished description-only edit with GET preflight and readback; cannot be combined with other guards
             expect_updated_at: The assignment's updated_at when you read it; refuse if it has changed
             find: Exact HTML fragment that must occur exactly once in the current description
             replace: Text that replaces find (may be empty to delete it)
             require: Strings that must already be present in the current description
         """
         guard = BodyGuard(expect_updated_at, find, replace, require)
+        if expected_description_sha256 is not None and guard.active:
+            return "HELD: expected_description_sha256 cannot be combined with other edit guards. No write attempted."
         if guard.active:
             guard_error = validate_guard(guard, "description", description)
             if guard_error:
@@ -1144,6 +1154,14 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         # Check if there's anything to update (find/replace supplies the body later)
         if not assignment_data and not guard.fragment:
             return "No fields provided to update. Specify at least one field to modify (e.g., name, description, due_at, points_possible)."
+
+        if expected_description_sha256 is not None:
+            if set(assignment_data) != {"description"}:
+                return "HELD: expected_description_sha256 accepts a description-only draft edit. No write attempted."
+            return await update_draft_description(
+                make_canvas_request, course_id, assignment_id,
+                assignment_data["description"], expected_description_sha256,
+            )
 
         if guard.active:
             assignment_path = f"/courses/{course_id}/assignments/{assignment_id}"

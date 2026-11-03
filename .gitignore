@@ -153,3 +153,6 @@ artifacts/formula-qti/*.zip
 # Operator briefs and local execution workspaces must not enter source packages.
 /BRIEF.md
 /.superpowers/
+
+# Private teaching content snapshots and local library registry
+/local_course_assets/
