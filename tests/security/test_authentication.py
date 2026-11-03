@@ -125,36 +125,14 @@ class TestAPITokenSecurity:
 
     def test_no_hardcoded_tokens(self):
         """Verify no hardcoded tokens in source code."""
-        # Search for potential token patterns in source code
-        source_dir = Path("src/canvas_mcp")
+        from .secret_scan import find_secret_literals
 
-        # Pattern to detect potential tokens (adjust as needed)
-        token_pattern = re.compile(r'["\'][\w-]{30,}["\']')
-
-        for py_file in source_dir.rglob("*.py"):
-            content = py_file.read_text(encoding="utf-8")
-
-            # Skip comments and docstrings (simple approach)
-            lines = content.split('\n')
-            for line in lines:
-                if line.strip().startswith('#'):
-                    continue
-                if '"""' in line or "'''" in line:
-                    continue
-
-                # Check for suspicious long strings that might be tokens
-                matches = token_pattern.findall(line)
-                for match in matches:
-                    # Allow certain known patterns (UUIDs, test data, etc.)
-                    if "test" in match.lower() or "example" in match.lower():
-                        continue
-                    if "CANVAS_API_TOKEN" in line:  # Environment variable reference
-                        continue
-
-                    # If we find a suspicious token, flag it
-                    # This is a basic check - adjust as needed
-                    if len(match) > 40:
-                        pytest.fail(f"Potential hardcoded token in {py_file}: {line.strip()}")
+        findings = []
+        for py_file in Path("src/canvas_mcp").rglob("*.py"):
+            for finding in find_secret_literals(py_file.read_text(encoding="utf-8")):
+                # Never print a candidate credential or its containing line.
+                findings.append(f"{py_file}:{finding.line}: {finding.kind}")
+        assert not findings, "Potential hardcoded credentials:\n" + "\n".join(findings)
 
 
 class TestAuthorizationControls:

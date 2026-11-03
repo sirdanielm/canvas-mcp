@@ -230,7 +230,8 @@ def _submission_path(target: CanvasTarget) -> str:
 
 
 def _parse_source(
-    target: CanvasTarget, source: OriginalGet, expected_hash: str, *, submission: bool
+    target: CanvasTarget, source: OriginalGet, expected_hash: str, *, submission: bool,
+    comment_only: bool = False,
 ) -> dict[str, Any]:
     _need(
         type(source) is OriginalGet
@@ -251,7 +252,7 @@ def _parse_source(
         and source.url.isascii()
         and "\\" not in source.url
         and "#" not in source.url
-        and (submission or "?" not in source.url)
+        and (submission or comment_only or "?" not in source.url)
         and all(33 <= ord(char) <= 126 for char in source.url),
         "ORIGINAL_GET_TARGET_MISMATCH",
     )
@@ -275,7 +276,10 @@ def _parse_source(
             if submission
             else []
         )
-        _need(sorted(query) == sorted(expected), "ORIGINAL_GET_QUERY_UNSUPPORTED")
+        allowed = [sorted(expected)]
+        if comment_only and not submission:
+            allowed.append([("include[]", "checkpoints")])
+        _need(sorted(query) in allowed, "ORIGINAL_GET_QUERY_UNSUPPORTED")
     except ValueError:
         raise GradebookError("ORIGINAL_GET_TARGET_MISMATCH") from None
     _need(
@@ -410,10 +414,19 @@ def _observation_holds(
         if submission.get(name) is not True:
             holds.append("submission_" + name + "_not_verified")
     for name in ("excused", "late", "in_closed_grading_period"):
-        if comment_only and name == "late":
+        if comment_only and name in ("late", "excused"):
+            # These are grading policies. Comment-only delivery retains their
+            # raw values and requires them unchanged; it never writes them.
+            continue
+        if comment_only and name == "in_closed_grading_period" and name not in submission:
+            # Canvas supplies the conservative closed-period aggregate on the
+            # Assignment, not a required Submission boolean. Preserve any
+            # supplied conflicting/unknown Submission value as a hold below.
             continue
         if submission.get(name) is not False:
             holds.append("submission_" + name + "_protected_or_unknown")
+    if comment_only and assignment.get("in_closed_grading_period") is not False:
+        holds.append("assignment_in_closed_grading_period_protected_or_unknown")
     if not comment_only and (
         "late_policy_status" not in submission
         or submission["late_policy_status"] not in (None, "none")
@@ -540,8 +553,10 @@ def parse_exact_observation(
     ATTEMPT_BOUND remains unsupported without an independent source-link port.
     """
     _validate_target(target)
+    _need(type(comment_only) is bool, "OBSERVATION_PURPOSE_INVALID")
     assignment = _parse_source(
-        target, assignment_get, expected_assignment_body_sha256, submission=False
+        target, assignment_get, expected_assignment_body_sha256, submission=False,
+        comment_only=comment_only,
     )
     submission = _parse_source(
         target, submission_get, expected_submission_body_sha256, submission=True
@@ -559,7 +574,6 @@ def parse_exact_observation(
             "ORIGINAL_GET_IDENTITY_MISMATCH",
         )
     _id(submission.get("id"))
-    _need(type(comment_only) is bool, "OBSERVATION_PURPOSE_INVALID")
     supported = (
         ("on_paper",),
         ("online_upload",),
@@ -578,7 +592,10 @@ def parse_exact_observation(
         else "ROSTER_ON_PAPER_REQUIRED",
     )
     a_fields, s_fields = (
-        _raw_fields(assignment, ASSIGNMENT_FIELDS),
+        _raw_fields(
+            assignment,
+            ASSIGNMENT_FIELDS + (("in_closed_grading_period",) if comment_only else ()),
+        ),
         _raw_fields(submission, SUBMISSION_FIELDS),
     )
     comments, coverage = _comments(submission, submission_get.comment_coverage_complete)

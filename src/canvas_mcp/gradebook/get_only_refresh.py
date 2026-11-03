@@ -22,14 +22,39 @@ from .workbook import column_name, edits_from_cells
 
 MODE = "GET_ONLY"
 _KINDS = {
-    "updateSheetProperties", "repeatCell", "updateCells",
-    "updateDimensionProperties", "updateBorders",
+    "updateSheetProperties",
+    "repeatCell",
+    "updateCells",
+    "updateDimensionProperties",
+    "updateBorders",
 }
-_UNIT1_DISPLAY_ORIGIN = "https://fcps.instructure.com"
-_UNIT1_DISPLAY_BOOK_URL = (
-    "https://docs.google.com/spreadsheets/d/13ps0FZLBj2qpclMNKo7Eb95kE4Sb_fgf9s7Ki2_KoNc"
-)
-_UNIT1_DISPLAY_PAIRS = frozenset({("363308", "4099721"), ("374070", "4099724")})
+
+
+def _display_policy(binding: dict[str, Any]) -> dict[str, Any] | None:
+    """Read an exact operator-owned display scope, never discover live bindings."""
+    policy = binding.get("get_whole_number_display")
+    if policy is None:
+        return None
+    fields = {"origin", "spreadsheet_id", "course_id", "assignment_ids"}
+    if (
+        type(policy) is not dict
+        or set(policy) != fields
+        or type(policy["origin"]) is not str
+        or re.fullmatch(r"https?://[^/\s?#]+", policy["origin"]) is None
+        or type(policy["spreadsheet_id"]) is not str
+        or not policy["spreadsheet_id"]
+        or type(policy["course_id"]) is not str
+        or re.fullmatch(r"[1-9][0-9]*", policy["course_id"]) is None
+        or type(policy["assignment_ids"]) is not list
+        or not 1 <= len(policy["assignment_ids"]) <= 100
+        or any(
+            type(a) is not str or re.fullmatch(r"[1-9][0-9]*", a) is None
+            for a in policy["assignment_ids"]
+        )
+        or len(set(policy["assignment_ids"])) != len(policy["assignment_ids"])
+    ):
+        raise GradebookError("GET display policy is invalid.")
+    return policy
 
 
 def validate_get_workbook(
@@ -42,35 +67,46 @@ def validate_get_workbook(
     claimed: set[int] = set()
     result = {}
     for course, binding in bindings.items():
-        if type(course) is not str or not course.strip() or not isinstance(binding, dict):
+        if (
+            type(course) is not str
+            or not course.strip()
+            or not isinstance(binding, dict)
+        ):
             raise GradebookError("GET refresh workbook binding differs.")
         sheet_ids = binding.get("sheets")
         names = binding.get("tab_names")
         if (
             type(binding.get("spreadsheet_id")) is not str
             or binding["spreadsheet_id"] != state["spreadsheetId"]
-            or not isinstance(sheet_ids, dict) or set(sheet_ids) != native.ROLES
-            or not isinstance(names, dict) or set(names) != native.ROLES
+            or not isinstance(sheet_ids, dict)
+            or set(sheet_ids) != native.ROLES
+            or not isinstance(names, dict)
+            or set(names) != native.ROLES
         ):
             raise GradebookError("GET refresh workbook binding differs.")
         if (
             any(type(value) is not int or value < 0 for value in sheet_ids.values())
             or len(set(sheet_ids.values())) != len(native.ROLES)
-            or any(type(value) is not str or not value.strip() for value in names.values())
+            or any(
+                type(value) is not str or not value.strip() for value in names.values()
+            )
             or len(set(names.values())) != len(native.ROLES)
-            or type(binding.get("label")) is not str or not binding["label"].strip()
+            or type(binding.get("label")) is not str
+            or not binding["label"].strip()
             or type(binding.get("working_protection_id")) is not int
             or binding["working_protection_id"] < 0
             or type(binding.get("course_id")) not in (str, int)
         ):
             raise GradebookError("GET refresh workbook binding differs.")
         course_id = identifier(binding["course_id"])
+        _display_policy(binding)
         mapped = {}
         for role in sorted(native.ROLES):
             sid = sheet_ids[role]
             sheet = state["sheets"].get(sid)
             if (
-                sid in claimed or sheet is None
+                sid in claimed
+                or sheet is None
                 or sheet["properties"]["title"] != names[role]
             ):
                 raise GradebookError("GET refresh sheet identity or name differs.")
@@ -92,7 +128,9 @@ def validate_get_workbook(
                     grid.get("frozenRowCount", 0) != 5
                     or grid.get("frozenColumnCount", 0) != 2
                     or not sheet["rowMetadata"].get("4", {}).get("hiddenByUser", False)
-                    or not sheet["columnMetadata"].get("0", {}).get("hiddenByUser", False)
+                    or not sheet["columnMetadata"]
+                    .get("0", {})
+                    .get("hiddenByUser", False)
                 ):
                     raise GradebookError("GET identity headers changed.")
                 last_row, columns = native._shape(mapped[role])
@@ -155,16 +193,22 @@ def _request_sid(request: dict[str, Any]) -> int | None:
     return None
 
 
-def _unit1_number_display(
-    requests: list[dict[str, Any]], current: dict[str, Any],
-    binding: dict[str, Any], state: dict[str, Any],
+def _configured_number_display(
+    requests: list[dict[str, Any]],
+    current: dict[str, Any],
+    binding: dict[str, Any],
+    state: dict[str, Any],
 ) -> None:
-    """Whole-number display for the exact authorized 100-point GET targets only."""
-    book_id = _UNIT1_DISPLAY_BOOK_URL.rsplit("/", 1)[1]
+    """Whole-number display for explicitly configured 100-point GET targets."""
+    policy = _display_policy(binding)
+    if policy is None:
+        return
+    book_id = policy["spreadsheet_id"]
     if (
-        current.get("origin") != _UNIT1_DISPLAY_ORIGIN
+        current.get("origin") != policy["origin"]
         or binding.get("spreadsheet_id") != book_id
         or state.get("spreadsheetId") != book_id
+        or current.get("course_id") != policy["course_id"]
         or current.get("course_id") != identifier(binding["course_id"])
     ):
         return
@@ -174,7 +218,7 @@ def _unit1_number_display(
             continue
         for column, assignment in enumerate(current["assignments"], 2):
             if (
-                (current["course_id"], assignment["id"]) not in _UNIT1_DISPLAY_PAIRS
+                assignment["id"] not in policy["assignment_ids"]
                 or type(assignment.get("points_possible")) not in (int, float)
                 or assignment["points_possible"] != 100
                 or assignment.get("grading_type") != "points"
@@ -183,14 +227,22 @@ def _unit1_number_display(
             for row in update["rows"][5:]:
                 grade = row["values"][column]
                 value = grade.get("userEnteredValue", {})
-                if set(value) == {"numberValue"} and type(value["numberValue"]) in (int, float):
+                if set(value) == {"numberValue"} and type(value["numberValue"]) in (
+                    int,
+                    float,
+                ):
                     # Points out of 100 need NUMBER, not a multiplying percent format.
-                    grade["userEnteredFormat"]["numberFormat"] = {"type": "NUMBER", "pattern": "0"}
+                    grade["userEnteredFormat"]["numberFormat"] = {
+                        "type": "NUMBER",
+                        "pattern": "0",
+                    }
 
 
 def _requests(
-    current: dict[str, Any], current_id: str,
-    binding: dict[str, Any], state: dict[str, Any],
+    current: dict[str, Any],
+    current_id: str,
+    binding: dict[str, Any],
+    state: dict[str, Any],
 ) -> list[dict[str, Any]]:
     sid = binding["sheets"]["Canvas"]
     sheet = state["sheets"][sid]
@@ -200,8 +252,12 @@ def _requests(
     if max(len(students), len(current["students"])) + 5 > grid["rowCount"]:
         raise GradebookError("GET refresh requires an explicit row expansion.")
     generated = build_requests(
-        current, current, current_id, binding,
-        {"students": students, "assignments": assignments}, 0,
+        current,
+        current,
+        current_id,
+        binding,
+        {"students": students, "assignments": assignments},
+        0,
     )
     selected = []
     for request in generated:
@@ -213,32 +269,41 @@ def _requests(
             selected.append(request)
     if len(selected) != 7:
         raise GradebookError("Canonical GET renderer request contract changed.")
-    _unit1_number_display(selected, current, binding, state)
+    _configured_number_display(selected, current, binding, state)
     # B2 is the immutable Working baseline. Only fresh observation fields move.
     for row_index, value in ((4, current["fetched_at"]), (8, current_id)):
-        selected.append({
-            "updateCells": {
-                "start": {"sheetId": binding["sheets"]["_Sync"],
-                          "rowIndex": row_index, "columnIndex": 1},
-                "rows": [{"values": [cell(value)]}], "fields": "userEnteredValue",
+        selected.append(
+            {
+                "updateCells": {
+                    "start": {
+                        "sheetId": binding["sheets"]["_Sync"],
+                        "rowIndex": row_index,
+                        "columnIndex": 1,
+                    },
+                    "rows": [{"values": [cell(value)]}],
+                    "fields": "userEnteredValue",
+                }
             }
-        })
+        )
     return selected
 
 
 async def prepare_get_only_refresh(
-    client: GradebookClient, store: Store, course: str,
-    binding: dict[str, Any], before_raw: dict[str, Any],
+    client: GradebookClient,
+    store: Store,
+    course: str,
+    binding: dict[str, Any],
+    before_raw: dict[str, Any],
 ) -> dict[str, Any]:
     """Fetch one complete Canvas snapshot and prepare protected GET changes only."""
     views = validate_get_workbook(before_raw, {course: binding})[course]
     course_id = identifier(binding.get("course_id"))
     sync = views["_Sync"]
     baseline = store.load("snapshot", sync["B2"])
-    if (
-        sync["B4"] != client.origin
-        or (baseline.get("course_id"), baseline.get("origin")) != (course_id, client.origin)
-    ):
+    if sync["B4"] != client.origin or (
+        baseline.get("course_id"),
+        baseline.get("origin"),
+    ) != (course_id, client.origin):
         raise GradebookError("GET baseline course or origin differs.")
     current = await client.snapshot(course_id)
     if (current.get("course_id"), current.get("origin")) != (course_id, client.origin):
@@ -246,22 +311,27 @@ async def prepare_get_only_refresh(
     current = _ordered(current, views["Canvas"])
     current_id, _ = store.save("snapshot", current)
     plan = {
-        "schema_version": 1, "mode": MODE, "course": course,
-        "course_id": course_id, "origin": client.origin,
+        "schema_version": 1,
+        "mode": MODE,
+        "course": course,
+        "course_id": course_id,
+        "origin": client.origin,
         "created_at": datetime.now(UTC).isoformat(),
         "binding_digest": digest(binding),
         "input_fingerprint": native.fingerprint(before_raw),
-        "previous_baseline_id": sync["B2"], "baseline_id": sync["B2"],
+        "previous_baseline_id": sync["B2"],
+        "baseline_id": sync["B2"],
         "canvas_snapshot_id": current_id,
         "edit_preserved": True,
         "batch_update": {
             "spreadsheet_id": binding["spreadsheet_id"],
-            "requests": _requests(current, current_id, binding, native._state(before_raw)),
+            "requests": _requests(
+                current, current_id, binding, native._state(before_raw)
+            ),
         },
     }
     plan_id, path = store.save("refresh", plan)
     return {**plan, "refresh_id": plan_id, "local_file": str(path)}
-
 
 
 def _valid_blank_tail_text_format(value: dict[str, Any]) -> bool:
@@ -289,13 +359,16 @@ def _valid_blank_tail_text_format(value: dict[str, Any]) -> bool:
 
 
 def _new_column_blank_tail_styles(
-    before: dict[str, Any], expected: dict[str, Any], actual: dict[str, Any],
+    before: dict[str, Any],
+    expected: dict[str, Any],
+    actual: dict[str, Any],
     bindings: dict[str, Any],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Narrow reviewed postcondition, NOT a universal Sheets inheritance rule.
 
-    One genuinely new column, first two rows beyond both old/new bodies, blank
-    expected cells, and exact preserved adjacent blank style are the only basis.
+    One genuinely new column, or exactly two with all four tail observations,
+    first two rows beyond both old/new bodies, blank expected cells, and exact
+    preserved adjacent blank style are the only basis.
     Never mutate original before/expected/actual or ignore unrelated formatting.
     """
     compared = copy.deepcopy(actual)
@@ -305,51 +378,91 @@ def _new_column_blank_tail_styles(
         prior, want, got = (s["sheets"][sid] for s in (before, expected, actual))
         old_cols = prior["properties"]["gridProperties"]["columnCount"]
         new_cols = want["properties"]["gridProperties"]["columnCount"]
-        if new_cols != old_cols + 1 or got["properties"] != want["properties"]:
+        growth = new_cols - old_cols
+        if growth not in (1, 2) or got["properties"] != want["properties"]:
             continue
-        body_end = max(native._shape(native._literal_cells(prior))[0],
-                       native._shape(native._literal_cells(want))[0])
-        for row in range(body_end, min(body_end + 2, want["properties"]["gridProperties"]["rowCount"])):
-            address, anchor = f"{row}:{old_cols}", f"{row}:{old_cols - 1}"
-            original = copy.deepcopy(prior["cells"].get(anchor, {}))
-            desired = copy.deepcopy(want["cells"].get(address, {}))
-            observed = copy.deepcopy(got["cells"].get(address, {}))
-            for item in (original, desired, observed):
-                item.get("userEnteredFormat", {}).pop("borders", None)
-            original, desired, observed = (native._clean(x) for x in (original, desired, observed))
-            style = original.get("userEnteredFormat", {})
-            if (desired or set(original) != {"userEnteredFormat"}
-                or set(style) != {"textFormat", "verticalAlignment"}
-                or not isinstance(style["textFormat"], dict)
-                or not set(style["textFormat"]) <= {"fontFamily", "fontSize", "foregroundColor"}
-                or not _valid_blank_tail_text_format(style["textFormat"])
-                or style["verticalAlignment"] not in {"TOP", "MIDDLE", "BOTTOM"}
-                or set(observed) != {"userEnteredFormat"}
-                or digest(observed["userEnteredFormat"]) != digest(style)):
-                continue
+        body_end = max(
+            native._shape(native._literal_cells(prior))[0],
+            native._shape(native._literal_cells(want))[0],
+        )
+        pending: list[tuple[str, dict[str, Any]]] = []
+        for row in range(
+            body_end,
+            min(body_end + 2, want["properties"]["gridProperties"]["rowCount"]),
+        ):
+            for column in range(old_cols, new_cols):
+                address, anchor = f"{row}:{column}", f"{row}:{old_cols - 1}"
+                original = copy.deepcopy(prior["cells"].get(anchor, {}))
+                desired = copy.deepcopy(want["cells"].get(address, {}))
+                observed = copy.deepcopy(got["cells"].get(address, {}))
+                for item in (original, desired, observed):
+                    item.get("userEnteredFormat", {}).pop("borders", None)
+                original, desired, observed = (
+                    native._clean(x) for x in (original, desired, observed)
+                )
+                style = original.get("userEnteredFormat", {})
+                if (
+                    desired
+                    or set(original) != {"userEnteredFormat"}
+                    or set(style) != {"textFormat", "verticalAlignment"}
+                    or not isinstance(style["textFormat"], dict)
+                    or not set(style["textFormat"])
+                    <= {"fontFamily", "fontSize", "foregroundColor"}
+                    or not _valid_blank_tail_text_format(style["textFormat"])
+                    or style["verticalAlignment"] not in {"TOP", "MIDDLE", "BOTTOM"}
+                    or set(observed) != {"userEnteredFormat"}
+                    or digest(observed["userEnteredFormat"]) != digest(style)
+                ):
+                    continue
+                pending.append(
+                    (
+                        address,
+                        {
+                            "sheet_id": sid,
+                            "cell": f"{column_name(column + 1)}{row + 1}",
+                            "anchor_cell": f"{column_name(old_cols)}{row + 1}",
+                            "expected": copy.deepcopy(want["cells"].get(address, {})),
+                            "actual": copy.deepcopy(got["cells"][address]),
+                            "anchor_before": copy.deepcopy(prior["cells"][anchor]),
+                            "rule": (
+                                "new-column-blank-tail-style-v1"
+                                if growth == 1
+                                else "two-new-columns-four-blank-tail-styles-v1"
+                            ),
+                        },
+                    )
+                )
+        # The new two-column case is atomic: all four observed blank styles
+        # must independently match their preserved old-column row anchor.
+        if growth == 2 and len(pending) != 4:
+            continue
+        for address, evidence in pending:
             compared["sheets"][sid]["cells"].pop(address, None)
-            admitted.append({"sheet_id": sid, "cell": f"{column_name(old_cols + 1)}{row + 1}",
-                "anchor_cell": f"{column_name(old_cols)}{row + 1}",
-                "expected": copy.deepcopy(want["cells"].get(address, {})),
-                "actual": copy.deepcopy(got["cells"][address]),
-                "anchor_before": copy.deepcopy(prior["cells"][anchor]),
-                "rule": "new-column-blank-tail-style-v1"})
+            admitted.append(evidence)
     return compared, admitted
 
 
 def verify_get_only_output(
-    before: dict[str, Any], after: dict[str, Any], plans: Any,
-    store: Store, bindings: dict[str, Any], *,
+    before: dict[str, Any],
+    after: dict[str, Any],
+    plans: Any,
+    store: Store,
+    bindings: dict[str, Any],
+    *,
     postcondition_report: dict[str, Any] | None = None,
 ) -> None:
     """Verify complete GET observations and every preserved native field."""
-    if postcondition_report is not None and (type(postcondition_report) is not dict or postcondition_report):
+    if postcondition_report is not None and (
+        type(postcondition_report) is not dict or postcondition_report
+    ):
         raise GradebookError("Empty postcondition report output required.")
     views = validate_get_workbook(before, bindings)
     output = validate_get_workbook(after, bindings)
     expected = native._state(before)
     iterable = list(plans.values()) if isinstance(plans, dict) else list(plans)
-    if len(iterable) != len(bindings) or {p.get("course") for p in iterable} != set(bindings):
+    if len(iterable) != len(bindings) or {p.get("course") for p in iterable} != set(
+        bindings
+    ):
         raise GradebookError("GET verification requires every configured course.")
     for plan in iterable:
         course = plan["course"]
@@ -370,23 +483,43 @@ def verify_get_only_output(
             raise GradebookError("GET refresh plan binding or provenance differs.")
         requests = _requests(current, current_id, binding, native._state(before))
         if plan["batch_update"]["requests"] != requests:
-            raise GradebookError("GET refresh requests differ from canonical projection.")
+            raise GradebookError(
+                "GET refresh requests differ from canonical projection."
+            )
         native._apply_requests(expected, requests, binding)
         surrogate = {
             "Working": output[course]["Canvas"],
-            "_Sync": {"B1": 1, "B2": current_id,
-                      "B3": current["course_id"], "B4": current["origin"]},
+            "_Sync": {
+                "B1": 1,
+                "B2": current_id,
+                "B3": current["course_id"],
+                "B4": current["origin"],
+            },
         }
         if edits_from_cells(surrogate, current)["edits"]:
             raise GradebookError("GET readback differs from its complete snapshot.")
     owned = {binding["sheets"]["Canvas"] for binding in bindings.values()}
     actual = native._state(after)
-    compared, admitted = _new_column_blank_tail_styles(native._state(before), expected, actual, bindings)
-    if digest(native._comparable(expected, owned)) != digest(native._comparable(compared, owned)):
-        raise GradebookError("GET refresh native readback differs; never replay writes.")
+    compared, admitted = _new_column_blank_tail_styles(
+        native._state(before), expected, actual, bindings
+    )
+    if digest(native._comparable(expected, owned)) != digest(
+        native._comparable(compared, owned)
+    ):
+        raise GradebookError(
+            "GET refresh native readback differs; never replay writes."
+        )
     if postcondition_report is not None:
-        postcondition_report.update({"contract": "GET_ONLY_MATERIALIZATION_V1",
-            "before_fingerprint": native.fingerprint(before), "actual_after_fingerprint": native.fingerprint(after),
-            "canonical_expected_sha256": digest(expected), "comparison_sha256": digest(compared),
-            "plan_sha256s": [digest(p) for p in iterable], "admitted_differences": admitted,
-            "original_artifacts_unchanged": True, "replay_authorized": False})
+        postcondition_report.update(
+            {
+                "contract": "GET_ONLY_MATERIALIZATION_V1",
+                "before_fingerprint": native.fingerprint(before),
+                "actual_after_fingerprint": native.fingerprint(after),
+                "canonical_expected_sha256": digest(expected),
+                "comparison_sha256": digest(compared),
+                "plan_sha256s": [digest(p) for p in iterable],
+                "admitted_differences": admitted,
+                "original_artifacts_unchanged": True,
+                "replay_authorized": False,
+            }
+        )

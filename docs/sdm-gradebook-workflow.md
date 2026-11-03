@@ -382,3 +382,7 @@ limitations remain in the
 [fixed previous guide](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/sdm-gradebook-workflow.md)
 and private owner receipts. They establish neither current inventory nor service
 liveness and do not replace the procedures above.
+
+## Private owner composition
+
+See [operational source boundaries](operational-source-boundaries.md) for pinned local owner adapters, explicit canonical state roots, typed-capture output limits and optional native integration checks. Missing private configuration holds its write scope while independent read tools remain available.

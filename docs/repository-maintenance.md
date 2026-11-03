@@ -134,3 +134,5 @@ Historical promotions, checkout inventories and paused scopes remain at
 [fixed earlier guidance](https://github.com/sirdanielm/canvas-mcp/blob/16b06b5151c3595b043cb300e963b7de448ca738/docs/repository-maintenance.md)
 and in private recovery receipts. A documentation merge grants no deployment,
 paid-call or Canvas-write authority.
+
+Portable promotion and private startup composition follow the [operational source boundaries](operational-source-boundaries.md). Retain the operational overlay until its owner separately qualifies adoption; source cleanup does not rewrite installed dependencies.

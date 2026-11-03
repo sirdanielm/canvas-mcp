@@ -18,6 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from .channel_policy import lane_delivery
 from .client import GradebookClient, GradebookError
 from .google import GoogleSheets
 from .localgrass_edit_owner import LocalGrAssEditOwner
@@ -166,7 +167,8 @@ def load_configuration(
         fields = FIELDS - {"decision_id"} | {"result_id"} if proposal else FIELDS
         identity_key = "result_id" if proposal else "decision_id"
         _need(
-            set(config) == (fields - {"source_root"} if unit1 else fields)
+            set(config) - {"source_lane", "delivery_policy"}
+            == (fields - {"source_root"} if unit1 else fields)
             and config["contract"]
             in {CONTRACT, UNIT1_CONTRACT, PROPOSAL_CONTRACT, UNIT1_PROPOSAL_CONTRACT},
             "LOCAL_EDIT_CONFIGURATION_INVALID",
@@ -180,6 +182,18 @@ def load_configuration(
             and config["section"].strip(),
             "LOCAL_EDIT_FIXED_SCOPE_REQUIRED",
         )
+        policy_fields = {"source_lane", "delivery_policy"}.intersection(config)
+        _need(
+            not policy_fields or policy_fields == {"source_lane", "delivery_policy"},
+            "LOCAL_EDIT_DELIVERY_POLICY_INVALID",
+        )
+        if policy_fields:
+            _need(
+                type(config["source_lane"]) is str
+                and config["delivery_policy"] == lane_delivery(config["source_lane"])
+                and (not unit1 or config["source_lane"] == "GRASS_SUMMATIVE"),
+                "LOCAL_EDIT_DELIVERY_POLICY_INVALID",
+            )
         for key in (
             ("identity_runtime_root",)
             if unit1
@@ -361,6 +375,7 @@ def build_owner_factory(
                 registry_path=Path(staging["pin_registry"]),
                 shared_tool=Path(config["shared_tool"]),
                 preservation=_preservation(staging),
+                source_lane=config.get("source_lane"),
             )
             return LocalGrAssEditOwner(
                 connection,

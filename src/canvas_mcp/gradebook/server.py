@@ -1,9 +1,11 @@
 """Separate local MCP service with private artifacts and aggregate responses."""
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.server.middleware import Middleware
 from mcp.types import ToolAnnotations
 
 from .batch_publish import BatchPublisher
@@ -16,9 +18,22 @@ from .refresh import (
     source_digest,
     verify_refresh_output,
 )
+from .runtime_diagnostics import capture_comment_runtime
 from .service import prepare_refresh
 from .store import Store
+from .text_comments_mcp import QualifiedTextRelease, register_submission_comment_tools
 from .workbook import read_workbook_cells
+
+
+class CanonicalClientToolLock(Middleware):
+    """Serialize same-server calls only when comment hooks share its client."""
+
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+
+    async def on_call_tool(self, context: Any, call_next: Any) -> Any:
+        async with self._lock:
+            return await call_next(context)
 
 
 def create_server(
@@ -29,16 +44,63 @@ def create_server(
     enable_push: bool = False,
     enable_comments: bool = False,
     get_refresh_control: Any | None = None,
+    unit1_score_handler_factory: Any | None = None,
+    comment_releases: dict[str, QualifiedTextRelease] | None = None,
+    comment_release_factory: Any | None = None,
+    unit1_pair_score_handler_factory: Any | None = None,
+    enable_qualified_comments: bool = False,
+    source_score_scope: Any | None = None,
     comment_approval_seconds: int = 600,
+    protected_score_scope: Any | None = None,
 ) -> FastMCP:
     server = FastMCP("canvas-gradebook")
     publisher_options = (
-        {}
-        if type(comment_approval_seconds) is int and comment_approval_seconds == 600
+        {} if type(comment_approval_seconds) is int and comment_approval_seconds == 600
         else {"comment_approval_seconds": comment_approval_seconds}
     )
     publisher = Publisher(client, store, Ledger(store.root), **publisher_options)
     batches = BatchPublisher(publisher)
+    comment_runtime = capture_comment_runtime(Publisher)
+    unit1_score_handler: Any | None = None
+    pair_score_handler: Any | None = None
+    source_handlers_initialized = not enable_push
+
+    def ensure_source_handlers() -> None:
+        nonlocal unit1_score_handler, pair_score_handler, source_handlers_initialized
+        if source_handlers_initialized:
+            return
+        # Optional owner pins must not prevent read tools from starting. Build
+        # both owners before caching either; a held owner blocks every push.
+        legacy = (unit1_score_handler_factory(publisher)
+                  if unit1_score_handler_factory is not None else None)
+        paired = (unit1_pair_score_handler_factory(publisher)
+                  if unit1_pair_score_handler_factory is not None else None)
+        unit1_score_handler, pair_score_handler = legacy, paired
+        source_handlers_initialized = True
+    def scope_requires_owner(course_id: str, review_id: str | None, items: Any) -> bool:
+        # Unknown configured owner scope retains the previous global hold.
+        if source_score_scope is None or unit1_pair_score_handler_factory is not None:
+            return True
+        if not callable(source_score_scope):
+            raise GradebookError("Trusted source owner scope is unavailable.")
+        try:
+            required = source_score_scope(course_id, review_id, items)
+        except Exception:
+            raise GradebookError("Trusted source owner scope is unavailable.") from None
+        if type(required) is not bool:
+            raise GradebookError("Trusted source owner scope is invalid.")
+        return required
+
+    # None means the trusted owner has no genuinely qualified text release.
+    # It never enables tools from cold data or manufactures a release map.
+    if enable_qualified_comments is True and comment_releases is None and comment_release_factory is not None:
+        comment_releases = comment_release_factory(publisher)
+    if enable_qualified_comments is True and comment_releases is not None:
+        register_submission_comment_tools(server, comment_releases, enabled=True)
+        # The unchanged comment protocol temporarily adds HTTP request hooks.
+        # Protect every tool using this canonical client, without editing guards.
+        server.add_middleware(CanonicalClientToolLock())
+
 
     def resolve(course: str) -> str:
         if course not in courses:
@@ -139,6 +201,51 @@ def create_server(
                     "error": "Review scope held; no grade operation was prepared.",
                     "canvas_writes": 0,
                 }
+
+    def contains_protected_target(course_id: str, items: Any) -> bool:
+        # Private targets belong to trusted owner configuration, never source.
+        # No configured extra target policy means no extra target declaration;
+        # a configured policy must answer an exact boolean or retain a hold.
+        if protected_score_scope is None:
+            return False
+        if not callable(protected_score_scope):
+            raise GradebookError("Trusted protected target scope is unavailable.")
+        try:
+            protected = protected_score_scope(course_id, items)
+        except Exception:
+            raise GradebookError("Trusted protected target scope is unavailable.") from None
+        if type(protected) is not bool:
+            raise GradebookError("Trusted protected target scope is invalid.")
+        return protected
+
+    def source_handler_for_operation(
+        course_id: str, operation_id: str, *, sending: bool = False,
+    ) -> Any:
+        operation = publisher.ledger.operation(operation_id)
+        plan = store.load("push", operation["plan_id"])
+        if "unit1_pair_score_intent" in plan and "owner_binding" not in plan:
+            raise GradebookError("The exact paired source owner is required for this operation.")
+        if "owner_binding" in plan:
+            ensure_source_handlers()
+            if pair_score_handler is None or not pair_score_handler.matches_plan(course_id, plan):
+                raise GradebookError("The exact paired source owner is required for this operation.")
+            return pair_score_handler
+        if (plan.get("course_id"), plan.get("origin")) != (course_id, client.origin):
+            raise GradebookError("Push belongs to a different course or origin.")
+        protected = contains_protected_target(course_id, plan.get("items"))
+        if "manual_four_authority" not in plan and not protected:
+            if sending and scope_requires_owner(course_id, None, plan.get("items")):
+                ensure_source_handlers()
+                if (pair_score_handler is not None
+                        and pair_score_handler.protects_items(course_id, plan.get("items"))):
+                    raise GradebookError("Unit 1 targets require the paired source-approved intent.")
+                if source_score_scope is not None and unit1_pair_score_handler_factory is None:
+                    raise GradebookError("The exact source-approved operation is required.")
+            return None
+        ensure_source_handlers()
+        if "manual_four_authority" not in plan or unit1_score_handler is None or not unit1_score_handler.matches_plan(course_id, plan):
+            raise GradebookError("Unit1 source-qualified handler is not configured for this operation.")
+        return unit1_score_handler
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def get_canvas_gradebook(course: str) -> dict[str, Any]:
@@ -350,10 +457,42 @@ def create_server(
         does not approve an individual grade plan.
         """
         try:
-            return {
-                **await publisher.prepare(resolve(course), review_id),
-                "publishing_available": enable_push,
-            }
+            course_id = resolve(course)
+            if scope_requires_owner(course_id, review_id, None):
+                ensure_source_handlers()
+            # Historical source handlers may use an exact manifest reference,
+            # rather than a canonical Store review. Preserve that old route
+            # when no newer paired authority owns the Unit 1 assignment scope.
+            if unit1_score_handler is not None and unit1_score_handler.recognizes_review(review_id):
+                if pair_score_handler is not None:
+                    raise GradebookError("The current paired source-approved intent is required.")
+                prepared = await unit1_score_handler.prepare(publisher, course_id, review_id)
+                return {**prepared, "publishing_available": enable_push}
+            review = store.load("review", review_id)
+            scoped = scope_requires_owner(course_id, review_id, review.get("changes"))
+            if (scoped or contains_protected_target(course_id, review.get("changes"))
+                    or any(key in review for key in (
+                        "unit1_pair_score_intent", "manual_four_authority", "owner_binding",
+                    ))):
+                ensure_source_handlers()
+            if "unit1_pair_score_intent" in review:
+                if pair_score_handler is None or not pair_score_handler.recognizes_review(review_id):
+                    raise GradebookError("The exact paired source owner is required for this intent.")
+                prepared = await pair_score_handler.prepare(publisher, course_id, review_id)
+            elif (pair_score_handler is not None
+                  and pair_score_handler.protects_items(course_id, review.get("changes"))):
+                raise GradebookError("Unit 1 targets require the paired source-approved intent.")
+            elif unit1_score_handler is not None and unit1_score_handler.recognizes_review(review_id):
+                prepared = await unit1_score_handler.prepare(publisher, course_id, review_id)
+            else:
+                if any(key in review for key in ("manual_four_authority", "owner_binding")):
+                    raise GradebookError("The exact source-approved review is required.")
+                if (contains_protected_target(course_id, review.get("changes"))
+                        or scoped and source_score_scope is not None
+                        and unit1_pair_score_handler_factory is None):
+                    raise GradebookError("Exact source-qualified review reference required.")
+                prepared = await publisher.prepare(course_id, review_id)
+            return {**prepared, "publishing_available": enable_push}
         except GradebookError as exc:
             return {"error": str(exc), "canvas_writes": 0}
         except Exception:
@@ -373,11 +512,8 @@ def create_server(
             if (plan["course_id"], plan["origin"]) != (resolve(course), client.origin):
                 raise GradebookError("Push belongs to a different course or origin.")
             if "owner_binding" in plan:
-                # A legacy ledger summary cannot establish the qualified
-                # source owner's outcome. This server has no owner adapter.
-                raise GradebookError(
-                    "Source-owned push status requires its qualified owner."
-                )
+                handler = source_handler_for_operation(resolve(course), operation_id)
+                return dict(handler.status(resolve(course), operation_id))
             return publisher.ledger.summary(operation_id)
         except GradebookError as exc:
             return {"error": str(exc)}
@@ -394,7 +530,11 @@ def create_server(
         actor wrote it. Unresolved targets retain their lock against new pushes.
         """
         try:
-            return await publisher.reconcile(resolve(course), operation_id)
+            course_id = resolve(course)
+            handler = source_handler_for_operation(course_id, operation_id)
+            if handler is not None:
+                return dict(await handler.reconcile(publisher, course_id, operation_id))
+            return await publisher.reconcile(course_id, operation_id)
         except GradebookError as exc:
             return {"error": str(exc), "retry_writes": False}
         except Exception:
@@ -419,13 +559,16 @@ def create_server(
                     resolve(course), comments_filename, expected_envelope_sha256
                 ),
                 "publishing_available": enable_comments,
+                "loaded_comment_runtime": comment_runtime.as_dict(),
             }
         except GradebookError as exc:
-            return {"error": str(exc), "canvas_writes": 0}
+            return {"error": str(exc), "canvas_writes": 0,
+                    "loaded_comment_runtime": comment_runtime.as_dict()}
         except Exception:
             return {
                 "error": "Comment preview failed; nothing sent.",
                 "canvas_writes": 0,
+                "loaded_comment_runtime": comment_runtime.as_dict(),
             }
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=True))
@@ -496,9 +639,13 @@ def create_server(
             No messages or comments are sent.
             """
             try:
-                return await publisher.confirm(
-                    resolve(course), operation_id, confirmation_token
-                )
+                course_id = resolve(course)
+                if source_score_scope is None or unit1_pair_score_handler_factory is not None:
+                    ensure_source_handlers()
+                handler = source_handler_for_operation(course_id, operation_id, sending=True)
+                if handler is not None:
+                    return dict(await handler.confirm(publisher, course_id, operation_id, confirmation_token))
+                return await publisher.confirm(course_id, operation_id, confirmation_token)
             except GradebookError as exc:
                 return {
                     "error": str(exc),
@@ -512,6 +659,16 @@ def create_server(
                     "retry_writes": False,
                 }
 
+    def require_generic_score_scope(course_id: str, review_id: str | None, items: Any) -> None:
+        """Batch paths must not bypass the separately qualified source owner."""
+        scoped = scope_requires_owner(course_id, review_id, items)
+        if scoped:
+            ensure_source_handlers()
+        if (contains_protected_target(course_id, items)
+                or pair_score_handler is not None and pair_score_handler.protects_items(course_id, items)
+                or scoped and source_score_scope is not None and unit1_pair_score_handler_factory is None):
+            raise GradebookError("Score batch requires the exact source-owned publication route.")
+
     @server.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def prepare_gradebook_score_batch(
         course: str, review_id: str, approval_seconds: int = 7200
@@ -523,9 +680,16 @@ def create_server(
         The bounded grant expires after the requested 600–28800 seconds.
         """
         try:
+            course_id = resolve(course)
+            if scope_requires_owner(course_id, review_id, None):
+                ensure_source_handlers()
+            review = store.load("review", review_id)
+            if any(key in review for key in ("unit1_pair_score_intent", "owner_binding", "manual_four_authority")):
+                raise GradebookError("Score batch requires the exact source-owned publication route.")
+            require_generic_score_scope(course_id, review_id, review.get("changes"))
             return {
                 **await batches.prepare_scores(
-                    resolve(course), review_id, approval_seconds
+                    course_id, review_id, approval_seconds
                 ),
                 "publishing_available": enable_push,
             }
@@ -586,6 +750,13 @@ def create_server(
             _, manifest = batches._manifest(course_id, batch_id)
             if not (enable_push if manifest["channel"] == "SCORE" else enable_comments):
                 raise GradebookError("This batch publication channel is not enabled.")
+            if manifest["channel"] == "SCORE":
+                for plan_id in manifest["plan_ids"]:
+                    plan = store.load("push", plan_id)
+                    if ((plan.get("course_id"), plan.get("origin")) != (course_id, client.origin)
+                            or any(key in plan for key in ("unit1_pair_score_intent", "owner_binding", "manual_four_authority"))):
+                        raise GradebookError("Score batch requires the exact source-owned publication route.")
+                    require_generic_score_scope(course_id, plan.get("review_id"), plan.get("items"))
 
         @server.tool(
             annotations=ToolAnnotations(
