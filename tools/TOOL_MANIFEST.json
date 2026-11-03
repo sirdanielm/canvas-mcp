@@ -350,6 +350,13 @@
           "required": false,
           "default": false,
           "description": "Append a JSON block with due_at, unlock_at, lock_at, updated_at, all_dates and checkpoint dates exactly as Canvas returns them (null stays null). Adds all_dates=true and include[]=checkpoints."
+        },
+        {
+          "name": "include_description_sha256",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Append the SHA-256 of literal description HTML for a verified unpublished description-only edit. Default output is unchanged."
         }
       ],
       "returns": "Full assignment details including description, due date, submission types; with raw_dates, also a JSON dates block",
@@ -3252,6 +3259,12 @@
           "type": "array",
           "required": false,
           "description": "Strings that must already be present in the current description, else the tool refuses"
+        },
+        {
+          "name": "expected_description_sha256",
+          "type": "string",
+          "required": false,
+          "description": "Optional source HTML SHA-256 for a verified unpublished description-only update with GET preflight/readback"
         }
       ],
       "returns": "Updated assignment details confirming the changes",

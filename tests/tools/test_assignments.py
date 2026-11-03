@@ -10,9 +10,267 @@ Includes tests for:
 - update_assignment
 """
 
+from hashlib import sha256
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+
+
+class TestVerifiedDraftDescription:
+    """The existing update tool completes one bounded draft edit without handoffs."""
+
+    @staticmethod
+    def draft(description="<p>Before</p>", **overrides):
+        return dict(id=12345, course_id=60366, name="Draft", description=description,
+                    published=False, points_possible=10, submission_types=["on_paper"],
+                    due_at=None, unlock_at=None, lock_at=None, **overrides)
+
+    @pytest.mark.asyncio
+    async def test_edit_and_independent_readback(self, mock_canvas_api):
+        before = self.draft()
+        after = self.draft("<p>After</p>")
+        request = mock_canvas_api["make_canvas_request"]
+        request.side_effect = [before, {"id": 12345}, after]
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description=after["description"],
+            expected_description_sha256=sha256(before["description"].encode()).hexdigest())
+        assert "VERIFIED" in result
+        assert [c.args[0] for c in request.call_args_list] == ["get", "put", "get"]
+        assert request.call_args_list[1].kwargs == {
+            "data": {"assignment[description]": after["description"]},
+            "use_form_data": True, "retry_rate_limits": False}
+
+    @pytest.mark.asyncio
+    async def test_duplicate_is_get_only_even_after_old_source_changed(self, mock_canvas_api):
+        request = mock_canvas_api["make_canvas_request"]
+        request.return_value = self.draft("<p>After</p>")
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>", expected_description_sha256="0" * 64)
+        assert "ALREADY_CURRENT" in result
+        assert [c.args[0] for c in request.call_args_list] == ["get"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("change", [
+        {"published": True}, {"published": None}, {"id": 99}, {"course_id": 99},
+        {"description": "someone else's edit"}, {"description": None},
+    ])
+    async def test_conflicting_unknown_or_published_target_never_writes(self, mock_canvas_api, change):
+        before = self.draft()
+        before.update(change)
+        request = mock_canvas_api["make_canvas_request"]
+        request.return_value = before
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>",
+            expected_description_sha256=sha256(b"<p>Before</p>").hexdigest())
+        assert "HELD" in result
+        assert all(c.args[0] == "get" for c in request.call_args_list)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failure", [{"error": "timeout"}, None, {"id": 99}])
+    async def test_uncertain_put_does_not_read_or_retry(self, mock_canvas_api, failure):
+        request = mock_canvas_api["make_canvas_request"]
+        request.side_effect = [self.draft(), failure]
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>",
+            expected_description_sha256=sha256(b"<p>Before</p>").hexdigest())
+        assert "UNKNOWN" in result
+        assert [c.args[0] for c in request.call_args_list].count("put") == 1
+
+    @pytest.mark.asyncio
+    async def test_changed_metadata_after_put_is_not_verified(self, mock_canvas_api):
+        after = self.draft("<p>After</p>")
+        after["points_possible"] = 20
+        request = mock_canvas_api["make_canvas_request"]
+        request.side_effect = [self.draft(), {"id": 12345}, after]
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>",
+            expected_description_sha256=sha256(b"<p>Before</p>").hexdigest())
+        assert "UNVERIFIED" in result
+        assert [c.args[0] for c in request.call_args_list].count("put") == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("extra", [{"published": True}, {"name": "Other"},
+                                      {"points_possible": 20}])
+    async def test_description_route_cannot_carry_other_writes(self, mock_canvas_api, extra):
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>", expected_description_sha256="0" * 64, **extra)
+        assert "HELD" in result
+        mock_canvas_api["make_canvas_request"].assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("outcome", ["success", "denied", "timeout", "rate_limited"])
+    async def test_real_client_serialization_and_no_replay(self, mock_canvas_api, monkeypatch, outcome):
+        from urllib.parse import parse_qs
+
+        from canvas_mcp.core.client import make_canvas_request
+
+        monkeypatch.setenv("CANVAS_API_TOKEN", "synthetic-test-token")
+        monkeypatch.setenv("CANVAS_API_URL", "https://canvas.invalid/api/v1")
+        monkeypatch.setenv("ENABLE_DATA_ANONYMIZATION", "false")
+        monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+        calls = []
+        html = '<p>After &amp; <a href="https://example.invalid/?a=1&b=2">link</a></p>'
+
+        def exchange(request):
+            calls.append(request.method)
+            assert str(request.url) == "https://canvas.invalid/api/v1/courses/60366/assignments/12345"
+            if request.method == "GET":
+                return httpx.Response(200, json=self.draft(html if len(calls) == 3 else "<p>Before</p>"))
+            assert request.method == "PUT"
+            assert request.headers["content-type"].startswith("application/x-www-form-urlencoded")
+            assert parse_qs(request.content.decode()) == {"assignment[description]": [html]}
+            if outcome == "denied":
+                return httpx.Response(403, json={"error": "Denied"})
+            if outcome == "timeout":
+                raise httpx.ReadTimeout("synthetic timeout", request=request)
+            if outcome == "rate_limited":
+                return httpx.Response(429, json={"error": "Rate limited"})
+            return httpx.Response(200, json={"id": 12345})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(exchange)) as client:
+            with patch("canvas_mcp.core.client._get_http_client", return_value=client):
+                mock_canvas_api["make_canvas_request"].side_effect = make_canvas_request
+                result = await get_tool_function("update_assignment")(
+                    60366, 12345, description=html,
+                    expected_description_sha256=sha256(b"<p>Before</p>").hexdigest())
+        assert calls == (["GET", "PUT", "GET"] if outcome == "success" else ["GET", "PUT"])
+        assert {"success": "VERIFIED", "denied": "REJECTED", "timeout": "UNKNOWN", "rate_limited": "UNKNOWN"}[outcome] in result
+
+    @pytest.mark.asyncio
+    async def test_reader_supplies_literal_html_hash(self, mock_canvas_api):
+        mock_canvas_api["make_canvas_request"].return_value = self.draft()
+        result = await get_tool_function("get_assignment_details")(
+            60366, 12345, include_description_sha256=True
+        )
+        assert f"Description SHA-256: {sha256(b'<p>Before</p>').hexdigest()}" in result
+
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("source_hash", ["", "A" * 64, "0" * 63, "g" * 64])
+    async def test_invalid_hash_never_reads_or_writes(
+        self, mock_canvas_api: Any, source_hash: str
+    ) -> None:
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>",
+            expected_description_sha256=source_hash,
+        )
+        assert "HELD" in result
+        mock_canvas_api["make_canvas_request"].assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("guard", [
+        {"expect_updated_at": "2026-11-01T12:00:00Z"},
+        {"find": "Before", "replace": "After"},
+        {"require": ["Before"]},
+        {"require": []},
+    ])
+    async def test_hash_route_does_not_silently_bypass_existing_guards(
+        self, mock_canvas_api: Any, guard: dict[str, Any]
+    ) -> None:
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>",
+            expected_description_sha256="0" * 64, **guard,
+        )
+        assert "HELD" in result
+        mock_canvas_api["make_canvas_request"].assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field,value", [
+        ("points_possible", True), ("points_possible", float("nan")),
+        ("points_possible", float("inf")), ("points_possible", -1),
+        ("submission_types", [123]),
+    ])
+    async def test_malformed_native_metadata_never_writes(
+        self, mock_canvas_api: Any, field: str, value: Any
+    ) -> None:
+        before = self.draft()
+        before[field] = value
+        request = mock_canvas_api["make_canvas_request"]
+        request.return_value = before
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>",
+            expected_description_sha256=sha256(b"<p>Before</p>").hexdigest(),
+        )
+        assert "HELD" in result
+        assert [call.args[0] for call in request.call_args_list] == ["get"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field,value", [
+        ("published", 0), ("points_possible", 10.0),
+        ("submission_types", ["online_upload"]),
+    ])
+    async def test_readback_preserves_native_types_and_values(
+        self, mock_canvas_api: Any, field: str, value: Any
+    ) -> None:
+        before, after = self.draft(), self.draft("<p>After</p>")
+        after[field] = value
+        request = mock_canvas_api["make_canvas_request"]
+        request.side_effect = [before, {"id": 12345}, after]
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>",
+            expected_description_sha256=sha256(b"<p>Before</p>").hexdigest(),
+        )
+        assert "UNVERIFIED" in result
+        assert [call.args[0] for call in request.call_args_list] == ["get", "put", "get"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("before_extra,after_extra", [
+        ({"grading_type": "points"}, {"grading_type": "percent"}),
+        ({"assignment_group_id": 7}, {}),
+        ({}, {"peer_reviews": True}),
+        ({"peer_reviews": False}, {"peer_reviews": 0}),
+    ])
+    async def test_optional_stable_settings_cannot_drift_silently(
+        self, mock_canvas_api: Any,
+        before_extra: dict[str, Any], after_extra: dict[str, Any],
+    ) -> None:
+        before = {**self.draft(), **before_extra}
+        after = {**self.draft("<p>After</p>"), **after_extra}
+        request = mock_canvas_api["make_canvas_request"]
+        request.side_effect = [before, {"id": 12345}, after]
+        result = await get_tool_function("update_assignment")(
+            60366, 12345, description="<p>After</p>",
+            expected_description_sha256=sha256(b"<p>Before</p>").hexdigest(),
+        )
+        assert "UNVERIFIED" in result
+        assert [call.args[0] for call in request.call_args_list] == ["get", "put", "get"]
+
+    @pytest.mark.asyncio
+    async def test_missing_preflight_field_and_failed_readback_remain_held(
+        self, mock_canvas_api: Any
+    ) -> None:
+        request = mock_canvas_api["make_canvas_request"]
+        before = self.draft()
+        before.pop("due_at")
+        request.return_value = before
+        kwargs = {"description": "<p>After</p>",
+                  "expected_description_sha256": sha256(b"<p>Before</p>").hexdigest()}
+        assert "HELD" in await get_tool_function("update_assignment")(60366, 12345, **kwargs)
+        assert [call.args[0] for call in request.call_args_list] == ["get"]
+        request.reset_mock()
+        request.side_effect = [self.draft(), {"id": 12345}, RuntimeError("fictional read failure")]
+        assert "UNKNOWN" in await get_tool_function("update_assignment")(60366, 12345, **kwargs)
+        assert [call.args[0] for call in request.call_args_list] == ["get", "put", "get"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field,value", [
+        ("course_id", "0"), ("assignment_id", "١٢"),
+        ("assignment_id", "1/2"), ("course_id", True),
+        ("expected_sha256", None), ("description", None),
+    ])
+    async def test_helper_rejects_malformed_arguments_before_request(
+        self, field: str, value: Any
+    ) -> None:
+        from canvas_mcp.tools.assignment_drafts import update_draft_description
+
+        args = {"course_id": "60366", "assignment_id": "12345",
+                "description": "<p>After</p>", "expected_sha256": "0" * 64}
+        args[field] = value
+        request = AsyncMock()
+        assert "HELD" in await update_draft_description(request, **args)
+        request.assert_not_called()
 
 
 @pytest.fixture

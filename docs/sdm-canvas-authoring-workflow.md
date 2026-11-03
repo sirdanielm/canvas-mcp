@@ -50,6 +50,8 @@ For immutable local course-content snapshots and comparisons, use the separate
 ### New drafts
 
 1. Read the target course and confirm its exact Canvas ID.
+   Reconcile existing assignments first and reuse their IDs; do not create a
+   second draft because a prior worker stopped or a response was uncertain.
 2. Create the assignment with `published=false`.
 3. Use `on_paper` as the temporary submission type.
 4. Let the teacher initialize Google Assignments LTI in Canvas before publication. The current MCP tool accepts `external_tool` as a submission type, but it does not configure the complete institution-specific LTI launch.
@@ -68,9 +70,50 @@ For a description-only edit:
 4. Read the assignment back.
 5. Verify that points, submission types, dates and publication state did not change.
 
+For an unpublished draft, maintained source can complete this sequence in one
+`update_assignment` call: supply only `description` and
+`expected_description_sha256`, using the literal HTML digest reported by
+`get_assignment_details(include_description_sha256=true)`. This opt-in path
+checks the exact course/assignment and unpublished state, performs at most one description-only PUT, and independently
+GETs the result and protected metadata. Identical content returns
+`ALREADY_CURRENT` without a PUT. A changed preimage returns `HELD`; unavailable
+write/readback evidence returns `UNKNOWN` or `UNVERIFIED`, never success or an
+automatic retry. Reconcile these states with GET before another write. The hash
+binds source content; it is not an approval token and has no age limit. Do not
+combine this route with `expect_updated_at`, `find`/`replace`, or `require`;
+those existing guarded-edit routes remain available separately.
+
+Use the configured API route when the installed connection supports it. If a
+capability is absent because of its operator allowlist, report that boundary;
+do not route around it. Browser editing is a fallback for an actual API
+limitation within the same authorized scope, after reconciling any uncertain
+API outcome. It is not a prerequisite or a second draft-creation step. Existing
+connections retain their loaded source until deliberately reloaded; a local
+test does not establish live runtime adoption. Canvas offers no compare-and-swap
+for this edit: a concurrent change between preflight and PUT remains a race, so
+coordinate ownership and treat readback differences as a hold.
+
 Canvas `points_possible` is authoritative for the rubric total. Preserve Core and Advanced requirements independently when copying layout or wording between courses.
 
+The scanned Unit 2 test's domain policy and adopted point schedule are retained
+in the separate [GrAss Unit 2 contract](https://github.com/sirdanielm/GrAss/blob/main/docs/UNIT2_TEST_GRADING.md).
+That academic registration is not a Canvas assignment, rubric, gradebook target
+or publication approval. Do not alter live `points_possible`, rubric content,
+source-folder organization or gradebook configuration merely to mirror the
+allocation. Any such write needs its exact current Canvas target and separate
+authorization/readback. Printed forms, keys and private registration evidence
+remain outside this public documentation; a retained version does not prove
+which form a student received.
+
 ## Description formatting
+
+Daniel's October 20–21, 2026 assignment-format preference follows 2.4a: do not
+repeat the assignment title; use a brief learning intention, concise assigned
+scope and directions, clear authoritative worksheet and teaching-slides links,
+and a descriptive, item-specific `Criterion | Evidence expected | Points` rubric
+with a total. Ground item numbering and approved scoring in the current worksheet
+and match the total to live assignment points. Preserve separate Core and
+Advanced requirements; never invent worksheet links or point allocations.
 
 Place submission guidance above the embedded rubric. For worksheets and simulations, use:
 
