@@ -164,7 +164,7 @@ def prepare_reviewed_source(
             for k in ("private_proposed_weighted_earned", "weighted_possible")
         )
     except (ValueError, ZeroDivisionError):
-        earned = possible = None
+        raise GradebookError("REVIEWED_WHOLE_EXACT_ARITHMETIC_REQUIRED") from None
     _need(
         earned is not None
         and possible is not None

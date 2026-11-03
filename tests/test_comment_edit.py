@@ -172,7 +172,8 @@ async def test_exact_same_id_edit_once_and_all_other_values_preserved(
     assert result["expires_in_seconds"] == 600 and not state["edit_puts"]
     operation = publisher.ledger.operation(result["operation_id"])
     assert operation["expires"] - operation["created"] == 600
-    text = open(result["review_file"], encoding="utf-8").read()
+    with open(result["review_file"], encoding="utf-8") as review_file:
+        text = review_file.read()
     assert (
         edit.ACTION in text and "Exact old body" in text and "Exact replacement" in text
     )

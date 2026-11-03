@@ -95,7 +95,7 @@ def test_adapter_exception_never_discloses_private_values(tmp_path: Path) -> Non
 def test_unsupported_private_file_capability_holds_before_filesystem_access(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import canvas_mcp.gradebook.owner_config as config
+    from canvas_mcp.gradebook import owner_config as config
 
     monkeypatch.setattr(config, "private_owner_adapter_supported", lambda: False)
 

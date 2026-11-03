@@ -346,6 +346,7 @@ def persist_metadata(root: Path, value: dict[str, Any]) -> dict[str, Any]:
         try:
             os.unlink(temporary, dir_fd=directory)
         except FileNotFoundError:
+            # Creation may have failed before a temporary file existed to clean up.
             pass
         os.close(directory)
     return {
