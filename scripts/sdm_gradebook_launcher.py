@@ -188,7 +188,7 @@ def main() -> int:
 
                 owner_options = load_owner_policy(
                     args.owner_adapter, args.owner_adapter_sha256
-                ).server_options()
+                ).server_options(enable_qualified_comments=args.enable_comments)
             server = create_server(
                 client,
                 store,

@@ -19,8 +19,9 @@ def adapter(tmp_path: Path) -> tuple[Path, str]:
         "def scope(course, review, items):\n    return course == '12'\n"
         "def protected(course, items):\n    return course == '12' and bool(items)\n"
         "def owner(publisher):\n    return None\n"
-        "def create_owner_policy():\n    return OwnerPolicy(scope, protected, owner)\n"
-    , encoding="utf-8")
+        "def create_owner_policy():\n    return OwnerPolicy(scope, protected, owner)\n",
+        encoding="utf-8",
+    )
     path.chmod(0o600)
     return path, hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -34,8 +35,13 @@ def test_absent_adapter_holds_score_owner_without_enabling_comments() -> None:
         options["unit1_score_handler_factory"](object())
 
 
-@pytest.mark.skipif(not private_owner_adapter_supported(), reason="POSIX private adapter file protection unavailable")
-def test_explicit_pinned_adapter_keeps_private_scope_in_callables(tmp_path: Path) -> None:
+@pytest.mark.skipif(
+    not private_owner_adapter_supported(),
+    reason="POSIX private adapter file protection unavailable",
+)
+def test_explicit_pinned_adapter_keeps_private_scope_in_callables(
+    tmp_path: Path,
+) -> None:
     path, pin = adapter(tmp_path)
     policy = load_owner_policy(path, pin)
     assert policy.source_score_scope("12", None, []) is True
@@ -45,8 +51,13 @@ def test_explicit_pinned_adapter_keeps_private_scope_in_callables(tmp_path: Path
 
 
 @pytest.mark.parametrize("mutation", ["hash", "mode", "symlink", "missing_pin"])
-@pytest.mark.skipif(not private_owner_adapter_supported(), reason="POSIX private adapter file protection unavailable")
-def test_invalid_adapter_is_held_before_source_execution(tmp_path: Path, mutation: str) -> None:
+@pytest.mark.skipif(
+    not private_owner_adapter_supported(),
+    reason="POSIX private adapter file protection unavailable",
+)
+def test_invalid_adapter_is_held_before_source_execution(
+    tmp_path: Path, mutation: str
+) -> None:
     path, pin = adapter(tmp_path)
     if mutation == "hash":
         pin = "0" * 64
@@ -60,22 +71,20 @@ def test_invalid_adapter_is_held_before_source_execution(tmp_path: Path, mutatio
         load_owner_policy(path, None if mutation == "missing_pin" else pin)
 
 
-
-
-
-
-
-
-
-
-@pytest.mark.skipif(not private_owner_adapter_supported(), reason="POSIX private adapter file protection unavailable")
+@pytest.mark.skipif(
+    not private_owner_adapter_supported(),
+    reason="POSIX private adapter file protection unavailable",
+)
 def test_adapter_exception_never_discloses_private_values(tmp_path: Path) -> None:
     path = tmp_path / "owner.py"
     sentinel = "fictional student row sentinel"
     path.write_text(
         "from canvas_mcp.gradebook.client import GradebookError\n"
-        "def create_owner_policy():\n    raise GradebookError(" + repr(sentinel) + ")\n"
-    , encoding="utf-8")
+        "def create_owner_policy():\n    raise GradebookError("
+        + repr(sentinel)
+        + ")\n",
+        encoding="utf-8",
+    )
     path.chmod(0o600)
     with pytest.raises(GradebookError) as error:
         load_owner_policy(path, hashlib.sha256(path.read_bytes()).hexdigest())
@@ -83,17 +92,53 @@ def test_adapter_exception_never_discloses_private_values(tmp_path: Path) -> Non
     assert str(error.value) == "Private owner adapter initialization failed."
 
 
-
-
-
-
-def test_unsupported_private_file_capability_holds_before_filesystem_access(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unsupported_private_file_capability_holds_before_filesystem_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import canvas_mcp.gradebook.owner_config as config
 
     monkeypatch.setattr(config, "private_owner_adapter_supported", lambda: False)
+
     def no_open(*args, **kwargs):
         pytest.fail("Unsupported platform must not open private adapter source")
+
     monkeypatch.setattr(config.os, "open", no_open)
     with pytest.raises(GradebookError, match="require POSIX"):
         load_owner_policy(tmp_path / "not-opened.py", "0" * 64)
     assert load_owner_policy().server_options()["enable_qualified_comments"] is False
+
+
+def test_configured_comment_capability_does_not_enable_tools_by_presence():
+    from canvas_mcp.gradebook.owner_config import OwnerPolicy
+
+    calls = []
+
+    def factory(publisher):
+        calls.append(publisher)
+
+    policy = OwnerPolicy(
+        lambda *_: False, lambda *_: False, comment_release_factory=factory
+    )
+    assert policy.server_options()["enable_qualified_comments"] is False
+    assert (
+        policy.server_options(enable_qualified_comments=True)[
+            "enable_qualified_comments"
+        ]
+        is True
+    )
+    assert calls == []
+
+
+@pytest.mark.parametrize("flag", [False, None, 1, "yes"])
+def test_comment_surface_requires_literal_explicit_enablement(flag):
+    from canvas_mcp.gradebook.owner_config import OwnerPolicy
+
+    policy = OwnerPolicy(
+        lambda *_: False, lambda *_: False, comment_release_factory=lambda _: None
+    )
+    assert (
+        policy.server_options(enable_qualified_comments=flag)[
+            "enable_qualified_comments"
+        ]
+        is False
+    )

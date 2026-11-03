@@ -10,8 +10,11 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 import subprocess
+import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +64,22 @@ def _json_bytes(value: Any) -> bytes:
         ).encode("utf-8")
     except (TypeError, ValueError, RecursionError, UnicodeError) as exc:
         raise GradebookError("Portable JSON required.") from exc
+
+
+def _formatter_environment(
+    platform: str, inherited: Mapping[str, str]
+) -> dict[str, str]:
+    """Keep credentials and Node preload/options out of the offline process."""
+    env = {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"}
+    if platform == "win32":
+        # Windows needs its system directories for Node's Winsock/crypto
+        # startup, as in the maintained code-execution runtime probe. The
+        # executable is absolute; host PATH and all Node options stay excluded.
+        for key in ("SYSTEMROOT", "WINDIR"):
+            value = inherited.get(key)
+            if value is not None:
+                env[key] = value
+    return env
 
 
 def derive_projection(
@@ -121,7 +140,7 @@ def derive_projection(
             shell=False,
             timeout=timeout_seconds,
             check=False,
-            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
+            env=_formatter_environment(sys.platform, os.environ),
         )
         _need(
             result.returncode == 0 and len(result.stdout) <= 2_000_000,

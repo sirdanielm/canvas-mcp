@@ -1,14 +1,19 @@
 """Fictional offline process tests, with no duplicated feedback policy."""
 
 import hashlib
+import os
 import shutil
 import subprocess
+import sys
 from copy import deepcopy
 
 import pytest
 
 from canvas_mcp.gradebook.model import GradebookError
-from canvas_mcp.gradebook.unit2_feedback import derive_projection
+from canvas_mcp.gradebook.unit2_feedback import (
+    _formatter_environment,
+    derive_projection,
+)
 
 
 def runtime(tmp_path, source):
@@ -36,7 +41,12 @@ def test_driver_pinned_bytes_clean_environment_and_immutable_inputs(
     original = subprocess.run
 
     def inspect_run(*values, **kwargs):
-        assert set(kwargs["env"]) == {"PATH", "LANG", "LC_ALL", "TZ"}
+        expected_keys = {"PATH", "LANG", "LC_ALL", "TZ"}
+        if sys.platform == "win32":
+            expected_keys |= {
+                key for key in ("SYSTEMROOT", "WINDIR") if key in os.environ
+            }
+        assert set(kwargs["env"]) == expected_keys
         assert kwargs["shell"] is False and kwargs["timeout"] <= 5
         assert args["formatter_path"].read_text(encoding="utf-8") not in values[0][-1]
         return original(*values, **kwargs)
@@ -92,3 +102,50 @@ def test_timeout_bounds(tmp_path, timeout):
     args = runtime(tmp_path, "export function formatFeedback(){return {};}")
     with pytest.raises(GradebookError):
         derive_projection({}, {}, timeout_seconds=timeout, **args)
+
+
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+def test_posix_formatter_environment_remains_exact_and_drops_host_secrets(platform):
+    inherited = {
+        "PATH": "/fictional/untrusted",
+        "SYSTEMROOT": r"C:\Windows",
+        "WINDIR": r"C:\Windows",
+        "CANVAS_API_TOKEN": "fictional-secret",
+        "NODE_OPTIONS": "--require=fictional",
+        "NODE_PATH": "/fictional",
+        "PYTHONPATH": "/fictional",
+        "HOME": "/fictional",
+    }
+    assert _formatter_environment(platform, inherited) == {
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+    }
+
+
+def test_windows_formatter_environment_keeps_only_required_system_directories():
+    inherited = {
+        "PATH": r"C:\fictional-untrusted",
+        "SYSTEMROOT": r"C:\Windows",
+        "WINDIR": r"C:\Windows",
+        "CANVAS_API_TOKEN": "fictional-secret",
+        "NODE_OPTIONS": "--require=fictional",
+        "NODE_PATH": "/fictional",
+        "PYTHONPATH": "/fictional",
+        "HOME": "/fictional",
+    }
+    assert _formatter_environment("win32", inherited) == {
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+        "SYSTEMROOT": r"C:\Windows",
+        "WINDIR": r"C:\Windows",
+    }
+    assert _formatter_environment("win32", {}) == {
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+    }

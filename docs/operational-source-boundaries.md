@@ -19,6 +19,8 @@ plus the applicable score-owner, paired-score-owner and comment-release
 factories. A source pin verifies bytes; the configured owner must independently
 check current source, teacher authority and durable operation history. Adapter
 initialization errors are translated to fixed messages without private payloads.
+Providing a release factory declares a capability; the launcher also requires
+`--enable-comments` before enabling its qualified comment tools.
 
 Without an adapter, launcher score sends stay held while reads remain available.
 The explicit read-only profile does not load the adapter. Library callers may
