@@ -300,9 +300,18 @@ class TextCommentDelivery:
         self._submission_identity(submission, r)
         need(stable(submission) == stable(item["expected"]), "RAW_SUBMISSION_OR_GRADE_CHANGED")
         cs = comments(submission)
-        visible = [cid for cid, c in cs.items() if type(c.get("created_at")) is str and bool(c["created_at"]) and c.get("hidden") is not True and c.get("draft") is not True and not c.get("attachments") and ("attempt" not in c or type(c["attempt"]) is type(r["attempt"]) and c["attempt"] == r["attempt"])]
+        visible = [cid for cid, c in cs.items()
+            if type(c.get("created_at")) is str and bool(c["created_at"])
+            and all(flag not in c or c[flag] is False for flag in ("hidden", "draft"))
+            and ("attachments" not in c or type(c["attachments"]) is list and not c["attachments"])
+            and ("attempt" not in c or type(c["attempt"]) is type(r["attempt"]) and c["attempt"] == r["attempt"])]
+        matched = matching(cs, m["actor_id"], item["body"])
+        # An exact body with unverified history is a hold, never a reason to
+        # deduplicate or to filter it away and append another copy. Preserve
+        # absent comment-attempt support and type-exact explicit attempt facts.
+        need(set(matched) <= set(visible), "EXACT_COMMENT_VISIBILITY_TIMESTAMP_OR_ATTEMPT_UNVERIFIED")
         links = {cid: {"id": c["id"], "author_id": c["author_id"], "comment": c["comment"]} for cid, c in cs.items()}
-        return {"stable": stable(submission), "comments": {cid: encoded(c) for cid, c in cs.items()}, "comment_links": links, "matching": matching(cs, m["actor_id"], item["body"]), "verified_comment_ids": visible, "started": started, "receipts": receipts}
+        return {"stable": stable(submission), "comments": {cid: encoded(c) for cid, c in cs.items()}, "comment_links": links, "matching": matched, "verified_comment_ids": visible, "started": started, "receipts": receipts}
 
     def _reviewed_manifest_sha256(self) -> str | None:
         return REVIEWED_MANIFEST_SHA256
