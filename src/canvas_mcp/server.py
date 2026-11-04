@@ -97,6 +97,18 @@ async def _send_json_error(send: Any, status: int, message: str) -> None:
 # token. 8 KiB is far more than that and far less than a useful memory-pressure
 # lever for an unauthenticated caller.
 _MAX_PUBLIC_BODY_BYTES = 8 * 1024
+# MCP arguments are JSON, not file uploads. Bound the entire request before
+# authentication side effects or MCP parsing; larger batches must be split.
+# A completed request retains at most this buffer plus its final bytes copy.
+_MAX_HTTP_BODY_BYTES = 1024 * 1024
+
+
+class _RequestDisconnected(Exception):
+    """The caller disconnected before supplying a complete request."""
+
+
+class _InvalidRequestBody(Exception):
+    """The transport supplied an invalid body frame."""
 
 
 def _declared_content_length(headers: Any) -> int | None:
@@ -119,28 +131,98 @@ async def _read_body(receive: Any, max_bytes: int | None = None) -> bytes | None
     the public route is unauthenticated, the accumulated bytes are dropped rather
     than kept for a request that will be rejected anyway.
     """
-    chunks: list[bytes] = []
-    total = 0
+    body = bytearray()
     while True:
         msg = await receive()
+        if msg.get("type") == "http.disconnect":
+            raise _RequestDisconnected
+        if msg.get("type") != "http.request":
+            raise _InvalidRequestBody
         chunk = msg.get("body", b"")
-        if max_bytes is not None:
-            total += len(chunk)
-            if total > max_bytes:
-                return None
-        chunks.append(chunk)
+        if type(chunk) is not bytes:
+            raise _InvalidRequestBody
+        if max_bytes is not None and len(body) + len(chunk) > max_bytes:
+            return None
+        # Empty/tiny frames must not create an unbounded list of chunk objects.
+        body.extend(chunk)
         if not msg.get("more_body", False):
             break
-    return b"".join(chunks)
+    return bytes(body)
+
+
+def _validated_body_length(headers: Any) -> int | None:
+    """Reject ambiguous framing and parse a decimal byte count without big ints."""
+    lengths = []
+    transfer_encoding = False
+    for name, value in headers or []:
+        if name.lower() == b"content-length":
+            lengths.append(value.strip())
+        elif name.lower() == b"transfer-encoding":
+            transfer_encoding = True
+    if not lengths:
+        return None
+    if len(lengths) != 1 or transfer_encoding or not lengths[0].isdigit():
+        raise _InvalidRequestBody
+    significant = lengths[0].lstrip(b"0") or b"0"
+    # Any larger decimal value is already over either application limit.
+    if len(significant) > 20:
+        return _MAX_HTTP_BODY_BYTES + 1
+    return int(significant)
+
+
+class RequestBodyLimitMiddleware:
+    """Bound every HTTP body before any downstream parser or auth-side effect.
+
+    Prebuffering within a fixed cap prevents a chunked request from reaching an
+    MCP handler before overflow is known. SSE responses remain streamed; after
+    the one replayed request frame, receive still observes real disconnects.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        limit = (_MAX_PUBLIC_BODY_BYTES if scope.get("path") == _ADMIN_CONFIRM_PATH
+                 else _MAX_HTTP_BODY_BYTES)
+        try:
+            declared = _validated_body_length(scope.get("headers", []))
+            if declared is not None and declared > limit:
+                await _send_json_error(send, 413, "Request body too large")
+                return
+            body = await _read_body(receive, max_bytes=limit)
+        except _RequestDisconnected:
+            return
+        except _InvalidRequestBody:
+            await _send_json_error(send, 400, "Invalid request body")
+            return
+        if body is None:
+            await _send_json_error(send, 413, "Request body too large")
+            return
+        if declared is not None and declared != len(body):
+            await _send_json_error(send, 400, "Invalid request body")
+            return
+        replayed = False
+
+        async def bounded_receive() -> Any:
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+
+        await self.app(scope, bounded_receive, send)
 
 
 def _access_key_ok(presented: str, allowed: frozenset[str]) -> bool:
-    """Constant-time check of a presented access key against the allowed set."""
-    if not presented:
-        return False
-    # compare_digest against each key; the any() still runs every comparison's
-    # constant-time op, avoiding early-exit timing leaks on the matched key.
-    return any(hmac.compare_digest(presented, key) for key in allowed)
+    """Compare every allowed key without revealing a match by early loop exit."""
+    presented_bytes = presented.encode("utf-8")
+    matched = False
+    for key in allowed:
+        matched |= hmac.compare_digest(presented_bytes, key.encode("utf-8"))
+    return matched and bool(presented)
 
 
 def _client_principal_id(headers: dict[bytes, bytes]) -> str | None:
@@ -398,7 +480,10 @@ class CanvasCredentialMiddleware:
                 # v1 access-key gate (when configured): reject before touching creds.
                 allowed_keys = config.mcp_access_keys
                 if allowed_keys:
-                    presented = headers.get(b"x-mcp-access-key", b"").decode("utf-8", errors="ignore").strip()
+                    try:
+                        presented = headers.get(b"x-mcp-access-key", b"").decode("utf-8").strip()
+                    except UnicodeDecodeError:
+                        presented = ""
                     if not _access_key_ok(presented, allowed_keys):
                         await _send_json_error(send, 401, "Invalid or missing X-MCP-Access-Key")
                         return
@@ -876,7 +961,7 @@ def _run_http_server(mcp: FastMCP, host: str, port: int) -> None:
     # mode — an App Service recycle drops it, and mcp-remote hangs forever on
     # the resulting stale-session 404 instead of re-initializing (issue #159).
     starlette_app = mcp.http_app(stateless_http=True)
-    app = CanvasCredentialMiddleware(starlette_app)
+    app = RequestBodyLimitMiddleware(CanvasCredentialMiddleware(starlette_app))
 
     config = uvicorn.Config(
         app,

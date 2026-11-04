@@ -1,6 +1,7 @@
 # Annotated technical manual
 
-Source links and setup facts refreshed November 3, 2026 against `113727e`.
+Source links and setup facts refreshed November 3, 2026, including the HTTP
+security repair's request-body boundary.
 The [earlier source map](https://github.com/sirdanielm/canvas-mcp/blob/113727e58a198fdcee35dacd4d48d9a131f5de5e/ANNOTATED_TECHNICAL_MANUAL.md)
 retains its dated review basis. This is a guide to consequential functions, not an exhaustive code
 review or evidence of installation. [CLAUDE.md](CLAUDE.md) owns development rules;
@@ -25,8 +26,9 @@ separate facts.
 
 | Function and source | Input → result; connection and annotation |
 | --- | --- |
-| [`main`](src/canvas_mcp/server.py#L577) | CLI arguments/environment → configured server. Parses `--help` before loading configuration; validates transport/auth, registers tools, applies write policy and starts serving. Ordinary startup is a live service operation. |
-| [`register_all_tools`](src/canvas_mcp/server.py#L439) | FastMCP instance + role → registrations. Installs result contracts, shared tools, role-specific tools and resources. A registered tool can still be removed by policy. |
+| [`main`](src/canvas_mcp/server.py#L662) | CLI arguments/environment → configured server. Parses `--help` before loading configuration; validates transport/auth, registers tools, applies write policy and starts serving. Ordinary startup is a live service operation. |
+| [`RequestBodyLimitMiddleware.__call__`](src/canvas_mcp/server.py#L184) | HTTP stream → complete bounded body or fixed error before credentials/MCP parsing. Caps general requests at 1 MiB and the public confirmation form at 8 KiB; preserves disconnect/lifespan behavior. Source repair is separate from installed adoption. |
+| [`register_all_tools`](src/canvas_mcp/server.py#L524) | FastMCP instance + role → registrations. Installs result contracts, shared tools, role-specific tools and resources. A registered tool can still be removed by policy. |
 | [`resolve_tool_policy`](src/canvas_mcp/core/tool_policy.py#L222) | Raw `ALLOWED_WRITE_TOOLS` + transport → policy or error. Unset HTTP defaults to no writes; unset stdio retains legacy behavior. Explicit `none` is the safe read-only choice. |
 | [`apply_tool_policy`](src/canvas_mcp/core/tool_policy.py#L313) | Registered server + policy → removed tool names. Removes disallowed side-effect tools; unknown effect classifications fail closed when policy is enforced. This is not the separate gradebook push gate. |
 | [`validate_params`](src/canvas_mcp/core/validation.py#L355) | Tool decorator → asynchronous argument-validation wrapper. Uses `validate_parameter` before invoking the tool. This checks shape/type, not academic correctness or human permission. |
@@ -39,6 +41,7 @@ separate facts.
 Representative tests: [Python transport](tests/core/test_client.py),
 [transport state machine](tests/core/test_client_state_machine.py),
 [write policy](tests/security/test_tool_policy.py),
+[HTTP request and key boundaries](tests/security/test_http_request_limits.py),
 [confirmation claims](tests/security/test_confirmation_claims.py), and
 [TypeScript tests](tests/code_api).
 
