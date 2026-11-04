@@ -1,6 +1,11 @@
 # Repository and local tooling maintenance
 
 Maintain reviewed source without losing operational work or recovery evidence.
+This document describes current practice and records useful context; it is not
+a fixed plan or a veto on a later user-directed change. When guidance becomes
+stale, update it alongside the work and preserve the relevant security, privacy,
+access and review requirements. Current instructions and verified source take
+precedence over historical plans and status snapshots.
 The [current goals and status](goals-and-status.md) records source and installed
 capabilities separately. Repository publication, installation, service restart,
 workbook refresh and classroom delivery are separate actions.
