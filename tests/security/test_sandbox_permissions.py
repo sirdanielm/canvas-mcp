@@ -8,6 +8,7 @@ a developer machine and fail in CI, where a skip would let the boundary go
 unchecked.
 """
 
+import asyncio
 import json
 import os
 import shutil
@@ -70,7 +71,14 @@ def execute(registered):
 
 
 def _mock_process() -> MagicMock:
-    return MagicMock(communicate=AsyncMock(return_value=(b"ok\n", b"")), returncode=0)
+    stdout, stderr = asyncio.StreamReader(), asyncio.StreamReader()
+    stdout.feed_data(b"ok\n")
+    stdout.feed_eof()
+    stderr.feed_eof()
+    return MagicMock(
+        stdout=stdout, stderr=stderr, stdin=MagicMock(drain=AsyncMock()),
+        wait=AsyncMock(return_value=0), returncode=0,
+    )
 
 
 @pytest.mark.asyncio

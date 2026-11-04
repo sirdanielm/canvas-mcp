@@ -279,6 +279,12 @@ Advanced tools for bulk operations and custom logic.
 > effects; existing authorization remains valid. A local sandbox or dry-run
 > option does not establish authorization.
 
+Captured raw stdout/stderr bytes have a shared 1 MiB cap. Overflow and timeout
+return bounded diagnostics and stop the owned process. Container cleanup checks
+per-run ownership and independent absence; `HELD/UNKNOWN` cleanup requires
+inspection of that run. Earlier effects may already exist, so reconcile targets
+before another execution.
+
 ## When to Use What
 
 | Scenario | Recommended Approach | Why |
@@ -391,6 +397,14 @@ delete_assignment_with_confirmation. There is no un-tokened delete tool.
 Announcement deletion tools refuse ordinary discussions and records Canvas does
 not explicitly identify as announcements, including when confirming a preview.
 ```
+
+Announcement `title_regex` selection runs outside the MCP event loop with a
+two-second deadline for the complete selection. It allows 512 pattern characters,
+4,096 characters per title, 131,072 total title characters and 5,000 candidates;
+serialized input/output and concurrent workers are also bounded. Any failure
+holds the whole selection without deletion or a partial preview. Narrow the
+criteria and request a fresh preview when necessary; a held confirmation does
+not authorize replay. See the [tool contract](../tools/README.md#delete_announcements_by_criteria).
 
 ### Educator: Guarded Edits (pages, assignments, discussions, syllabus)
 ```

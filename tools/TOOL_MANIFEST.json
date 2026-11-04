@@ -1213,12 +1213,12 @@
           "description": "Maximum execution time in seconds"
         }
       ],
-      "returns": "Combined stdout/stderr from execution",
+      "returns": "Captured raw stdout/stderr bytes share a 1 MiB cap; rendered response size may be larger. Overflow or timeout returns bounded diagnostics and stops owned execution. Earlier effects may remain; reconcile before retry.",
       "examples": [
         "Grade all 90 notebook submissions using bulk grading",
         "Send reminders to all students who haven't submitted"
       ],
-      "notes": "Use search_canvas_tools first to discover available imports. Best for 30+ items."
+      "notes": "Use search_canvas_tools to discover imports. Requires explicit execution enablement and authorization for intended effects. Abnormal container cleanup verifies ownership and absence; ambiguous evidence remains HELD/UNKNOWN."
     },
     {
       "name": "check_enrollment",
@@ -2161,7 +2161,7 @@
           "name": "criteria",
           "type": "object",
           "required": true,
-          "description": "Dict with keys: title_contains, older_than (ISO), newer_than (ISO), title_regex"
+          "description": "Dict with keys: title_contains, older_than (ISO), newer_than (ISO), title_regex; title_regex uses Python case-insensitive matching with a two-second selection deadline, 512 pattern characters, 4096 characters per title, 131072 total title characters and 5000 candidates. Input/output and concurrency are bounded; failures produce no preview or deletion."
         },
         {
           "name": "limit",
@@ -2601,7 +2601,7 @@
       "category": "educator",
       "description": "Get current data anonymization status and statistics.",
       "parameters": [],
-      "returns": "Current anonymization configuration and statistics",
+      "returns": "Current anonymization configuration and retained mapping count (maximum 4096), not lifetime unique students; HTTP statistics cover only this request.",
       "examples": [
         "Is data anonymization enabled on this server?"
       ]

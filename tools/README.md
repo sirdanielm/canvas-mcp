@@ -1895,6 +1895,14 @@ Delete announcements matching criteria such as age or title patterns.
 
 **Returns:** The matched list with a token; the token is bound to that exact match set, so if the listing drifts before you confirm, the call refuses instead of deleting something you never saw.
 
+`title_regex` retains Python case-insensitive matching in an isolated worker.
+The complete selection has a two-second deadline, a 512-character pattern limit,
+and caps of 4,096 characters per title, 131,072 total title characters and 5,000
+candidate titles. Serialized input is capped at 1 MiB and worker output at
+64 KiB; at most two regex workers run concurrently. A limit, invalid pattern,
+busy worker pool or timeout refuses the whole selection with no preview or
+deletion. Narrow the criteria and obtain a fresh preview after a held confirmation.
+
 ---
 
 ### Page Management
@@ -2118,6 +2126,10 @@ See also the `ENABLE_DATA_ANONYMIZATION` setting in the [usage guidelines](#for-
 HTTP statistics describe only the current request; they never include another
 caller's activity. Local stdio statistics cover the local server session.
 Get the server's current data anonymization configuration and statistics.
+Counts describe retained pseudonym mappings, not lifetime unique students.
+Retention is limited to 4,096 entries per scope and skips IDs over 64 characters
+or prefixes over 32 characters. Eviction and clearing preserve deterministic
+hash-derived identities; each call uses its requested prefix.
 
 **Parameters:** none
 
@@ -3053,7 +3065,13 @@ await bulkGrade({
 });
 ```
 
-**Returns:** Combined stdout and stderr from execution, or error message if failed.
+**Returns:** Captured stdout/stderr raw bytes share a 1 MiB limit; failures return
+an error with bounded diagnostics. Response headings and UTF-8 replacement
+characters can make the rendered response larger. Overflow terminates the owned execution. Timeout,
+cancellation and output overflow do not roll back earlier writes or authorize a
+retry; reconcile the original targets first. Abnormal container cleanup removes
+only an ownership-verified immutable ID and checks absence. Uncertain cleanup is
+reported as `HELD/UNKNOWN` with the run reference.
 
 **Platform Support:**
 - **Local sandbox (default without a container runtime)**: Runs `node` directly under its permission model. Needs Node.js 22.18 or later; on an older Node the tool refuses to run and says why. TypeScript goes through Node's type stripping, so import types with `import type` and avoid enums and namespaces.

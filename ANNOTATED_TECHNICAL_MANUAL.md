@@ -1,7 +1,7 @@
 # Annotated technical manual
 
-Source links and setup facts refreshed November 3, 2026, including the HTTP
-security repair's request-body boundary.
+Source links and setup facts refreshed November 3, 2026, including HTTP, execution,
+regex-selection and pseudonym-retention security boundaries.
 The [earlier source map](https://github.com/sirdanielm/canvas-mcp/blob/113727e58a198fdcee35dacd4d48d9a131f5de5e/ANNOTATED_TECHNICAL_MANUAL.md)
 retains its dated review basis. This is a guide to consequential functions, not an exhaustive code
 review or evidence of installation. [CLAUDE.md](CLAUDE.md) owns development rules;
@@ -37,12 +37,19 @@ separate facts.
 | [`ConfirmationGuard.fingerprint`](src/canvas_mcp/core/write_confirmation.py#L126) | Exact preview fields → caller-bound digest. Length-prefixes fields; tokens must remain bound to the same caller, target and content. |
 | [`ConfirmationGuard.claim`](src/canvas_mcp/core/write_confirmation.py#L252) | Token + fingerprint → owning claim or error. Single-use process-local reservation; `ConfirmationClaim.finish` releases only a proven non-dispatch/rejection. Uncertain writes remain spent. A token is not proof a teacher approved. |
 | [`initializeCanvasClient`](src/canvas_mcp/code_api/client.ts#L31) / [`fetchAllPaginated`](src/canvas_mcp/code_api/client.ts#L257) | Explicit URL/token/config → TypeScript client; endpoint → complete list. Independent direct-HTTP path with its own validation, pagination and request rules. Keep execution disabled unless separately commissioned. |
+| [`_collect_process_output`](src/canvas_mcp/tools/code_execution.py#L74) | Owned subprocess → concurrently drained, bounded stdout/stderr or explicit failure. Stops and reaps on overflow, timeout or cancellation; abnormal container cleanup separately verifies ownership and absence. Earlier writes may still exist. |
+| [`_bounded_title_regex_matches`](src/canvas_mcp/tools/discussions.py#L82) | Pattern + complete candidate titles → boolean match set or hold. Isolated Python matching has a shared two-second deadline and size/concurrency limits; no partial preview or deletion on failure. |
+| [`generate_anonymous_id`](src/canvas_mcp/core/anonymization.py#L234) | Canvas ID + requested prefix → deterministic hash label. Retention is bounded by entry and string limits, scoped to stdio or the current HTTP request; eviction does not change identity. |
 
 Representative tests: [Python transport](tests/core/test_client.py),
 [transport state machine](tests/core/test_client_state_machine.py),
 [write policy](tests/security/test_tool_policy.py),
 [HTTP request and key boundaries](tests/security/test_http_request_limits.py),
-[confirmation claims](tests/security/test_confirmation_claims.py), and
+[confirmation claims](tests/security/test_confirmation_claims.py),
+[subprocess bounds](tests/security/test_subprocess_output_limits.py),
+[owned container cleanup](tests/security/test_owned_container_cleanup.py),
+[regex bounds](tests/security/test_announcement_regex_limits.py),
+[pseudonym retention](tests/security/test_anonymization_cache_bounds.py), and
 [TypeScript tests](tests/code_api).
 
 ## Function map: private gradebook and worker

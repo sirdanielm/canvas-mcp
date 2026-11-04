@@ -6,7 +6,9 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -36,6 +38,211 @@ _SAFE_ENV_KEYS = frozenset({
     "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
     "CONTAINER_HOST",
 })
+
+# One shared budget, not one allocation per pipe. Most executions print a short
+# result; a 1 MiB ceiling retains useful diagnostics without allowing output to
+# consume the server's memory for the entire execution timeout. StreamReader's
+# additional buffering is bounded by the small per-pipe read limit below.
+_MAX_EXECUTION_OUTPUT_BYTES = 1024 * 1024
+_MAX_RUNTIME_PROBE_OUTPUT_BYTES = 64 * 1024
+_OUTPUT_READ_BYTES = 16 * 1024
+_PROCESS_CLEANUP_SECONDS = 2
+_CONTAINER_CLEANUP_SECONDS = 4
+_CONTAINER_OWNER_LABEL = "io.github.canvas-mcp.execution"
+
+
+class _OwnedContainer(NamedTuple):
+    runtime: str
+    name: str
+    nonce: str
+
+
+class _CapturedOutput(NamedTuple):
+    stdout: bytes
+    stderr: bytes
+
+
+class _ProcessOutputError(Exception):
+    """A fixed resource-limit reason plus bounded, private caller diagnostics."""
+
+    def __init__(self, reason: str, output: _CapturedOutput) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.output = output
+
+
+async def _collect_process_output(
+    process: asyncio.subprocess.Process,
+    *,
+    timeout: float,
+    input_data: bytes | None = None,
+    max_output_bytes: int = _MAX_EXECUTION_OUTPUT_BYTES,
+    owns_process_group: bool = False,
+) -> _CapturedOutput:
+    """Drain both pipes concurrently, bound retained bytes and reap on failure.
+
+    Readers keep draining after the ceiling is reached while cleanup kills the
+    owned child. Stopping one reader at overflow can itself deadlock wait() on a
+    full pipe. Input is pumped concurrently, preserving communicate()'s full-
+    duplex behavior without its unbounded output accumulation.
+    """
+    assert process.stdout is not None and process.stderr is not None
+    stdout, stderr = bytearray(), bytearray()
+    exceeded = asyncio.Event()
+
+    async def read(stream: asyncio.StreamReader, retained: bytearray) -> None:
+        while chunk := await stream.read(_OUTPUT_READ_BYTES):
+            remaining = max_output_bytes - len(stdout) - len(stderr)
+            retained.extend(chunk[:remaining])
+            if len(chunk) > remaining:
+                exceeded.set()
+
+    async def write_input() -> None:
+        if process.stdin is None:
+            return
+        try:
+            if input_data:
+                process.stdin.write(input_data)
+                await process.stdin.drain()
+        except (BrokenPipeError, ConnectionResetError):
+            # Like communicate(), tolerate a child that closes stdin early.
+            pass
+        finally:
+            process.stdin.close()
+
+    tasks = [
+        asyncio.create_task(read(process.stdout, stdout)),
+        asyncio.create_task(read(process.stderr, stderr)),
+        asyncio.create_task(write_input()),
+        asyncio.create_task(process.wait()),
+    ]
+    completed = asyncio.gather(*tasks)
+    limit_reached = asyncio.create_task(exceeded.wait())
+
+    async def stop() -> None:
+        try:
+            if owns_process_group and os.name == "posix" and type(process.pid) is int:
+                # Only used for children created with start_new_session=True.
+                # This also stops an exited parent's descendants holding pipes.
+                os.killpg(process.pid, signal.SIGKILL)
+            elif process.returncode is None:
+                process.kill()
+        except ProcessLookupError:
+            pass
+        try:
+            # A failed reader can finish the gather before the child exits.
+            # Still wait for reaping, independent of that reader's exception.
+            cleanup_done = asyncio.gather(completed, process.wait(), return_exceptions=True)
+            await asyncio.wait_for(asyncio.shield(cleanup_done), _PROCESS_CLEANUP_SECONDS)
+        except (Exception, asyncio.CancelledError):
+            # Process has no public close method. Force-close its pipe transport
+            # only if normal kill+drain cannot finish (for example inherited
+            # handles on a platform without owned process-group termination).
+            transport = getattr(process, "_transport", None)
+            if transport is not None:
+                transport.close()
+            await asyncio.wait_for(process.wait(), _PROCESS_CLEANUP_SECONDS)
+
+    try:
+        done, _ = await asyncio.wait(
+            (completed, limit_reached), timeout=timeout,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if not done:
+            raise _ProcessOutputError("timeout", _CapturedOutput(bytes(stdout), bytes(stderr)))
+        if exceeded.is_set():
+            raise _ProcessOutputError("output_limit", _CapturedOutput(bytes(stdout), bytes(stderr)))
+        await completed
+        return _CapturedOutput(bytes(stdout), bytes(stderr))
+    except BaseException:
+        cleanup = asyncio.create_task(stop())
+        # Caller cancellation must not abandon an owned child or its readers.
+        while not cleanup.done():
+            try:
+                await asyncio.shield(cleanup)
+            except asyncio.CancelledError:
+                continue
+        cleanup.result()
+        raise
+    finally:
+        limit_reached.cancel()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(limit_reached, *tasks, return_exceptions=True)
+        # Retrieve a failed gather's exception rather than leaving it unobserved.
+        if completed.done() and not completed.cancelled():
+            completed.exception()
+
+
+async def _cleanup_owned_container(owned: _OwnedContainer) -> bool:
+    """Remove only this run's labelled immutable ID, with bounded readback.
+
+    An engine may finish a create request after its CLI was killed. Retry only
+    bounded identity reads for that race. Persistent absence or engine failure
+    is UNKNOWN, not proof that a late guest cannot appear. Never rm by name.
+    """
+    if (
+        owned.runtime not in {"docker", "podman"}
+        or re.fullmatch(r"[0-9a-f]{32}", owned.nonce) is None
+        or owned.name != "canvas-mcp-" + owned.nonce
+    ):
+        return False
+    deadline = time.monotonic() + _CONTAINER_CLEANUP_SECONDS
+    env = {
+        key: value for key, value in os.environ.items()
+        if key in _SAFE_ENV_KEYS and key != "NODE_OPTIONS"
+    }
+
+    async def command(*args: str) -> tuple[int | None, bytes] | None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        try:
+            # Include CLI startup in the command budget. On cancellation,
+            # asyncio closes an in-progress subprocess transport; after spawn,
+            # the collector kills/reaps the owned CLI before propagating it.
+            # That bounded process-termination grace can outlast this deadline.
+            async with asyncio.timeout(min(1.0, remaining)):
+                process = await asyncio.create_subprocess_exec(
+                    owned.runtime, *args,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                    limit=_OUTPUT_READ_BYTES, start_new_session=os.name == "posix",
+                    env=env,
+                )
+                output = await _collect_process_output(
+                    process, timeout=min(1.0, remaining),
+                    max_output_bytes=_MAX_RUNTIME_PROBE_OUTPUT_BYTES,
+                    owns_process_group=os.name == "posix",
+                )
+            return process.returncode, output.stdout
+        except Exception:
+            # Engine errors/output are not copied into logs or tool replies.
+            return None
+
+    identity_format = '{{.Id}} {{index .Config.Labels "' + _CONTAINER_OWNER_LABEL + '"}}'
+    for attempt in range(3):
+        observed = await command(
+            "inspect", "--type", "container", "--format", identity_format, owned.name,
+        )
+        if observed is None:
+            return False
+        code, identity = observed
+        if code != 0:
+            if attempt < 2:
+                await asyncio.sleep(min(.1, max(0.0, deadline - time.monotonic())))
+            continue
+        match = re.fullmatch(rb"([0-9a-f]{64}) " + owned.nonce.encode("ascii") + rb"\s*", identity)
+        if match is None:
+            return False
+        container_id = match.group(1).decode("ascii")
+        removed = await command("rm", "--force", container_id)
+        if removed is None:
+            return False
+        # A command's exit code alone is not independent absence evidence.
+        after = await command("ps", "--all", "--quiet", "--no-trunc", "--filter", "id=" + container_id)
+        return after is not None and after[0] == 0 and not after[1].strip()
+    return False
 
 
 def _container_run_script(container_code_api_dir: str) -> str:
@@ -498,16 +705,19 @@ async def _runtime_available(runtime: str) -> bool:
             runtime,
             "version",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            limit=_OUTPUT_READ_BYTES,
+            start_new_session=os.name == "posix",
         )
     except FileNotFoundError:
         return False
 
     try:
-        await asyncio.wait_for(process.communicate(), timeout=2)
-    except TimeoutError:
-        process.kill()
-        await process.wait()
+        await _collect_process_output(
+            process, timeout=2, max_output_bytes=_MAX_RUNTIME_PROBE_OUTPUT_BYTES,
+            owns_process_group=os.name == "posix",
+        )
+    except _ProcessOutputError:
         return False
 
     return process.returncode == 0
@@ -537,8 +747,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
         Only what the script prints (console.log / console.error) is returned,
         under "=== Output ===" and "=== Errors/Warnings ===" with a success or
-        exit-code header. Return values are discarded and output is not
-        truncated, so print summaries rather than full records.
+        exit-code header. Return values are discarded. Complete output is
+        returned within the shared 1 MiB stdout/stderr cap; exceeding it stops
+        execution and returns an error with bounded diagnostics. Print summaries
+        rather than full records.
 
         Writes (grades, comments, messages, posts) happen immediately: there is
         no preview or confirmation_token step, and failed writes are not
@@ -554,7 +766,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         sandboxed process and never written to host disk. An outbound network
         allowlist, timeout, memory, and CPU limits may apply; when sandboxing
         is enabled the output ends with a "=== Sandbox ===" section listing the
-        mode and limits.
+        mode and limits. All modes cap combined stdout/stderr at 1 MiB. A timeout
+        or output-limit error does not roll back side effects or authorize retry.
 
         Args:
             code: TypeScript source; see imports above.
@@ -736,6 +949,47 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         # host. Piping it in means no host-side copy ever exists.
         temp_file_path: str | None = None
         stdin_payload: bytes | None = None
+        owned_container: _OwnedContainer | None = None
+        container_cleanup_needed = False
+
+        async def cleanup_container() -> bool:
+            nonlocal container_cleanup_needed
+            if not container_cleanup_needed:
+                return True
+            assert owned_container is not None
+            cleanup = asyncio.create_task(_cleanup_owned_container(owned_container))
+            cancelled = False
+            while not cleanup.done():
+                try:
+                    await asyncio.shield(cleanup)
+                except asyncio.CancelledError:
+                    cancelled = True
+                except Exception:
+                    break
+            try:
+                cleaned = cleanup.result()
+            except Exception:
+                cleaned = False
+            container_cleanup_needed = False
+            if not cleaned:
+                # Software-only run reference, never token, code or output.
+                log_warning(
+                    f"Owned container cleanup HELD/UNKNOWN: {owned_container.name}. "
+                    "Inspect this run before further execution; do not automatically retry."
+                )
+            if cancelled:
+                raise asyncio.CancelledError
+            return cleaned
+
+        def cleanup_notice(cleaned: bool) -> str:
+            if cleaned or owned_container is None:
+                return ""
+            return (
+                f"Owned container cleanup HELD/UNKNOWN: {owned_container.name}. "
+                "The daemon may still complete an earlier create request. "
+                "Inspect this exact run before further execution. Do not automatically retry."
+            )
+
         if sandbox_mode == "container":
             stdin_payload = code.encode()
         else:
@@ -779,11 +1033,16 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             # Container mode runs tsx inside the container; local mode runs Node
             # under its permission model; a disabled sandbox runs tsx directly.
             if sandbox_mode == "container" and container_runtime:
+                nonce = secrets.token_hex(16)
+                owned_container = _OwnedContainer(container_runtime, "canvas-mcp-" + nonce, nonce)
+                container_cleanup_needed = True
                 cmd = [
                     container_runtime,
                     "run",
                     "--rm",
                     "-i",
+                    "--name", owned_container.name,
+                    "--label", _CONTAINER_OWNER_LABEL + "=" + owned_container.nonce,
                     # Run as a fixed non-root uid:gid, not the image default
                     # (root for node:*-alpine and most images), so a container
                     # escape does not hand back root.
@@ -903,14 +1162,22 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
                 cwd=str(repo_root),
-                preexec_fn=preexec_fn
+                preexec_fn=preexec_fn,
+                limit=_OUTPUT_READ_BYTES,
+                start_new_session=os.name == "posix",
             )
 
             try:
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    process.communicate(input=stdin_payload),
-                    timeout=effective_timeout
+                stdout_bytes, stderr_bytes = await _collect_process_output(
+                    process, input_data=stdin_payload, timeout=effective_timeout,
+                    owns_process_group=os.name == "posix",
                 )
+
+                if owned_container is not None and process.returncode == 0:
+                    # Normal attached run completion and --rm are the engine's
+                    # guest-exit contract. Interrupted/error runs need teardown.
+                    container_cleanup_needed = False
+                cleaned = await cleanup_container()
 
                 stdout = stdout_bytes.decode('utf-8', errors='replace')
                 stderr = stderr_bytes.decode('utf-8', errors='replace')
@@ -919,6 +1186,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
                 # Format output
                 result_lines = []
+                if notice := cleanup_notice(cleaned):
+                    result_lines.append(notice)
 
                 if process.returncode == 0:
                     result_lines.append("✅ TypeScript execution completed successfully\n")
@@ -972,40 +1241,67 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
                 return "\n".join(result_lines) if result_lines else "No output"
 
-            except TimeoutError:
-                process.kill()
-                await process.wait()
-
-                # Audit: log timeout
+            except _ProcessOutputError as error:
+                cleaned = await cleanup_container()
+                # Audit metadata only; retained child text stays in the tool
+                # response and never enters the execution event log.
                 from ..core.audit import log_code_execution
                 duration = time.monotonic() - exec_start
                 log_code_execution(
-                    code_hash, sandbox_mode, "timeout", duration,
+                    code_hash, sandbox_mode, error.reason, duration,
                 )
-
-                return f"❌ Execution timed out after {effective_timeout} seconds"
+                if error.reason == "timeout":
+                    summary = f"❌ Execution timed out after {effective_timeout} seconds"
+                else:
+                    summary = (
+                        "❌ Execution exceeded the combined output limit of "
+                        f"{_MAX_EXECUTION_OUTPUT_BYTES} bytes; execution stopped."
+                    )
+                result_lines = [
+                    summary,
+                    "Prior side effects may have occurred; inspect the original "
+                    "targets before another execution. Do not automatically retry.",
+                ]
+                if notice := cleanup_notice(cleaned):
+                    result_lines.append(notice)
+                for title, data in (
+                    ("=== Output ===", error.output.stdout),
+                    ("=== Errors/Warnings ===", error.output.stderr),
+                ):
+                    if data:
+                        result_lines.extend((title, data.decode("utf-8", errors="replace")))
+                return "\n".join(result_lines)
 
         except FileNotFoundError as e:
+            notice = cleanup_notice(await cleanup_container())
             return (
                 "❌ TypeScript execution environment not found.\n\n"
                 "Please ensure Node.js and npx are installed:\n"
                 "  npm install -g tsx\n\n"
-                f"Error: {str(e)}"
+                f"Error: {str(e)}\n{notice}"
             )
         except Exception as e:
-            return f"❌ Execution error: {str(e)}"
+            notice = cleanup_notice(await cleanup_container())
+            return f"❌ Execution error: {str(e)}\n{notice}"
         finally:
-            # Clean up the temporary file
+            # Cancellation bypasses Exception handlers. Still finish owned guest
+            # cleanup before propagating it; uncertainty is retained in logs.
             try:
-                if temp_file_path:
-                    os.unlink(temp_file_path)
-            except Exception:
-                pass  # Ignore cleanup errors
-            try:
-                if guard_path:
-                    os.unlink(guard_path)
-            except Exception:
-                pass  # Ignore cleanup errors
+                if container_cleanup_needed:
+                    await cleanup_container()
+            finally:
+                # Guest cleanup can re-raise a second cancellation. Always
+                # remove this run's host artifacts before it propagates.
+                try:
+                    if temp_file_path:
+                        os.unlink(temp_file_path)
+                except Exception:
+                    pass  # Ignore cleanup errors
+                try:
+                    if guard_path:
+                        os.unlink(guard_path)
+                except Exception:
+                    pass  # Ignore cleanup errors
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params

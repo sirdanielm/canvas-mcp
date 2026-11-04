@@ -66,8 +66,14 @@ def get_execute_typescript(**env):
 
 
 def _mock_process():
+    stdout, stderr = asyncio.StreamReader(), asyncio.StreamReader()
+    stdout.feed_data(b"ok\n")
+    stdout.feed_eof()
+    stderr.feed_eof()
     return MagicMock(
-        communicate=AsyncMock(return_value=(b"ok\n", b"")),
+        stdout=stdout, stderr=stderr,
+        stdin=MagicMock(drain=AsyncMock()),
+        wait=AsyncMock(return_value=0),
         returncode=0,
     )
 
@@ -308,7 +314,9 @@ class TestContainerRunsAsNonRoot:
         )
 
         assert spawn.call_args.kwargs["stdin"] == asyncio.subprocess.PIPE
-        process_mock.communicate.assert_called_once_with(input=b"console.log(1)")
+        process_mock.stdin.write.assert_called_once_with(b"console.log(1)")
+        process_mock.stdin.drain.assert_awaited_once()
+        process_mock.stdin.close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_stdin_script_can_still_import_canvas_modules(self):
@@ -350,10 +358,9 @@ class TestContainerRunsAsNonRoot:
         assert 'npx tsx "$HOME/run/code.ts"' in run
         # The code file is delivered on stdin, not on argv.
         assert spawn.call_args.kwargs.get("stdin") is asyncio.subprocess.PIPE
-        process_mock.communicate.assert_awaited_once()
-        assert process_mock.communicate.await_args.kwargs.get("input") == (
-            b"import { x } from './canvas/x.js';"
-        )
+        process_mock.stdin.write.assert_called_once_with(b"import { x } from './canvas/x.js';")
+        process_mock.stdin.drain.assert_awaited_once()
+        process_mock.stdin.close.assert_called_once()
 
 
 class TestSandboxUidGidConfigurable:
