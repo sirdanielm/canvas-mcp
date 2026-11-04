@@ -34,8 +34,8 @@ distinct states.
 The authenticated Unit 1 native EDIT transfer is implemented and has bounded
 local qualification. The older accepted-pair RELEASE prototype remains separate.
 The [capability table](goals-and-status.md#source-and-installed-capability)
-distinguishes maintained source from unmerged review commits and private runtime
-overlays; none grants broad rollout authority.
+distinguishes maintained source, selected private dependencies and dated installed
+qualification; none grants broad rollout authority.
 
 ## History and privacy
 

@@ -6,8 +6,12 @@
 [PR44](https://github.com/sirdanielm/canvas-mcp/pull/44), with an explicit
 `Effect.READ` classification. Merge and source tests do not install it, expose
 it on a client's connection, or establish current service health. The October 31
-supported-interface investigation obtained no connected diagnostic response;
-actual loaded runtime identity remains **UNKNOWN**.
+supported-interface investigation obtained no connected diagnostic response.
+That is a dated observation, not a current status assertion for every connection.
+Keep current source, loaded-process/policy observations and read-only health
+checks in the existing private operator ledger with their verification times and
+limits. Those separate observations do not imply a `get_runtime_identity`
+response through an intended client or universal service readiness.
 
 The original source/testing approval and subsequent publication covered fixed
 software metadata in all three general-server profiles. They did not expand

@@ -49,8 +49,10 @@ apply the same source-owner boundary as individual score operations.
 The default suite runs fictional transports and portable contracts. Native
 integrations remain available with explicitly selected local source and pins;
 no implementation is discovered from an operator home directory or copied into
-public fixtures. Incomplete settings or changed bytes fail the test; an absent
-optional dependency produces an explicit integration skip.
+public fixtures. Selecting a native source requires its listed pins; missing pins
+or changed bytes fail the test. Unselected optional integrations report explicit
+skips. Unit 2 integrations also reject a pin supplied without its source path;
+LocalGrAss integrations select on the source path.
 
 | Integration | Required environment variables |
 | --- | --- |

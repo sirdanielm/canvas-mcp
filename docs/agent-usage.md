@@ -543,9 +543,9 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 | 429 Too Many Requests | Rate limit exceeded | Reduce request frequency |
 
 ### Recovery Strategies
-1. **Auth errors (401/403):** Stop and report - cannot recover without user action
+1. **Auth errors (401/403):** Hold the affected call and check its exact configured origin, identity and permissions through permitted reads. Preserve existing credentials; report when human renewal or access is needed. Continue independent authorized work whose bindings remain valid.
 2. **Not found (404):** Verify resource exists, check for typos in identifiers
-3. **Rate limits (429):** Wait and retry with exponential backoff
+3. **Rate limits (429):** Respect the transport's bounded backoff for safe reads. Before repeating any possible write, inspect that operation's durable history and independent readback; preserve uncertain/completed outcomes and use its supported reconciliation path. A delay or timeout does not authorize replay.
 4. **Validation (422):** Check parameter types and required fields
 
 ## Tool Discovery

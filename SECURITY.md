@@ -74,7 +74,7 @@ Confirmation tokens bind a preview to the requested operation and current
 state; they do not prove human approval. Tool access, Canvas authority, teacher
 approval and publication verification are distinct requirements. Untrusted
 Canvas text is fenced by supported read tools but remains untrusted data.
-See [the agent guide](AGENTS.md#operator-write-policy).
+See [the agent guide](docs/agent-usage.md#operator-write-policy).
 
 ### Code execution
 
