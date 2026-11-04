@@ -1,7 +1,8 @@
 # Annotated technical manual
 
-Source map reviewed October 14, 2026 against `d0794b2` plus the documentation-only
-Unit 2 branch. This is a guide to consequential functions, not an exhaustive code
+Source links and setup facts refreshed November 3, 2026 against `113727e`.
+The [earlier source map](https://github.com/sirdanielm/canvas-mcp/blob/113727e58a198fdcee35dacd4d48d9a131f5de5e/ANNOTATED_TECHNICAL_MANUAL.md)
+retains its dated review basis. This is a guide to consequential functions, not an exhaustive code
 review or evidence of installation. [CLAUDE.md](CLAUDE.md) owns development rules;
 [tool contracts](tools/README.md) and the [architecture](internal/architecture.md)
 provide the longer reference. Source links below identify the reviewed functions.
@@ -24,13 +25,13 @@ separate facts.
 
 | Function and source | Input → result; connection and annotation |
 | --- | --- |
-| [`main`](src/canvas_mcp/server.py#L550) | CLI arguments/environment → configured server. Parses `--help` before loading configuration; validates transport/auth, registers tools, applies write policy and starts serving. Ordinary startup is a live service operation. |
-| [`register_all_tools`](src/canvas_mcp/server.py#L427) | FastMCP instance + role → registrations. Installs result contracts, shared tools, role-specific tools and resources. A registered tool can still be removed by policy. |
-| [`resolve_tool_policy`](src/canvas_mcp/core/tool_policy.py#L193) | Raw `ALLOWED_WRITE_TOOLS` + transport → policy or error. Unset HTTP defaults to no writes; unset stdio retains legacy behavior. Explicit `none` is the safe read-only choice. |
-| [`apply_tool_policy`](src/canvas_mcp/core/tool_policy.py#L242) | Registered server + policy → removed tool names. Removes disallowed side-effect tools; unknown effect classifications fail closed when policy is enforced. This is not the separate gradebook push gate. |
+| [`main`](src/canvas_mcp/server.py#L577) | CLI arguments/environment → configured server. Parses `--help` before loading configuration; validates transport/auth, registers tools, applies write policy and starts serving. Ordinary startup is a live service operation. |
+| [`register_all_tools`](src/canvas_mcp/server.py#L439) | FastMCP instance + role → registrations. Installs result contracts, shared tools, role-specific tools and resources. A registered tool can still be removed by policy. |
+| [`resolve_tool_policy`](src/canvas_mcp/core/tool_policy.py#L222) | Raw `ALLOWED_WRITE_TOOLS` + transport → policy or error. Unset HTTP defaults to no writes; unset stdio retains legacy behavior. Explicit `none` is the safe read-only choice. |
+| [`apply_tool_policy`](src/canvas_mcp/core/tool_policy.py#L313) | Registered server + policy → removed tool names. Removes disallowed side-effect tools; unknown effect classifications fail closed when policy is enforced. This is not the separate gradebook push gate. |
 | [`validate_params`](src/canvas_mcp/core/validation.py#L355) | Tool decorator → asynchronous argument-validation wrapper. Uses `validate_parameter` before invoking the tool. This checks shape/type, not academic correctness or human permission. |
-| [`make_canvas_request`](src/canvas_mcp/core/client.py#L403) | Method/path/parameters/payload → decoded result or explicit failure. Resolves per-request versus stdio credentials, rejects path smuggling, bounds concurrency, classifies write outcomes and applies endpoint-specific anonymization. Mutation calls require their owning tool's authorization. |
-| [`fetch_all_paginated_results`](src/canvas_mcp/core/client.py#L743) | Endpoint + query → complete list or error. Calls the shared request function, follows opaque next links within origin/endpoint constraints, rejects cycles/page-budget exhaustion and anonymizes the completed set once. Partial data is not success. |
+| [`make_canvas_request`](src/canvas_mcp/core/client.py#L491) | Method/path/parameters/payload → decoded result or explicit failure. Resolves per-request versus stdio credentials, rejects path smuggling, bounds concurrency, classifies write outcomes and applies endpoint-specific anonymization. Mutation calls require their owning tool's authorization. |
+| [`fetch_all_paginated_results`](src/canvas_mcp/core/client.py#L838) | Endpoint + query → complete list or error. Calls the shared request function, follows opaque next links within origin/endpoint constraints, rejects cycles/page-budget exhaustion and anonymizes the completed set once. Partial data is not success. |
 | [`ConfirmationGuard.fingerprint`](src/canvas_mcp/core/write_confirmation.py#L126) | Exact preview fields → caller-bound digest. Length-prefixes fields; tokens must remain bound to the same caller, target and content. |
 | [`ConfirmationGuard.claim`](src/canvas_mcp/core/write_confirmation.py#L252) | Token + fingerprint → owning claim or error. Single-use process-local reservation; `ConfirmationClaim.finish` releases only a proven non-dispatch/rejection. Uncertain writes remain spent. A token is not proof a teacher approved. |
 | [`initializeCanvasClient`](src/canvas_mcp/code_api/client.ts#L31) / [`fetchAllPaginated`](src/canvas_mcp/code_api/client.ts#L257) | Explicit URL/token/config → TypeScript client; endpoint → complete list. Independent direct-HTTP path with its own validation, pagination and request rules. Keep execution disabled unless separately commissioned. |
@@ -45,18 +46,18 @@ Representative tests: [Python transport](tests/core/test_client.py),
 
 | Function and source | Input → result; connection and annotation |
 | --- | --- |
-| [`gradebook.server.create_server`](src/canvas_mcp/gradebook/server.py#L23) | Dedicated client/store/course map and gates → `canvas-gradebook` MCP server. Registers reads/previews; push and comment tools depend on separate `enable_push`/`enable_comments`. |
+| [`gradebook.server.create_server`](src/canvas_mcp/gradebook/server.py#L39) | Dedicated client/store/course map and gates → full `canvas-gradebook` MCP profile. Legacy score/comment confirmation requires separate `enable_push`/`enable_comments`; legacy previews and reconciliation remain available. Owner-configured text releases need `enable_qualified_comments` and a qualified release map. The launcher also offers a separate fixed read-only profile. |
 | [`GradebookClient.snapshot`](src/canvas_mcp/gradebook/client.py#L127) | Course ID → complete normalized snapshot. Dedicated GET-only methods retain exact identities only in private artifacts. One deadline covers discovery, pagination and rate-limit waits; partial snapshots are rejected. |
 | [`Store.save`](src/canvas_mcp/gradebook/store.py#L22) / [`Store.load`](src/canvas_mcp/gradebook/store.py#L50) | Kind + artifact or digest → immutable private file/reference or verified artifact. Digest-checked storage is provenance, not live freshness or teacher acceptance. |
 | [`compare_edits`](src/canvas_mcp/gradebook/model.py#L174) | Trusted baseline + fresh snapshot + proposed edits → classified review. Separates eligible changes, no-ops and review-required cases. It neither grades work nor sends updates. |
 | [`prepare_refresh`](src/canvas_mcp/gradebook/service.py#L55) | Client/store/course/binding/literal cell maps → saved refresh plan. Reads Canvas, checks trusted baseline and grid order, calls `merge_refresh`, saves artifacts and constructs Sheets requests. It sends neither Sheets nor Canvas mutations. |
 | [`merge_refresh`](src/canvas_mcp/gradebook/refresh.py#L67) | Baseline + current + edits → retained baseline/display/review. Preserves each pending edit's original conflict evidence; incompatible roster/schema changes hold refresh. Pure transformation, no transport. |
 | [`verify_refresh_output`](src/canvas_mcp/gradebook/refresh.py#L486) | Saved plan + reread cells + phase → verified comparison or exception. Used before sending and after readback; a prepared batch alone does not prove it was applied. |
-| [`RefreshWorker.step`](src/canvas_mcp/gradebook/worker.py#L394) | Bound worker + queue metadata/journal → one state transition. Locks one workbook, claims exact requests, prepares both courses before application and reconciles uncertain sending states. Google metadata/Sheet writes are possible; Canvas remains GET-only. |
-| [`Publisher.prepare`](src/canvas_mcp/gradebook/publish.py#L570) | Course + saved review → fresh bound preview/operation/token, or hold. Rechecks Canvas, limits a push to 25 changes and writes private plans/ledger state; Canvas writes remain zero. |
-| [`Publisher.confirm`](src/canvas_mcp/gradebook/publish.py#L646) | Course + operation + token → durable item outcomes. Claims the operation, revalidates every target, marks `sending`, calls `put_once`, then independently reads back. Stops on rejection/uncertainty/conflict. This can write Canvas scores. |
-| [`put_once`](src/canvas_mcp/gradebook/publish.py#L404) | Exact validated change → one score/excuse PUT or classified rejection/uncertainty. No comments, redirect following or automatic retry; a 200 response is insufficient without semantic readback. |
-| [`Publisher.reconcile`](src/canvas_mcp/gradebook/publish.py#L713) | Existing operation → refreshed durable outcomes. GET-only reconciliation of `sending`/`uncertain`; does not retransmit. Comment prepare/confirm/reconcile methods are separate and separately enabled. |
+| [`RefreshWorker.step`](src/canvas_mcp/gradebook/worker.py#L529) | Bound worker + queue metadata/journal → one state transition. Locks one workbook, claims exact requests, prepares both courses before application and reconciles uncertain sending states. Google metadata/Sheet writes are possible; Canvas remains GET-only. |
+| [`Publisher.prepare`](src/canvas_mcp/gradebook/publish.py#L893) | Course + saved review → fresh bound preview/operation/token, or hold. Rechecks Canvas, limits one operation/chunk to 25 changes and writes private plans/ledger state; Canvas writes remain zero. Larger reviewed workloads use the [immutable batch route](docs/sdm-gradebook-workflow.md#immutable-batch-authorization). |
+| [`Publisher.confirm`](src/canvas_mcp/gradebook/publish.py#L991) | Course + operation + token → durable item outcomes. Claims the operation, revalidates every target, marks `sending`, calls `put_once`, then independently reads back. Legacy operations stop on rejection/uncertainty/conflict; authorized independent batches quarantine affected targets and continue eligible ones. Global holds and unexpected failures still stop. This can write Canvas scores. |
+| [`put_once`](src/canvas_mcp/gradebook/publish.py#L591) | Exact validated change → one score/excuse PUT or classified rejection/uncertainty. No comments, redirect following or automatic retry; a 200 response is insufficient without semantic readback. |
+| [`Publisher.reconcile`](src/canvas_mcp/gradebook/publish.py#L1169) | Existing operation → refreshed durable outcomes. GET-only reconciliation of `sending`/`uncertain`; does not retransmit. The legacy comment path has separate prepare/reconcile methods; only its confirmation tool requires comment enablement. |
 
 Representative tests: [refresh merge/plans](tests/test_gradebook_refresh.py),
 [publisher](tests/test_gradebook_publish.py), [worker](tests/test_gradebook_worker.py)
@@ -67,9 +68,9 @@ controlled fixtures; passing them does not establish live grade correctness.
 
 | Function and source | Input → result; connection and annotation |
 | --- | --- |
-| [`capture`](src/canvas_mcp/mirror/core.py#L217) | GET client + selected course + private destination → dated content snapshot/manifest. Preserves source responses and asset provenance. Does not capture student grade/submission records. |
-| [`verify`](src/canvas_mcp/mirror/core.py#L357) | Saved snapshot root → structural/hash findings. Offline integrity checking; callers use `require_valid` to refuse invalid snapshots before comparison/proposals. |
-| [`diff`](src/canvas_mcp/mirror/core.py#L480) | Two validated snapshots → normalized content differences. No Canvas mutation; draft authoring remains a later explicitly authorized workflow. |
+| [`capture`](src/canvas_mcp/mirror/core.py#L225) | GET client + selected course + private destination → dated content snapshot/manifest. Preserves source responses and asset provenance. Does not capture student grade/submission records. |
+| [`verify`](src/canvas_mcp/mirror/core.py#L365) | Saved snapshot root → structural/hash findings. Offline integrity checking; callers use `require_valid` to refuse invalid snapshots before comparison/proposals. |
+| [`diff`](src/canvas_mcp/mirror/core.py#L495) | Two validated snapshots → normalized content differences. No Canvas mutation; draft authoring remains a later explicitly authorized workflow. |
 
 Tests: [course mirror](tests/test_course_mirror.py).
 
@@ -101,18 +102,20 @@ also different mechanisms. Never substitute one service's token/gate for another
 ## Local setup and offline verification
 
 Run from the repository root. Python **3.11+** is declared in `pyproject.toml`;
-CI covers 3.11–3.13. `uv.lock` pins Python dependencies. Node/npm are needed only
-for the TypeScript build/tests; this repository does not declare a Node engine.
+CI covers Linux 3.11–3.14 and Windows 3.14 with explicit local-capability skips.
+`uv.lock` pins Python dependencies. Optional TypeScript execution requires Node.js
+22.18+; build/tests use Node 22 in CI and npm installs their dependencies. This
+repository does not declare a package-level Node engine.
 
 ```bash
 # Install the reviewed development dependencies; no Canvas credentials required.
-uv sync --frozen --group dev --extra local-exports
+uv sync --frozen --group dev --extra local-exports --extra local-keychain
 
 # Offline command discovery and complete Python tests.
 uv run canvas-mcp-server --help
 uv run python -m pytest tests/ -v -rf
 
-# Focus a transport/gradebook change; retain the complete suite before delivery.
+# Focus a transport/gradebook change; Python behavior changes also need the full suite.
 uv run python -m pytest tests/core/test_client.py tests/security/ -q
 uv run python -m pytest tests/test_gradebook_refresh.py tests/test_gradebook_publish.py tests/test_gradebook_worker*.py -q
 
@@ -155,6 +158,7 @@ proofs have a separately pinned Lean/Java/TLC toolchain; follow
   TypeScript client. Test the actual path affected by a change.
 
 When changing a mapped function, update this guide's source link/contract and its
-own regression tests, then run the repository's required checks. Use dated local
+own regression tests, then run the repository's applicable checks. Documentation-only
+edits use link, format and privacy review plus applicable CI. Use dated local
 receipts for run results; keep changing counts, credentials and target IDs out of
 this manual.

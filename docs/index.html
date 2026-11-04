@@ -1782,6 +1782,7 @@
                 <div class="section-label">// Get Started</div>
                 <h2 class="section-title">Get Started</h2>
                 <p class="section-desc">Install Canvas MCP locally so the server and credentials stay in your environment. Tool results are still sent to your configured AI client under that client's data policies.</p>
+                <p>The examples below install upstream Canvas MCP. For maintained SDM source and the separate authoring/gradebook connections, use the <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md">SDM installation guide</a>. Upstream packages can differ from this fork and do not install its private operational bindings.</p>
             </div>
 
             <!-- Local Installation -->
@@ -1790,14 +1791,14 @@
                     <div class="step-number">0</div>
                     <div class="step-content">
                         <h3>Claude Desktop? Skip the terminal</h3>
-                        <p>Download <code>canvas-mcp.mcpb</code> from the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">latest release</a> and double-click it. It prompts for your Canvas URL and token and runs the server locally. Every other client follows steps 1 to 4 below. Either way, install the server before adding the <a href="#skills">agent skills</a>: the skills call these tools and do nothing on their own.</p>
+                        <p>Download <code>canvas-mcp.mcpb</code> from the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">upstream release</a> and double-click it. It prompts for your Canvas URL and token and runs the server locally. For source installation, follow steps 1 to 4 below. Install the server before adding the <a href="#skills">agent skills</a>: the skills call these tools and do nothing on their own.</p>
                     </div>
                 </div>
                 <div class="install-step">
                     <div class="step-number">1</div>
                     <div class="step-content">
                         <h3>Clone & Install Dependencies</h3>
-                        <p>Clone the repository and set up a Python virtual environment with all dependencies.</p>
+                        <p>Clone upstream and set up a Python 3.11+ virtual environment with the main server's dependencies.</p>
                         <div class="step-code">
 git clone https://github.com/vishalsachdev/canvas-mcp.git<br>
 cd canvas-mcp<br>
@@ -1821,12 +1822,13 @@ cp env.template .env<br>
                     <div class="step-number">3</div>
                     <div class="step-content">
                         <h3>Connect Your MCP Client</h3>
-                        <p>Add the server to your client's MCP config. Most clients read this exact entry and differ only in where the file lives; some use their own schema (Zed nests it under <code>context_servers</code>). <a href="#clients">See supported clients</a> or the <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">per-client config blocks and file locations</a> for Claude Desktop, Cursor, Zed, Windsurf, Continue, and others.</p>
+                        <p>Use your client's supported configuration format. This example requires support for <code>mcpServers</code> and <code>cwd</code>; absolute paths resolve the binary and private <code>.env</code>. Follow the <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md#client-configuration">maintained client configuration guide</a> for Codex or clients without <code>cwd</code> support.</p>
                         <div class="step-code">
 {<br>
 &nbsp;&nbsp;"mcpServers": {<br>
 &nbsp;&nbsp;&nbsp;&nbsp;"canvas-api": {<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"command": "/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"cwd": "/absolute/path/to/canvas-mcp"<br>
 &nbsp;&nbsp;&nbsp;&nbsp;}<br>
 &nbsp;&nbsp;}<br>
 }
@@ -1837,10 +1839,10 @@ cp env.template .env<br>
                     <div class="step-number">4</div>
                     <div class="step-content">
                         <h3>Verify & Start Using</h3>
-                        <p>Test your connection and start interacting with Canvas through your AI assistant.</p>
+                        <p>Test your connection. After configuration changes, reconnect only your own affected client connection at an idle checkpoint and inspect its tools. Preserve shared runtimes and pending operations.</p>
                         <div class="step-code">
 canvas-mcp-server --test<br>
-# Then restart your MCP client and start chatting!
+# Inspect the tools exposed in your own client connection
                         </div>
                     </div>
                 </div>
@@ -1881,7 +1883,7 @@ canvas-mcp-server --test<br>
             <div class="institution-callout">
                 <div>
                     <h3>🏛️ Deploying for your whole institution?</h3>
-                    <p>The repository has a production-tested Azure deployment guide: campus SSO via Entra ID, per-user Canvas tokens, a FERPA three-tier data model, and copyable CI/CD and config templates.</p>
+                    <p>The upstream Azure deployment pattern documents Entra ID authentication, per-request Canvas tokens and configuration templates. Each institution must validate its authentication boundary, data handling and compliance; the guide does not establish an SDM hosted deployment.</p>
                 </div>
                 <a class="callout-link" href="https://github.com/vishalsachdev/canvas-mcp/tree/main/deploy/azure" target="_blank" rel="noopener">Institutional Deployment Guide →</a>
             </div>

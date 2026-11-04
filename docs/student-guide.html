@@ -99,6 +99,8 @@
                     <section id="installation">
                         <h2>Installation</h2>
 
+                        <p>The generic setup below installs upstream Canvas MCP. For the maintained SDM source and its separate authoring/gradebook connections, follow the <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md">SDM installation guide</a>; an upstream package does not install those integrations.</p>
+
                         <h3>1. Clone the Repository</h3>
                         <pre><code>git clone https://github.com/vishalsachdev/canvas-mcp.git
 cd canvas-mcp</code></pre>
@@ -142,8 +144,9 @@ cp env.template .env
 CANVAS_API_TOKEN=your_token_here
 CANVAS_API_URL=https://canvas.youruniversity.edu/api/v1
 
-<span class="code-comment"># Privacy Settings (students don't need anonymization)</span>
-ENABLE_DATA_ANONYMIZATION=false</code></pre>
+<span class="code-comment"># Keep the default identity masking enabled</span>
+ENABLE_DATA_ANONYMIZATION=true</code></pre>
+                        <p>Masking applies to supported fields and endpoints. Shared course content and free text can still contain sensitive information; inspect results before sharing them with an AI client.</p>
 
                         <div class="info-box important">
                             <div class="info-box-title">⚠️ Important</div>
@@ -151,22 +154,23 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                         </div>
 
                         <h3>5. Connect Your MCP Client</h3>
-                        <p>Add Canvas MCP to your client's MCP config. Most assistants read this exact entry and differ only in where the file lives:</p>
+                        <p>Use your client's supported configuration format. For a client accepting <code>mcpServers</code> and <code>cwd</code>, use absolute paths to the server binary and the checkout containing your private <code>.env</code>:</p>
                         <pre><code>{
   "mcpServers": {
     "canvas-api": {
-      "command": "/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server",
+      "cwd": "/absolute/path/to/canvas-mcp"
     }
   }
 }</code></pre>
-                        <p>The <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">client configuration guide</a> lists where that file lives for Claude Desktop, Cursor, Zed, Windsurf, Continue and others &mdash; check it for your client, since some use their own schema (Zed nests the server under <code>context_servers</code>). Claude Desktop users can skip the JSON entirely and install the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">one-click extension</a> instead.</p>
+                        <p>The <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md#client-configuration">maintained client configuration guide</a> covers credential resolution and the separate Codex format. If your client lacks <code>cwd</code>, use its supported configuration mechanism to resolve the private credentials. Claude Desktop can instead install the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">upstream extension</a>, whose packaged code can differ from this fork.</p>
 
                         <h3>6. Test Your Setup</h3>
                         <pre><code>canvas-mcp-server --test</code></pre>
                         <p>You should see: <code>✓ API connection successful!</code></p>
 
-                        <h3>7. Restart Your Client</h3>
-                        <p>Quit and reopen your AI client. Canvas MCP's tools should show up wherever your client lists connected tools (a 🔨 hammer or plug icon in most desktop apps, <code>/mcp</code> in terminal clients).</p>
+                        <h3>7. Reconnect Your Connection</h3>
+                        <p>After changing configuration, reconnect only your own affected client connection at an idle checkpoint. Inspect its connected tools; do not restart shared runtimes or interrupt pending operations.</p>
                     </section>
 
                     <section id="how-to-use">

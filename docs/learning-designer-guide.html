@@ -105,6 +105,8 @@
                     <section id="installation">
                         <h2>Installation</h2>
 
+                        <p>The generic setup below installs upstream Canvas MCP. For the maintained SDM source and its separate authoring/gradebook connections, follow the <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md">SDM installation guide</a>; an upstream package does not install those integrations.</p>
+
                         <pre><code>git clone https://github.com/vishalsachdev/canvas-mcp.git
 cd canvas-mcp
 
@@ -119,15 +121,16 @@ pip install -e .</code></pre>
                         <pre><code>CANVAS_API_TOKEN=your_token_here
 CANVAS_API_URL=https://canvas.youruniversity.edu</code></pre>
 
-                        <p>Add to your MCP client config &mdash; most clients read this exact entry and differ only in where the file lives:</p>
+                        <p>Use your client's supported configuration format. For a client accepting <code>mcpServers</code> and <code>cwd</code>, use absolute paths to the server binary and the checkout containing your private <code>.env</code>:</p>
                         <pre><code>{
   "mcpServers": {
     "canvas-api": {
-      "command": "/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server",
+      "cwd": "/absolute/path/to/canvas-mcp"
     }
   }
 }</code></pre>
-                        <p>The <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">client configuration guide</a> lists where that file lives for Claude Desktop, Cursor, Zed, Windsurf, Continue and others &mdash; check it for your client, since some use their own schema (Zed nests the server under <code>context_servers</code>).</p>
+                        <p>The <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md#client-configuration">maintained client configuration guide</a> covers credential resolution and the separate Codex format. If your client lacks <code>cwd</code>, use its supported configuration mechanism to resolve the private credentials. Reconnect only your own affected client connection at an idle checkpoint; preserve shared runtimes and pending operations.</p>
                     </section>
 
                     <section id="available-tools">

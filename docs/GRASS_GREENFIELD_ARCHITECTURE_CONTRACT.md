@@ -11,8 +11,9 @@ feedback; ordinary sdmGrAss participation uses score-only delivery with private
 analysis. Shared review tools preserve that distinction through teacher review.
 
 The authenticated Unit 1 transfer into central EDIT is source-accepted and has a
-completed local canary. The ordinary UNAPPROVED participation receiver is a
-qualified local overlay pending portable source publication. Neither establishes
+completed local canary. The ordinary UNAPPROVED participation receiver is now
+maintained source; its private reader/owner dependencies and installed
+qualification remain separate. Neither route establishes
 broad rollout or Canvas publication authority. Read the
 [transfer guide](teacher-edit-transfer.md) for the current procedures and gates.
 

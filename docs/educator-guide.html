@@ -107,6 +107,8 @@
                     <section id="installation">
                         <h2>Installation</h2>
 
+                        <p>The generic setup below installs upstream Canvas MCP. For the maintained SDM source and its separate authoring/gradebook connections, follow the <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md">SDM installation guide</a>; an upstream package does not install those integrations.</p>
+
                         <h3>1. Clone and Install</h3>
                         <pre><code>git clone https://github.com/vishalsachdev/canvas-mcp.git
 cd canvas-mcp
@@ -152,21 +154,22 @@ ANONYMIZATION_DEBUG=false</code></pre>
                         </div>
 
                         <h3>4. Connect Your MCP Client</h3>
-                        <p>Add Canvas MCP to your client's MCP config. Most clients read this exact entry and differ only in where the file lives:</p>
+                        <p>Use your client's supported configuration format. For a client accepting <code>mcpServers</code> and <code>cwd</code>, use absolute paths to the server binary and the checkout containing your private <code>.env</code>:</p>
                         <pre><code>{
   "mcpServers": {
     "canvas-api": {
-      "command": "/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server",
+      "cwd": "/absolute/path/to/canvas-mcp"
     }
   }
 }</code></pre>
-                        <p>The <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">client configuration guide</a> lists where that file lives for Claude Desktop, Cursor, Zed, Windsurf, Continue and others &mdash; check it for your client, since some use their own schema (Zed nests the server under <code>context_servers</code>). Claude Desktop users can skip the JSON entirely and install the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">one-click extension</a> instead.</p>
+                        <p>The <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md#client-configuration">maintained client configuration guide</a> covers credential resolution and the separate Codex format. If your client lacks <code>cwd</code>, use its supported configuration mechanism to resolve the private credentials. Claude Desktop can instead install the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">upstream extension</a>, whose packaged code can differ from this fork.</p>
 
                         <h3>5. Test and Start</h3>
                         <pre><code>canvas-mcp-server --test
 canvas-mcp-server --config</code></pre>
 
-                        <p>Restart your client to activate the tools.</p>
+                        <p>After changing configuration, reconnect only your own affected client connection at an idle checkpoint and inspect its tools. Do not restart shared runtimes or interrupt pending operations. Keep configuration output private.</p>
                     </section>
 
                     <section id="ferpa">

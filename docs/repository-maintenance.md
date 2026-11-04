@@ -19,8 +19,10 @@ installed Canvas services. LocalGrAss owns shared local tools and review;
 GrAss and sdmGrAss retain their domain engines and policy contracts. The
 [grading direction](goals-and-status.md#grading-flow) joins both intake lanes to
 lane-appropriate proposals. The authenticated Unit 1 EDIT transfer is source-accepted;
-the ordinary participation receiver is locally qualified pending portable source
-publication. Git maintenance clears no source, teacher-review or delivery hold.
+the reusable ordinary participation receiver is maintained source from
+[PR52](https://github.com/sirdanielm/canvas-mcp/pull/52). Private reader pins,
+owner bindings and exact installation/target qualification remain separate.
+Git maintenance clears no source, teacher-review or delivery hold.
 
 ## Settings evidence
 
@@ -90,7 +92,7 @@ change does not edit an installed client's private configuration.
 ## Retention and privacy
 
 The primary checkout holds the common Git directory for linked worktrees.
-Keep the operational authoring checkout as the single dirty runtime overlay;
+Preserve the operational authoring checkout and its private runtime overlay;
 private launcher dependencies, exact owner bindings and receipts remain
 separate from portable source review. Operational checkouts referenced by MCP
 configuration or LaunchAgents remain in place. A review checkout is eligible

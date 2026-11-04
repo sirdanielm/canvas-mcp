@@ -6,6 +6,29 @@ This manual is for a teacher or local operator using Canvas MCP without needing 
 
 Start here for human operation. Use the maintained [documentation map](docs/documentation-map.md) to find the current procedure, [timing table](docs/sdm-gradebook-workflow.md#timing-and-freshness) for distinct approval/freshness windows, and [worker limits](docs/gradebook-reference-limits.md) for constructor versus launcher settings. The fixed source links below retain this edition's dated verification basis; they do not establish the loaded installation or current case eligibility.
 
+## Current capability addendum — November 3, 2026
+
+The October 27 edition remains the basis for the fixed historical source links
+below. These later source capabilities have their own maintained procedures:
+
+- The explicit [read-only gradebook profile](docs/gradebook-read-only-profile.md)
+  exposes only snapshot, local comparison and generic operation-status tools.
+  It excludes writer preparation, confirmation and worker coordination. A separate
+  isolated read-only state directory cannot reconcile the canonical publication
+  store's operations; preserve that store, its locks, baselines and receipts.
+- The ordinary participation receiver is now maintained portable source. Its
+  [private source and owner dependencies](docs/operational-source-boundaries.md)
+  remain explicitly pinned, and installed bindings and exact-case admission need
+  their own evidence. UNAPPROVED staging creates no teacher acceptance or Canvas
+  publication authority.
+- Launcher source-owned score writers and owner-configured text releases use an
+  explicit private owner adapter and exact SHA-256 pin. See [owner policy](docs/operational-source-boundaries.md#owner-policy)
+  for the paired launcher options and fail-closed source-owner checks. Missing
+  owner configuration holds source-owned score writes while independent reads
+  remain available. Legacy inbox comments retain their separate enablement,
+  envelope and approval gates. A source merge does not adopt an adapter or
+  reconnect a service.
+
 ## 1. Choose the correct surface
 
 Canvas MCP contains several distinct systems. Choosing the right one prevents a content refresh from becoming a gradebook synchronization or a local draft from being mistaken for delivered feedback.
@@ -136,7 +159,7 @@ Three different staging situations matter:
 
 1. **Accepted summative result:** an authenticated exact teacher decision binds final points and full feedback to the saved result. `LocalGrAssEditConnection` can stage that accepted pair through `LocalGrAssEditOwner`.
 2. **Unapproved retained result:** `AuthenticatedProposalSource` or `AuthenticatedUnit1ProposalSource` supplies a current source-byte-verified advisory pair. `LocalGrAssProposalEditConnection` can stage it through the same owner with an explicit **UNAPPROVED** note. This creates no acceptance or delivery permission.
-3. **Ordinary participation draft:** the qualified participation reader supplies score-only UNAPPROVED staging. The newer provider/current-attempt receiver remains a private operational overlay, not a portable broadly installed public workflow.
+3. **Ordinary participation draft:** the qualified participation reader supplies score-only UNAPPROVED staging. The maintained provider/current-attempt receiver uses explicitly pinned private dependencies; source publication does not establish broad installed qualification. See the current capability addendum above.
 
 Saved teacher decisions or drafts hold conflicting proposal cases. Native preparation checks original baselines, exact target/attempt, current maximum/visibility/excusal and destination preimage. Higher existing grades and teacher content remain protected. Full feedback is retained in local notes for a paired result; note presence is not Canvas comment delivery.
 

@@ -189,8 +189,9 @@ evidence with their source provenance intact, then carries score and feedback
 from one saved result through local inspection/QC and the protected proposal
 inbox. GrAss's importer preserves GET/EDIT and teacher fields. The authenticated
 Unit 1 teacher-decision-to-native-EDIT route is maintained source with a retained
-bounded case qualification; ordinary participation has a qualified private
-overlay pending portable source review. The older accepted-pair RELEASE
+bounded case qualification. The ordinary participation receiver is also maintained
+source; its selected private reader/owner dependencies retain explicit pins and
+separate installed qualification. The older accepted-pair RELEASE
 prototype remains separate. A past qualification does not establish installed
 parity or authority for a new case.
 Reuse the central identity and publisher boundaries. A successful proposal

@@ -4,8 +4,9 @@ This guide describes accepted decisions and unapproved proposals staged through
 the existing local EDIT owner. The authenticated Unit 1 decision route has a
 retained one-case runtime qualification; the maintained unapproved proposal route
 has joined synthetic coverage and retains separate installation qualification.
-The ordinary participation receiver is a qualified private overlay awaiting
-portable source review. Inspect the [capability table](goals-and-status.md#source-and-installed-capability)
+The reusable ordinary participation receiver is maintained source. Selected
+native-source pins and owner bindings remain private configuration; installation
+qualification retains its separate evidence. Inspect the [capability table](goals-and-status.md#source-and-installed-capability)
 before selecting a route. These staging routes grant no Canvas publication authority.
 Match every case to its exact source, installed binding and retained readback;
 an earlier successful transfer does not qualify a changed adapter or a new case.
@@ -70,7 +71,7 @@ holds source, membership, policy, artifact or revision drift. Advisory results
 remain advisory and unresolved native evidence is not silently confirmed.
 
 The owner reads raw current assignment metadata. External tools remain held by
-the global gate. The private draft receiver can honor an operator-reviewed exact
+the global gate. The draft receiver can honor an operator-reviewed exact
 Google Assignments permit only for its bound source record/revision/queue,
 course/assignment and truthful provider metadata. It is restricted to
 `LOCAL_UNAPPROVED_EDIT_ONLY`, `SDMGRASS_FORMATIVE`, `SCORE_ONLY` and

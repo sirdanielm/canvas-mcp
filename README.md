@@ -36,6 +36,7 @@ owns observations, GET/EDIT integrity and installed Canvas bindings.
 | --- | --- |
 | Read Canvas or use enabled MCP tools | [Installation](docs/installation.md), [tool guide](tools/README.md) |
 | Refresh/compare gradebook GET and EDIT | [Gradebook workflow](docs/sdm-gradebook-workflow.md), [worker](docs/sdm-gradebook-worker.md) |
+| Inspect gradebook snapshots, comparisons and historical status without writer controls | [Read-only gradebook connection](docs/gradebook-read-only-profile.md) |
 | Archive and inspect course content | [GET-only course mirror](docs/course-mirror.md) |
 | Author assignments, rubrics and modules | [Authoring workflow](docs/sdm-canvas-authoring-workflow.md) |
 | Understand review/publisher ownership | [Workflow integration](docs/grass-workflow-integration.md) |

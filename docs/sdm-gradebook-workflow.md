@@ -124,7 +124,13 @@ separate grade/comment enablement and exact approvals.
 
 ### Local setup
 
-Run from the stable checkout:
+For snapshots, local comparisons and generic historical status, use the explicit
+[read-only profile](gradebook-read-only-profile.md). Its fixed three-tool surface
+does not load private owner adapters or workbook/worker controls. Preserve an
+existing reviewed connection rather than upgrading it as a health check.
+
+For a separately authorized installation or upgrade, run from the reviewed stable
+checkout:
 
 ```sh
 uv sync --frozen --group dev --extra local-keychain
@@ -148,8 +154,11 @@ connection when needed. An available tool can also run through the CLI:
   --arguments '{"course":"core"}'
 ```
 
-Keep one private state store; `--state-dir` changes it and empty replacements
-cannot resolve baselines. Changed bindings require a reviewed new process.
+Preserve the canonical publication store, baselines, locks and operation history.
+A separate isolated read-only store may retain its own snapshots and reviews;
+it cannot resolve or reconcile operations from another store. Do not replace the
+publication store with an empty directory. Changed bindings require a reviewed
+new process at an idle checkpoint.
 
 ## Agent refresh protocol
 
@@ -326,6 +335,34 @@ not relax acceptance, dedupe or protected-score checks, change existing operatio
 expiries or consumed tokens, or authorize a resend. Source qualification,
 installed-runtime adoption and verified live delivery remain separate evidence.
 
+### Owner-configured text-only releases
+
+Maintained source also supports a separate, opt-in surface for already reviewed
+owner releases: `prepare_submission_comments`, `confirm_submission_comments`
+and `reconcile_submission_comments`. The trusted owner supplies the exact release
+map or factory and its synchronous current-source/authority check. The launcher
+requires the pinned private owner adapter and `--enable-comments`; the client
+allowlist must also expose the tools. A factory returning `None` leaves this
+surface disabled while read tools remain available; empty/invalid release maps
+or failed initialization hold startup. This source capability does not establish
+installed exposure.
+
+Tool arguments select an existing release ID and its plan/operation; they cannot
+supply a raw body, target, grade, rubric, private path or transport. Preparation
+uses Canvas GET only; when work remains it records a private plan and permanent
+claim. An already-satisfied release retains a `NO_OP` receipt. Confirmation requires
+the exact independently reviewed and authorized plan digest plus its one-use
+token. The existing protocol rechecks current authority, source, attempt and
+protected state, sends text only and verifies readback. It introduces no retry or
+token renewal. Reconciliation uses Canvas GET only and may update private receipts;
+it never resends or clears uncertainty to permit another append.
+
+These tools are absent from the fixed three-tool read-only profile and do not
+replace the legacy inbox-envelope route above. See the
+[registration and tool contract](../src/canvas_mcp/gradebook/text_comments_mcp.py),
+[private owner configuration](operational-source-boundaries.md#owner-policy) and
+[controlled owner-surface checks](../tests/test_text_comment_fresh_completion.py).
+
 ## Private artifacts and recovery
 
 Keep `local_gradebooks/` ignored: directories 0700, files 0600. Preserve snapshots,
@@ -368,8 +405,9 @@ teacher decisions/drafts, target/preimage checks and one-shot history. See
 This route creates no teacher acceptance and grants no Canvas delivery authority.
 
 Ordinary participation can enter central EDIT as an **UNAPPROVED** draft before
-final teacher acceptance. That receiver is qualified as a local overlay pending
-portable source publication. It reuses the existing owner, locks and history;
+final teacher acceptance. The receiver is maintained portable source; its private
+reader and owner dependencies retain explicit source pins and separate installed
+qualification. It reuses the existing owner, locks and history;
 its source, reader, provider and exact-target admission remain scoped. Source
 advisory status stays advisory. An already-satisfied target requires no write.
 
