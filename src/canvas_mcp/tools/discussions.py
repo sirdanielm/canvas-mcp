@@ -2,7 +2,9 @@
 
 import asyncio
 import json
-import re
+import os
+import sys
+import threading
 import time
 from typing import Any
 
@@ -43,6 +45,121 @@ from ..core.write_confirmation import (
 _DELETE_ANNOUNCEMENT_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 _BULK_DELETE_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 _CRITERIA_DELETE_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
+
+# Caller regexes retain Python's matching semantics, but never execute on the
+# MCP event loop. A single isolated worker selects the entire candidate set.
+# Bounds apply before serialization; the worker only returns booleans, never
+# titles, identifiers, patterns, credentials or exception details.
+_TITLE_REGEX_MAX_PATTERN = 512
+_TITLE_REGEX_MAX_TITLE = 4096
+_TITLE_REGEX_MAX_TOTAL = 131_072
+_TITLE_REGEX_MAX_CANDIDATES = 5000
+_TITLE_REGEX_MAX_INPUT = 1_048_576
+_TITLE_REGEX_MAX_OUTPUT = 65_536
+_TITLE_REGEX_SECONDS = 2.0
+_TITLE_REGEX_WORKERS = threading.BoundedSemaphore(2)
+_TITLE_REGEX_PROGRAM = """
+import json, re, sys
+pattern, titles = json.load(sys.stdin)
+try:
+    compiled = re.compile(pattern, re.IGNORECASE)
+    result = [compiled.search(title) is not None for title in titles]
+except (re.error, OverflowError, RecursionError):
+    result = {"invalid": True}
+sys.stdout.write(json.dumps(result, separators=(",", ":")))
+"""
+
+
+def _title_regex_pattern_error(pattern: object) -> str | None:
+    """Reject malformed or oversized pattern input before any Canvas read."""
+    if type(pattern) is not str:
+        return "Invalid regex pattern: expected text."
+    if len(pattern) > _TITLE_REGEX_MAX_PATTERN:
+        return "Announcement title regex pattern exceeds the 512-character limit."
+    return None
+
+
+async def _bounded_title_regex_matches(
+    pattern: str, titles: list[str],
+) -> tuple[list[bool] | None, str | None]:
+    """Bound host memory, child CPU time and concurrency for untrusted regexes."""
+    error = _title_regex_pattern_error(pattern)
+    if error is not None:
+        return None, error
+    if len(titles) > _TITLE_REGEX_MAX_CANDIDATES:
+        return None, "Announcement title regex selection exceeds the 5000-title limit."
+    if any(type(title) is not str for title in titles):
+        return None, "Announcement title regex selection requires text titles."
+    if any(len(title) > _TITLE_REGEX_MAX_TITLE for title in titles):
+        return None, "Announcement title regex selection exceeds the 4096-character title limit."
+    if sum(len(title) for title in titles) > _TITLE_REGEX_MAX_TOTAL:
+        return None, "Announcement title regex selection exceeds the total title-character limit."
+    # ASCII JSON also preserves non-ASCII/lone-surrogate regex semantics on
+    # Windows without relying on inherited locale or Python environment flags.
+    payload = json.dumps([pattern, titles], ensure_ascii=True).encode("ascii")
+    if len(payload) > _TITLE_REGEX_MAX_INPUT:
+        return None, "Announcement title regex selection exceeds the input-byte limit."
+    if not _TITLE_REGEX_WORKERS.acquire(blocking=False):
+        return None, "Announcement title regex selection is busy."
+
+    async def select() -> bytes:
+        process = None
+        try:
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, "-I", "-S", "-c", _TITLE_REGEX_PROGRAM,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+                # These OS paths are required for Python startup on Windows;
+                # no Canvas token, user configuration or Python import setting
+                # is inherited. -I/-S exclude cwd, user site and startup hooks.
+                env={key: os.environ[key] for key in ("SYSTEMROOT", "WINDIR") if key in os.environ},
+                cwd=os.path.dirname(os.path.abspath(sys.executable)),
+            )
+            assert process.stdin is not None and process.stdout is not None
+            process.stdin.write(payload)
+            await process.stdin.drain()
+            process.stdin.close()
+            await process.stdin.wait_closed()
+            try:
+                output = await process.stdout.readexactly(_TITLE_REGEX_MAX_OUTPUT + 1)
+            except asyncio.IncompleteReadError as short:
+                output = short.partial
+            if len(output) > _TITLE_REGEX_MAX_OUTPUT:
+                raise ValueError("REGEX_WORKER_OUTPUT_LIMIT")
+            if await process.wait() != 0:
+                raise ValueError("REGEX_WORKER_FAILED")
+            return output
+        finally:
+            if process is not None and process.returncode is None:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    # The worker exited between returncode inspection and kill.
+                    pass
+                # Drain without accumulating, including on cancellation. This
+                # allows pipe transports to close before wait() reaps the child.
+                if process.stdout is not None:
+                    while await process.stdout.read(65_536):
+                        pass
+                await process.wait()
+
+    try:
+        # The deadline includes interpreter creation, input transfer, every
+        # match and result collection, not a fresh budget for each title.
+        output = await asyncio.wait_for(select(), timeout=_TITLE_REGEX_SECONDS)
+        result = json.loads(output)
+        if result == {"invalid": True}:
+            return None, "Invalid regex pattern."
+        if not isinstance(result, list) or len(result) != len(titles) or any(type(item) is not bool for item in result):
+            raise ValueError("REGEX_WORKER_INVALID_RESULT")
+        return result, None
+    except TimeoutError:
+        return None, "Announcement title regex selection exceeded its time limit."
+    except (OSError, RuntimeError, ValueError, UnicodeError):
+        return None, "Announcement title regex selection is unavailable."
+    finally:
+        _TITLE_REGEX_WORKERS.release()
 
 # Issue #283: a permission error on create_announcement is not license to
 # post the same content as a discussion instead. Client models were doing
@@ -2176,10 +2293,21 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
 
         Args:
             course_identifier: Course code or Canvas ID
-            criteria: Dict with keys: title_contains, older_than (ISO), newer_than (ISO), title_regex
+            criteria: Dict with keys: title_contains, older_than (ISO), newer_than (ISO), title_regex.
+                Regex selection has a shared two-second deadline, a 512-character pattern limit,
+                and bounded title/input sizes; a held selection creates no preview or deletion.
             limit: Max number of announcements to delete (safety limit)
             confirmation_token: Token from the preview call; omit to preview
         """
+        def regex_hold(message: str) -> str:
+            if confirmation_token:
+                _CRITERIA_DELETE_GUARD.check(confirmation_token, "")
+            return message + " Nothing was deleted."
+
+        if "title_regex" in criteria:
+            pattern_error = _title_regex_pattern_error(criteria["title_regex"])
+            if pattern_error is not None:
+                return regex_hold(pattern_error)
         course_id = await get_course_id(course_identifier)
 
         params = {
@@ -2199,9 +2327,31 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 _CRITERIA_DELETE_GUARD.check(confirmation_token, "")
             return f"No announcements found for course {course_identifier}."
 
+        regex_matches: dict[int, bool] = {}
+        if "title_regex" in criteria:
+            candidates = []
+            for index, announcement in enumerate(announcements):
+                if not isinstance(announcement, dict) or announcement.get("is_announcement") is not True:
+                    continue
+                title = announcement.get("title", "")
+                if type(title) is not str or len(title) > _TITLE_REGEX_MAX_TITLE:
+                    return regex_hold("Announcement title regex selection has invalid or oversized titles.")
+                if "title_contains" in criteria and criteria["title_contains"].lower() not in title.lower():
+                    continue
+                candidates.append((index, title))
+                if len(candidates) > _TITLE_REGEX_MAX_CANDIDATES:
+                    return regex_hold("Announcement title regex selection exceeds the 5000-title limit.")
+            matches, regex_error = await _bounded_title_regex_matches(
+                criteria["title_regex"], [title for _, title in candidates],
+            )
+            if regex_error is not None:
+                return regex_hold(regex_error)
+            assert matches is not None
+            regex_matches = {index: match for (index, _), match in zip(candidates, matches, strict=True)}
+
         matched = []
         refused_count = 0
-        for announcement in announcements:
+        for index, announcement in enumerate(announcements):
             if not isinstance(announcement, dict) or announcement.get("is_announcement") is not True:
                 refused_count += 1
                 continue
@@ -2214,11 +2364,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                     match = False
 
             if "title_regex" in criteria and match:
-                try:
-                    if not re.search(criteria["title_regex"], announcement_title, re.IGNORECASE):
-                        match = False
-                except re.error:
-                    return f"Invalid regex pattern: {criteria['title_regex']}"
+                match = regex_matches[index]
 
             if posted_at_str and match:
                 posted_at = parse_date(posted_at_str)

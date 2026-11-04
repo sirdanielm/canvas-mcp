@@ -18,6 +18,7 @@ anonymous in the second.
 import hashlib
 import re
 from itertools import islice
+from threading import RLock
 from typing import Any
 
 from .credentials import (
@@ -26,12 +27,21 @@ from .credentials import (
     is_http_request_active,
 )
 
-# Global anonymization mapping cache
+# Retained mappings support aggregate inspection, not identity generation.
+# Fixed entry and input-length bounds cap both stdio and HTTP retention. Even
+# four-byte Unicode storage needs at most 420 character bytes per entry: 64 ID
+# characters and 41 output characters (32 prefix plus nine suffix characters).
+# Normal Canvas numeric IDs/prefixes use much less; Python object/dict overhead
+# is independently bounded by the 4096-entry ceiling.
+_CACHE_MAX_ENTRIES = 4096
+_CACHE_MAX_ID_CHARS = 64
+_CACHE_MAX_PREFIX_CHARS = 32
+_cache_lock = RLock()
 _anonymization_cache: dict[str, str] = {}
 
 
 def _session_cache() -> dict[str, str]:
-    """Use request-owned HTTP state and preserve the local stdio session cache."""
+    """Select request-owned HTTP or stdio retention; callers hold `_cache_lock`."""
     if is_http_request_active() or get_request_credentials() is not None:
         cache = get_request_anonymization_cache()
         # Missing/cleared credentials must never fall back to stdio history.
@@ -231,22 +241,25 @@ def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
     Returns:
         Consistent anonymous identifier
     """
-    real_id_str = str(real_id)
-    cache = _session_cache()
+    # Joining also normalizes subclasses to exact builtin strings. Their
+    # overridden length methods or attached objects must not bypass retention
+    # bounds or become part of the long-lived mapping cache.
+    real_id_str = "".join([str(real_id)])
+    prefix_str = "".join([f"{prefix}"])
+    # The retained cache must never select an identity or prefix. Recomputing
+    # this short digest keeps output stable after eviction, clearing and when
+    # the same person is rendered as Student/Reviewer/Reviewee in one session.
+    hash_hex = hashlib.sha256(real_id_str.encode()).hexdigest()
+    anonymous_id = f"{prefix_str}_{hash_hex[:8]}"
 
-    # Check cache first
-    if real_id_str in cache:
-        return cache[real_id_str]
-
-    # Generate consistent hash-based ID
-    hash_object = hashlib.sha256(real_id_str.encode())
-    hash_hex = hash_object.hexdigest()
-
-    # Use first 8 characters for readability
-    anonymous_id = f"{prefix}_{hash_hex[:8]}"
-
-    # Cache the mapping
-    cache[real_id_str] = anonymous_id
+    # Large values still have deterministic output but are not retained. A
+    # count-only bound would allow arbitrary strings to consume unbounded RAM.
+    if len(real_id_str) <= _CACHE_MAX_ID_CHARS and len(prefix_str) <= _CACHE_MAX_PREFIX_CHARS:
+        with _cache_lock:
+            cache = _session_cache()
+            if real_id_str not in cache and len(cache) >= _CACHE_MAX_ENTRIES:
+                cache.pop(next(iter(cache)))
+            cache[real_id_str] = anonymous_id
 
     return anonymous_id
 
@@ -528,32 +541,42 @@ def create_anonymization_summary(original_count: int, anonymized_count: int, dat
     Returns:
         Summary string for logging/reporting
     """
+    with _cache_lock:
+        retained_count = len(_session_cache())
     return (
         f"Anonymization Summary - {data_type.title()}:\n"
         f"  Original records: {original_count}\n"
         f"  Anonymized records: {anonymized_count}\n"
         f"  Privacy protection: ENABLED\n"
-        f"  Unique anonymous IDs generated: {len(_anonymization_cache)}"
+        f"  Cached pseudonym mappings: {retained_count}"
     )
 
 
 def get_anonymization_stats() -> dict[str, Any]:
-    """Get statistics about the current anonymization session.
+    """Get bounded retained-mapping statistics for the current request/session.
+
+    `total_anonymized_ids` remains the aggregate compatibility field, but counts
+    retained IDs only, never lifetime unique people. Eviction and skipped large
+    inputs do not change generated pseudonyms. Samples contain no real ID keys.
 
     Returns:
         Dictionary with anonymization statistics
     """
-    cache = _session_cache()
-    return {
-        "total_anonymized_ids": len(cache),
-        "sample_mappings": {
-            f"real_id_{i}": anon_id
-            for i, anon_id in enumerate(islice(cache.values(), 3))
-        },
-        "privacy_status": "PROTECTED"
-    }
+    with _cache_lock:
+        cache = _session_cache()
+        return {
+            "total_anonymized_ids": len(cache),
+            "count_scope": "retained_cache_entries",
+            "cache_capacity": _CACHE_MAX_ENTRIES,
+            "sample_mappings": {
+                f"real_id_{i}": anon_id
+                for i, anon_id in enumerate(islice(cache.values(), 3))
+            },
+            "privacy_status": "PROTECTED"
+        }
 
 
 def clear_anonymization_cache() -> None:
     """Clear the anonymization cache (use when switching courses/contexts)."""
-    _session_cache().clear()
+    with _cache_lock:
+        _session_cache().clear()

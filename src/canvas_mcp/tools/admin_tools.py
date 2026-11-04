@@ -29,7 +29,8 @@ def register_admin_tools(mcp: FastMCP) -> None:
         if config.enable_data_anonymization:
             result += "✅ **ANONYMIZATION ENABLED** - Supported identity fields are masked\n\n"
             result += "📊 Session Statistics:\n"
-            result += f"  • Total unique students anonymized: {stats['total_anonymized_ids']}\n"
+            result += f"  • Cached pseudonym mappings: {stats['total_anonymized_ids']}\n"
+            result += "  • Retained cache entries, not a lifetime unique-student count\n"
             result += f"  • Privacy protection: {stats['privacy_status']}\n"
             result += f"  • Debug logging: {'ON' if config.anonymization_debug else 'OFF'}\n\n"
 

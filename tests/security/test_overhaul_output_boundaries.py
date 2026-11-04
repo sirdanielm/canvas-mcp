@@ -198,7 +198,7 @@ async def test_http_status_without_credentials_does_not_read_stdio_history(
         async with Client(server) as client:
             result = await client.call_tool("get_anonymization_status", {})
         text = result.content[0].text
-        assert "Total unique students anonymized: 0" in text
+        assert "Cached pseudonym mappings: 0" in text
         assert other not in text
     finally:
         credentials.clear_http_request_context()

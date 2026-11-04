@@ -109,6 +109,24 @@ its hostname allowlist into strong egress enforcement. See
 [upstream issue 157](https://github.com/vishalsachdev/canvas-mcp/issues/157).
 The default requested execution timeout is 120 seconds and may be capped by
 server sandbox limits; timeouts do not undo writes that already happened.
+Combined stdout/stderr retention is capped at 1 MiB in every execution mode.
+Overflow stops the owned child and returns an error with bounded diagnostics.
+Timeout, cancellation and reader failure also terminate and reap the owned
+process; POSIX executions use a separate process group to contain descendants.
+For abnormal container runs, cleanup verifies a per-run ownership label before
+removing the immutable container ID, then reads back absence. Unavailable or
+ambiguous daemon evidence remains `HELD/UNKNOWN`; it does not authorize replay.
+
+### Announcement regex selection
+
+Caller-supplied title patterns run in an isolated Python worker with one
+two-second deadline for the complete selection and at most two concurrent
+workers. Limits are 512 pattern characters, 4,096 characters per title, 131,072
+total title characters and 5,000 candidate titles, with 1 MiB serialized input
+and 64 KiB result ceilings. Python case-insensitive regex semantics are retained.
+Invalid, oversized, busy or timed-out selection produces no preview or deletion;
+it never silently truncates the match set. Confirmation still binds the exact
+criteria and complete selected targets.
 
 ### Privacy and local exports
 
@@ -118,6 +136,12 @@ hash-derived labels such as `Student_a8f7e23d`; supported email fields are
 pseudonymized and operational Canvas IDs remain available. These are
 pseudonyms, not a guarantee of anonymity. Free text, submissions, grades,
 course content and exempt profile/content fields can remain sensitive.
+
+Pseudonym retention is capped at 4,096 mappings per stdio process or HTTP
+request. Only IDs up to 64 characters and prefixes up to 32 characters are
+cached; larger inputs are computed without retention. Eviction or clearing does
+not change the hash-derived identity. Statistics count retained mappings, not
+lifetime unique students, and HTTP statistics stay within the current request.
 
 Generic MCP labels do not satisfy the SDM permanent four-digit PIN policy.
 Use the authenticated registry-bound mapping for explicitly authorized local
