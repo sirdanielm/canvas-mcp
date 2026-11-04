@@ -231,5 +231,6 @@ async def test_timeout_stops_descendant_holding_output_pipe(tmp_path) -> None:
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
+            # Successful collector cleanup already removed this owned group.
             pass
         await asyncio.wait_for(process.wait(), 2)

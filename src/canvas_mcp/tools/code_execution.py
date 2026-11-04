@@ -128,6 +128,7 @@ async def _collect_process_output(
             elif process.returncode is None:
                 process.kill()
         except ProcessLookupError:
+            # The owned child/group exited before the kill; still drain and reap.
             pass
         try:
             # A failed reader can finish the gather before the child exits.

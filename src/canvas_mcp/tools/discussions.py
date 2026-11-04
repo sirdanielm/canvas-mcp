@@ -135,6 +135,7 @@ async def _bounded_title_regex_matches(
                 try:
                     process.kill()
                 except ProcessLookupError:
+                    # The worker exited between returncode inspection and kill.
                     pass
                 # Drain without accumulating, including on cancellation. This
                 # allows pipe transports to close before wait() reaps the child.
