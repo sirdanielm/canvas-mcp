@@ -62,6 +62,18 @@ risks; they do not certify an entire deployment or establish FERPA compliance.
 - Revoke exposed or unused tokens and follow institutional credential-rotation
   policy. Never publish tokens or raw student data in security reports.
 
+### HTTP request bounds
+
+The maintained HTTP launcher applies a 1 MiB body cap before authentication-side
+effects or MCP parsing. The public access-confirmation form keeps its smaller
+8 KiB cap. Declared lengths are checked before reading; streamed bytes are bounded
+before forwarding the complete body. Invalid or ambiguous framing is rejected.
+Larger argument batches must be split into independently reviewed operations;
+splitting supplies no new write or retry authority. SSE responses remain streamed.
+Deployment proxies still need their own header, concurrency and timeout controls.
+See the [source repair status](docs/superpowers/plans/2026-09-06-security-review-followups.md);
+a source merge does not install these controls in a running service.
+
 ### Tool availability and human approval
 
 `ALLOWED_WRITE_TOOLS` controls which side-effect tools are registered. Unset
