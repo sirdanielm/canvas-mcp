@@ -154,7 +154,8 @@ async def test_stdin_and_both_output_pipes_are_pumped_concurrently() -> None:
 @pytest.mark.asyncio
 async def test_closed_stdin_does_not_drop_child_diagnostics() -> None:
     process = await asyncio.create_subprocess_exec(
-        sys.executable, "-c", "import os; os.close(0); print('fixture complete')",
+        sys.executable, "-c",
+        "import os, sys; os.close(0); sys.stdout.buffer.write(b'fixture complete\\n')",
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE, limit=16384,
         start_new_session=os.name == "posix", env={},
