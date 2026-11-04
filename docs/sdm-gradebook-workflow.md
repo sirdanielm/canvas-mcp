@@ -318,6 +318,14 @@ neither permits re-appending. Preserve consumed tokens and historical claims.
 Current comment absence does not prove an old request was never sent. Score
 parity, worksheet notes and a successful GET refresh do not verify feedback.
 
+Private comment receipts record observed `updated_at`, `posted_at` and
+`seconds_late` changes, preserving field presence and native value types. Normal
+send readback compares against the fresh send preflight; GET-only reconciliation
+records the original preview as its comparison baseline. These observations do
+not relax acceptance, dedupe or protected-score checks, change existing operation
+expiries or consumed tokens, or authorize a resend. Source qualification,
+installed-runtime adoption and verified live delivery remain separate evidence.
+
 ## Private artifacts and recovery
 
 Keep `local_gradebooks/` ignored: directories 0700, files 0600. Preserve snapshots,
