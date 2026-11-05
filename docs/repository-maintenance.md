@@ -125,11 +125,11 @@ Report preserved local evidence, published branches and cleanup separately.
 
 ## Closeout and restart
 
-Compare each closeout's verified starting and ending inventory with the last
-completed closeout using the same scope and counting rules. Keep that dated
-baseline intact. Record expanded discovery separately from new growth, and
-retain exact paths, tips, ownership, preservation evidence and unknowns in the
-private receipt.
+Record the starting and ending inventory needed to explain the work and preserve
+recovery evidence. When a comparable earlier closeout exists, use its scope and
+counting rules to show meaningful changes; keep its dated baseline intact.
+Distinguish newly discovered work from new growth, and retain relevant paths,
+tips, ownership, preservation evidence and unknowns privately.
 
 | Measure | Counting rule |
 | --- | --- |
@@ -138,8 +138,8 @@ private receipt.
 | Branches | Count local labels per Git store, distinct tip IDs and demonstrated unique work separately. Duplicate labels, patch equivalence and ancestry answer different questions. |
 | Remote state | Report advertised hosted heads, local remote-tracking aliases, open PRs/issues and recovery/archive/snapshot refs separately. Unverified or disabled issue tracking is unknown, not zero. |
 
-Explain before/current/after deltas, their causes, actual retirements and the
-next useful consolidation.
+Report material changes, actual retirements and the next useful consolidation;
+identify unavailable comparisons rather than delaying independent work.
 
 Record the maintained source revision, remaining operational overlay, installed
 pins, retained recovery paths and unresolved operations separately. Retire
