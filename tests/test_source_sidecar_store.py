@@ -163,3 +163,21 @@ class UnsupportedPlatformTests(unittest.TestCase):
             with patch("canvas_mcp.gradebook.store._SUPPORTS_OPEN_DIR_FD", False):
                 with self.assertRaises(GradebookError):
                     store._load_source_sidecar("a" * 64)
+
+
+class ImportOrderTests(unittest.TestCase):
+    def test_store_and_sidecar_import_in_both_orders(self):
+        import subprocess
+        import sys
+
+        first = "import canvas_mcp.gradebook.store; import canvas_mcp.gradebook.source_sidecar_store"
+        second = "import canvas_mcp.gradebook.source_sidecar_store; import canvas_mcp.gradebook.store"
+        for code in (first, second):
+            with self.subTest(code=code):
+                result = subprocess.run(
+                    [sys.executable, "-c", code],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)

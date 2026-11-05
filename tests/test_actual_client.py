@@ -1,5 +1,7 @@
 """Exercise the isolated actual client caller using fictional in-memory inputs."""
 
+import subprocess
+import sys
 import unittest
 
 from canvas_mcp.gradebook import client as candidate
@@ -7,7 +9,10 @@ from canvas_mcp.gradebook import client as candidate
 
 class ActualClientTests(unittest.IsolatedAsyncioTestCase):
     async def test_opt_in_sidecar_and_legacy_shape_use_same_raw_fetch(self):
-        client = candidate.GradebookClient("https://canvas.example.test", "fictional")
+        # Exercise the real snapshot methods with in-memory transport fixtures;
+        # constructor/diagnostics have a separate POSIX capability boundary.
+        client = object.__new__(candidate.GradebookClient)
+        client.origin = "https://canvas.example.test"
         calls = []
 
         async def get(path, params):
@@ -57,21 +62,31 @@ class ActualClientTests(unittest.IsolatedAsyncioTestCase):
             raise AssertionError("Unexpected fictional request")
 
         client.get, client.pages = get, pages
-        try:
-            legacy = await client.snapshot("10")
-            first_calls = calls[:]
-            calls.clear()
-            paired = await client.snapshot_with_source_sidecar("10")
-            self.assertEqual(first_calls, calls)
-            self.assertEqual(legacy["cells"], paired["snapshot"]["cells"])
-            self.assertNotIn("source_sidecar", legacy)
-            cell = paired["source_sidecar"]["cells"]["20:30"]
-            self.assertEqual("50", cell["attachments"][0]["canvas_attachment_id"])
-            self.assertEqual("HELD_OBSERVATION_ONLY", cell["status"])
-            self.assertIn("SAME_FETCH_PROVENANCE_UNVERIFIED", cell["holds"])
-            self.assertFalse(paired["source_sidecar"]["scan_authority"])
-        finally:
-            await client.close()
+        legacy = await client.snapshot("10")
+        first_calls = calls[:]
+        calls.clear()
+        paired = await client.snapshot_with_source_sidecar("10")
+        self.assertEqual(first_calls, calls)
+        self.assertEqual(legacy["cells"], paired["snapshot"]["cells"])
+        self.assertNotIn("source_sidecar", legacy)
+        cell = paired["source_sidecar"]["cells"]["20:30"]
+        self.assertEqual("50", cell["attachments"][0]["canvas_attachment_id"])
+        self.assertEqual("HELD_OBSERVATION_ONLY", cell["status"])
+        self.assertIn("SAME_FETCH_PROVENANCE_UNVERIFIED", cell["holds"])
+        self.assertFalse(paired["source_sidecar"]["scan_authority"])
+
+    def test_constructor_remains_closed_without_posix_diagnostics(self):
+        code = (
+            "import sys; sys.modules['fcntl'] = None; "
+            "from canvas_mcp.gradebook.client import GradebookClient; "
+            "GradebookClient('https://canvas.example.test', 'fictional')"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, check=False
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("fcntl", result.stderr)
+        self.assertIn("ModuleNotFoundError", result.stderr)
 
 
 if __name__ == "__main__":

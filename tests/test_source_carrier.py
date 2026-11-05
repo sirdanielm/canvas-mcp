@@ -70,13 +70,13 @@ class SourceCarrierTests(unittest.TestCase):
         self.assertIsNone(item["reported_submission_object_id"])
         self.assertIsNone(item["observed_attempt"])
         self.assertIsNone(item["attachments"][0]["observed_version"])
-        self.assertTrue(
+        self.assertLessEqual(
             {
                 "NATIVE_SUBMISSION_ID_UNAVAILABLE",
                 "NATIVE_ATTEMPT_UNAVAILABLE",
                 "ARTIFACT_VERSION_UNAVAILABLE",
-            }
-            <= set(item["holds"])
+            },
+            set(item["holds"]),
         )
 
     def test_different_attempt_never_claims_currentness(self):
@@ -112,14 +112,14 @@ class SourceCarrierTests(unittest.TestCase):
         raw["attachments"] = [None, {"id": True}, {"id": 51, "sha256": "bad"}]
         item = capture_source_sidecar(snapshot(), [raw])["cells"]["20:30"]
         self.assertIsNone(item["observed_attempt"])
-        self.assertTrue(
+        self.assertLessEqual(
             {
                 "NATIVE_ATTEMPT_UNAVAILABLE",
                 "ATTACHMENTS_MALFORMED",
                 "ATTACHMENT_ID_UNAVAILABLE",
                 "ARTIFACT_VERSION_UNAVAILABLE",
-            }
-            <= set(item["holds"])
+            },
+            set(item["holds"]),
         )
 
     def test_out_of_scope_records_do_not_create_cells(self):

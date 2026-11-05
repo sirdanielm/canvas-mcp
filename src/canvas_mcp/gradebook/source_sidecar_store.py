@@ -4,11 +4,22 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from pathlib import Path
+from typing import Any, Protocol
 from urllib.parse import urlsplit
 
 from .client import GradebookError
-from .store import Store
+
+
+class SidecarStore(Protocol):
+    """Minimal private-store interface without a runtime import dependency."""
+
+    root: Path
+
+    def load(self, kind: str, artifact_id: str) -> dict[str, Any]: ...
+
+    def save(self, kind: str, value: dict[str, Any]) -> tuple[str, Path]: ...
+
 
 MAX_BYTES = 1_000_000
 MAX_CELLS = 2500
@@ -219,7 +230,7 @@ def _validate(sidecar: Any, snapshot: dict[str, Any]) -> bool:
     return incomplete
 
 
-def validate_envelope_for_save(store: Store, envelope: dict[str, Any]) -> None:
+def validate_envelope_for_save(store: SidecarStore, envelope: dict[str, Any]) -> None:
     if (
         not isinstance(envelope, dict)
         or set(envelope) != {"contract", "snapshot_id", "observation"}
@@ -240,7 +251,9 @@ def validate_envelope_for_save(store: Store, envelope: dict[str, Any]) -> None:
         raise GradebookError("Source observation sidecar exceeds size limit.")
 
 
-def save_source_sidecar(store: Store, snapshot_id: str, sidecar: dict[str, Any]) -> str:
+def save_source_sidecar(
+    store: SidecarStore, snapshot_id: str, sidecar: dict[str, Any]
+) -> str:
     """Store separately by content hash, explicitly anchored to a saved snapshot."""
     envelope = {
         "contract": "CANVAS_SOURCE_SIDECAR_STORE_V1",
@@ -252,7 +265,7 @@ def save_source_sidecar(store: Store, snapshot_id: str, sidecar: dict[str, Any])
 
 
 def read_source_sidecar(
-    store: Store, snapshot_id: str, sidecar_id: str | None
+    store: SidecarStore, snapshot_id: str, sidecar_id: str | None
 ) -> dict[str, Any]:
     """Report reference uncertainty, unvalidated ID mismatch, incomplete or held observations."""
     snapshot = store.load("snapshot", snapshot_id)
