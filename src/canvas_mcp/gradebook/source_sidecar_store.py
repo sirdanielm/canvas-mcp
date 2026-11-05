@@ -16,9 +16,11 @@ class SidecarStore(Protocol):
 
     root: Path
 
-    def load(self, kind: str, artifact_id: str) -> dict[str, Any]: ...
+    def load(self, kind: str, artifact_id: str) -> dict[str, Any]:
+        raise NotImplementedError
 
-    def save(self, kind: str, value: dict[str, Any]) -> tuple[str, Path]: ...
+    def save(self, kind: str, value: dict[str, Any]) -> tuple[str, Path]:
+        raise NotImplementedError
 
 
 MAX_BYTES = 1_000_000
