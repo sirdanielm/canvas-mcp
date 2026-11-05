@@ -50,10 +50,10 @@ Codex starts with `AGENTS.md`; its task router points here for repository develo
 - HTTP mode: each caller sends `X-Canvas-Token`; `CANVAS_API_TOKEN` must never be set (startup guard); read-only unless `ALLOWED_WRITE_TOOLS` is set.
 - The upstream Azure deployment workflows are retained here; their presence does not establish a configured SDM hosted service. Production triggers are `v*` tags or an authorized manual run from `main`; staging triggers on qualifying pushes to `staging` or manual dispatch. A merge to `main` does not deploy production. Tags and dispatches are consequential release/deployment actions, not routine validation.
 
-## Adoption numbers
-- Never print a PyPI download count. Quote stars, forks and contributors, re-pulled from the GitHub API that day, with the date.
-- Do not repeat "over 18,000 clones" or "UMich selected it as sole candidate" without a primary source.
-- Do not imply a campus security review: the only Illinois artifact is Adam King's LRA, and the public hosted server is retired.
+## Public claims
+
+Use current, attributable evidence for adoption and security claims. Do not imply
+a campus security review or repeat unsupported claims about selection or usage.
 
 ## Current SDM focus
 
