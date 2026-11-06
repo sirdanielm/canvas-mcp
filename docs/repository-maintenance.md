@@ -69,7 +69,11 @@ clear uncertainty. Documentation reconciliation changes no setting.
    Fetch remote changes before integrating and push only the reviewed intended
    commits. Prefer clean fast-forwards; preserve divergent work for explicit
    reconciliation. Do not force-push, reset away work or prune branches merely
-   to make a checkout appear synchronized.
+   to make a checkout appear synchronized. For a requested branch cleanup,
+   compare each advertised GitHub tip with current `main`, retain branches with
+   unique or operational work, and verify a private recovery bundle first. Remove
+   a merged remote branch only with an exact-tip lease so a concurrent update
+   prevents deletion; then refresh remote-tracking refs and verify the result.
 6. Plan installation separately with the runtime owner at an idle checkpoint.
    Record exact adopted hashes and readback. Follow the
    [worker runbook](sdm-gradebook-worker.md); never restart shared MCP processes
@@ -116,6 +120,13 @@ ignored evidence separately where applicable; a similar title, closed PR or
 patch-only equivalence is not proof of zero unique commits. Archive a managed
 worktree through its owning task. An unavailable attachment or unresolved
 owner/pin is a retention hold. These checks grant no deletion authority.
+
+A clean `main` checkout does not mean an operational checkout is clean or safe
+for promotion. Test a preserved operational overlay in an independent clone,
+resolve conflicts against current maintained guidance, and verify private files
+by bytes. A Git bundle preserves committed refs, not ignored or untracked runtime
+files; inspect and preserve those separately before retiring a checkout. Record
+trial results separately from installed-runtime verification.
 
 Keep credentials, student data, original evidence, manifests, backup patches and
 operational receipts outside Git. `docs/` is also the website upload root:
