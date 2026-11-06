@@ -189,6 +189,8 @@ test('confirmed request queues only exact authorized protocol under lock and rea
   assert.equal(calls.ranges.length, 0);
   assert.match(calls.alerts[0][1], /keep this workbook idle/);
   assert.match(calls.alerts.at(-1)[1], /Refresh queued/);
+  assert.match(calls.alerts.at(-1)[1], /may take several minutes/);
+  assert.match(calls.alerts.at(-1)[1], /does not update automatically/);
 });
 
 test('canceling confirmation performs no queue read, write or lock acquisition', () => {
@@ -281,11 +283,23 @@ test('receipt status displays only allowed state, time, and nonnegative integer 
   const {context, calls} = harness({metadata: [{kind: 'status', data: status}, heartbeat()]});
   context.sdmGradebookShowProgress();
   const text = calls.alerts[0][1];
-  assert.match(text, /State: VERIFIED/);
+  assert.match(text, /No refresh request is currently queued/);
+  assert.match(text, /Most recent recorded result: VERIFIED/);
   assert.match(text, /students: 120, assignments: 18, pending edits: 2/);
   assert.doesNotMatch(text, /private|assignments: -2|pending edits: 1\.2/);
   assert.equal(calls.writes.length, 0);
   assert.equal(calls.ranges.length, 0);
+});
+
+test('a matching active request is presented as current, not as a past result', () => {
+  const current = {...request(), action: 'REFRESH_GET_BOTH'};
+  const status = {v: 1, id: requestId, state: 'PREPARED', updated_at: new Date().toISOString(),
+    workbook_id: config.core.spreadsheet_id};
+  const {context, calls} = harness({metadata: [{kind: 'request', data: current},
+    {kind: 'status', data: status}]});
+  context.sdmGradebookShowProgress();
+  assert.match(calls.alerts[0][1], /State: PREPARED/);
+  assert.doesNotMatch(calls.alerts[0][1], /No refresh request is currently queued|Most recent recorded result/);
 });
 
 test('a prior receipt cannot report a different current request as verified', () => {
