@@ -135,7 +135,19 @@ class GradebookClient:
                 "Canvas snapshot exceeded the time limit; previous snapshot retained."
             ) from None
 
-    async def _snapshot(self, course_id: str) -> dict[str, Any]:
+    async def snapshot_with_source_sidecar(self, course_id: str) -> dict[str, Any]:
+        """Explicit private opt-in; no source mapping or scan authority implied."""
+        try:
+            async with asyncio.timeout(SNAPSHOT_TIMEOUT_SECONDS):
+                return await self._snapshot(course_id, include_source_sidecar=True)
+        except TimeoutError:
+            raise GradebookError(
+                "Canvas snapshot exceeded the time limit; previous snapshot retained."
+            ) from None
+
+    async def _snapshot(
+        self, course_id: str, *, include_source_sidecar: bool = False
+    ) -> dict[str, Any]:
         from .model import identifier, normalize_snapshot
 
         if not course_id.isascii() or not course_id.isdecimal():
@@ -200,6 +212,14 @@ class GradebookClient:
                     raise GradebookError("Duplicate Canvas submission in snapshot.")
                 seen_users.add(uid)
             submissions.extend(records)
-        return normalize_snapshot(
+        snapshot = normalize_snapshot(
             self.origin, course, sections, enrollments, assignments, submissions
         )
+        if not include_source_sidecar:
+            return snapshot
+        from .source_carrier import capture_source_sidecar
+
+        return {
+            "snapshot": snapshot,
+            "source_sidecar": capture_source_sidecar(snapshot, submissions),
+        }
