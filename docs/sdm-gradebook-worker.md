@@ -50,6 +50,9 @@ require READY no more than 90 seconds old in GET_ONLY mode and a clear queue;
 a legacy or full-sync heartbeat cannot admit them. Before resuming edits, require
 the exact request VERIFIED,
 its complete preservation receipt finalized, and queue cleanup confirmed.
+Refresh can take several minutes. The progress dialog is a snapshot; reopen it
+to check again. When no request is queued, a displayed result belongs to the
+most recent recorded request and its timestamp, not a new refresh.
 
 **Canvas - Fresh GET** uses the same queue; **Canvas - Review EDIT** only opens
 private comparisons. Neither publishes or runs imports/QC. A UUID, updated tab
