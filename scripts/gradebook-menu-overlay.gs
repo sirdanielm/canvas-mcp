@@ -218,7 +218,8 @@ function sdmGradebookRequestRefresh() {
       if (!readback || JSON.stringify(readback.data) !== serialized) {
         throw new Error('Request confirmation is uncertain. Check refresh progress or ask for reconciliation; do not create another request.');
       }
-      result = 'Refresh queued for the local worker. Keep this workbook idle and use Show refresh progress. ' +
+      result = 'Refresh queued for the local worker. It may take several minutes. Keep this workbook idle ' +
+        'and reopen Show refresh progress to check the result; the progress dialog does not update automatically. ' +
         'The mirrors are updated only after validation; completion requires VERIFIED status.';
     }
   } finally {
@@ -239,7 +240,8 @@ function sdmGradebookSafeProgress_(state) {
   if (state.status) {
     var status = state.status.data;
     sdmGradebookValidateStatus_(status);
-    lines.push('State: ' + status.state);
+    if (!state.request) lines.push('No refresh request is currently queued.');
+    lines.push((state.request ? 'State: ' : 'Most recent recorded result: ') + status.state);
     lines.push('Status time: ' + sdmGradebookIsoTime_(status.updated_at));
     ['core', 'advanced'].forEach(function (course) {
       var summary = status.summary && status.summary[course];
