@@ -12,6 +12,7 @@ from test_gradebook_native import initial_raw, raw_from_state
 from canvas_mcp.gradebook import native
 from canvas_mcp.gradebook import sparse_edit_axis_refresh as candidate
 from canvas_mcp.gradebook.client import GradebookError
+from canvas_mcp.gradebook.get_only_refresh import _requests as get_only_requests
 from canvas_mcp.gradebook.model import digest
 from canvas_mcp.gradebook.native_edit_review import extract_native_edits
 from canvas_mcp.gradebook.sparse_edit_axis_refresh import (
@@ -478,3 +479,92 @@ def test_permission_drift_still_holds_every_field_and_multiplicity(scenario, cha
             before, raw_from_state(state), [plan], {"core": binding}
         )
     assert "private-sentinel" not in str(error.value)
+
+
+def absent_student_scenario(scenario, *, already_sparse=False, append=True):
+    """Refresh only GET to a fictional active roster, retaining the old EDIT."""
+    before, binding, baseline, current = copy.deepcopy(scenario)
+    if already_sparse:
+        first, before = prepared((before, binding, baseline, current))
+        baseline = first["merged_baseline"]
+        if append:
+            assignment = copy.deepcopy(current["assignments"][0])
+            assignment.update(id="23", name="Fictional later activity", position=3)
+            current["assignments"].append(assignment)
+            current["cells"]["102:23"] = {
+                **copy.deepcopy(current["cells"]["102:21"]),
+                "value": 7,
+            }
+    current["students"] = [s for s in current["students"] if s["id"] != "101"]
+    current["cells"] = {
+        key: value
+        for key, value in current["cells"].items()
+        if not key.startswith("101:")
+    }
+    state = native._state(before)
+    native._apply_requests(
+        state, get_only_requests(current, digest(current), binding, state), binding
+    )
+    return raw_from_state(state), binding, baseline, current
+
+
+@pytest.mark.parametrize("already_sparse", [False, True])
+def test_sparse_append_retains_absent_students_without_synthesizing_new_scores(
+    scenario, already_sparse
+):
+    case = absent_student_scenario(scenario, already_sparse=already_sparse)
+    before, binding, baseline, current = case
+    untouched = copy.deepcopy(case)
+    plan, after = prepared(case)
+    assert case == untouched
+    merged = plan["merged_baseline"]
+    assert merged["students"] == (
+        baseline["students"]
+        if already_sparse
+        else baseline["students"] + current["students"]
+    )
+    assert merged["cells"]["101:21"] == baseline["cells"]["101:21"]
+    new_aid, new_col = ("23", 5) if already_sparse else ("22", 4)
+    assert f"101:{new_aid}" not in merged["cells"]
+    assert plan["counts"]["new_students"] == (0 if already_sparse else 1)
+    assert plan["counts"]["new_targets"] == (1 if already_sparse else 2)
+    old, new = native._state(before), native._state(after)
+    for address in ("5:0", "5:1", "5:2", "5:3"):
+        assert new["sheets"][2]["cells"][address] == old["sheets"][2]["cells"][address]
+    assert "userEnteredValue" not in new["sheets"][2]["cells"][f"5:{new_col}"]
+    if already_sparse:
+        assert new["sheets"][2]["cells"]["5:4"] == old["sheets"][2]["cells"]["5:4"]
+        assert merged["cells"]["102:23"]["value"] == 7
+    assert new["sheets"][1] == old["sheets"][1]
+    assert plan["canvas_writes"] == 0
+    verify_sparse_edit_axis_output(before, after, [plan], {"core": binding})
+    assert extract_sparse_edits(after, binding, merged)["edits"] == [
+        {"user_id": "101", "assignment_id": "21", "value": 20}
+    ]
+
+
+def test_absent_student_without_new_coverage_is_a_noop(scenario):
+    case = absent_student_scenario(scenario, already_sparse=True, append=False)
+    before, binding, baseline, _ = case
+    plan, after = prepared(case)
+    assert plan["batch_update"]["requests"] == []
+    assert plan["merged_baseline"] == baseline
+    assert native._state(after) == native._state(before)
+    verify_sparse_edit_axis_output(before, after, [plan], {"core": binding})
+
+
+def test_absent_student_does_not_relax_removed_assignment_hold(scenario):
+    before, binding, baseline, current = absent_student_scenario(scenario)
+    current["assignments"] = [a for a in current["assignments"] if a["id"] != "21"]
+    current["cells"] = {
+        key: value for key, value in current["cells"].items() if not key.endswith(":21")
+    }
+    with pytest.raises(GradebookError, match="target removals"):
+        plan_sparse_edit_axis_refresh("core", binding, before, baseline, current)
+
+
+def test_absent_student_does_not_relax_grading_schema_hold(scenario):
+    before, binding, baseline, current = absent_student_scenario(scenario)
+    current["assignments"][0]["points_possible"] += 1
+    with pytest.raises(GradebookError, match="grading schema"):
+        plan_sparse_edit_axis_refresh("core", binding, before, baseline, current)
