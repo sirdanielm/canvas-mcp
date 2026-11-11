@@ -35,6 +35,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   snapshots. Fork-main updates are not a new upstream package release, website
   upload or production deployment.
 
+## [1.17.0] — 2026-11-09
+
+A minor release with breaking changes. Course identifiers are now matched strictly: a name or code resolves in one call, and a value that matches no course is refused instead of sent to Canvas. `create_rubric` no longer replaces a rubric that an assignment already has, and a hosted server with Entra sign-in and an empty allowlist needs an explicit setting to start. It also fixes accessibility source validation and the student missing-submissions list.
+
+### Fixed
+
+- **Course names resolve in one call, and a partial name gets suggestions.** Names and codes match ignoring case and any whitespace differences. A name that matches no course is refused before any request; if it is part of one or more course names or codes, the refusal lists up to five as "Did you mean" with their IDs, and never selects one. A name that matches several courses lists their course codes.
+
+- **Request paths keep each identifier as one segment.** Educator and shared tools now refuse an ID argument that is not a numeric Canvas ID and a page slug that contains a path delimiter (`/`, `\`, `?` or `#`, raw or percent-encoded) or is `.` or `..`, before any request. An unmatched course identifier that would pass through to Canvas is refused the same way. A course that matches by code or name, including one with `/` in its code, still resolves as before. A new test sweeps every registered tool with such values.
+
+- Identifier refusals use each tool's own wording: the module write tools return plain `Error: ...` text like the rest of their responses, and `bulk_update_pages` names its `page_urls` parameter.
+
+- Accessibility scans and fixes refuse missing or malformed assignment
+  descriptions and page bodies instead of reporting a clean scan or no fixes.
+  Explicitly empty (`null` or empty-string) content remains valid, and invalid
+  sources, including pages without a usable URL slug, are rejected before any
+  collected changes can be written ([#552](https://github.com/vishalsachdev/canvas-mcp/pull/552), from [#533](https://github.com/vishalsachdev/canvas-mcp/pull/533), thanks [@KKazuhaK](https://github.com/KKazuhaK)).
+
+- `get_my_submission_status` lists only work that Canvas flags as missing under Missing Submissions. Graded, excused and on-paper work with no online submission moves to a separate No Canvas Submission Recorded section with its own status, and an explicit Canvas missing flag is kept and shown as MISSING even when the record has a grade or a timestamp ([#545](https://github.com/vishalsachdev/canvas-mcp/pull/545), thanks [@lindsay-cheng](https://github.com/lindsay-cheng)).
+
+### Changed (breaking)
+
+- **An unmatched course identifier is refused instead of sent to Canvas.** A bare value with underscores that matches none of your courses is no longer guessed as a SIS ID; pass `sis_course_id:<id>` for a SIS lookup (for example a concluded course missing from your course list). If the course list cannot be loaded and nothing is cached, a course code or name is refused rather than passed through; numeric IDs and `sis_course_id:` forms are unaffected.
+
+- **`create_rubric` refuses an assignment that already has a rubric.** With `assignment_id`, the tool reads the assignment first and creates nothing if it finds rubric metadata or cannot verify the assignment. Before, the new rubric replaced the attached one. Use `update_rubric` to edit the attached rubric, or `associate_rubric_with_assignment` when you mean to change the association. `assignment_id` must be a numeric Canvas ID.
+
 ### Changed (breaking for hosted operators)
 
 - **An empty Entra allowlist now needs an explicit setting.** With `ENTRA_AUTH_ENABLED=true` and an empty `MCP_ENTRA_ALLOWED_OIDS`, the HTTP server refuses to start unless `ACCESS_REQUEST_ENABLED=true` (only identities granted through the access-request flow get in) or the new `MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true` (every platform-authenticated tenant identity gets in, the old default). The request middleware applies the same rule. Deployments with a non-empty allowlist are unaffected.
