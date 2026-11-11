@@ -6,7 +6,7 @@ Canvas MCP enables AI assistants to query courses, assignments, grades, discussi
 
 ## Key Features
 
-- Latest release: v1.16.1 (upstream; MIT license). Fork source updates do not establish an installed package or deployment.
+- Latest release: v1.17.0 (upstream; MIT license). Fork source updates do not establish an installed package or deployment.
 - Natural language interface for Canvas LMS
 - Up to 129 MCP tools, subject to role, operator write policy and feature gates
 - 8 reusable agent skills (workflow recipes) installable into 40+ agents via skills.sh

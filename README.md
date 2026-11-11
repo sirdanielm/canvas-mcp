@@ -93,6 +93,12 @@ group, quiz-awareness and grade-scenario reads, guarded content edits and
 separately gated course-group creation. Quiz-taking remains unavailable. See the
 tool guide for each permission and preview contract.
 
+Course names and codes must resolve to a known course. Use `sis_course_id:<id>`
+for an explicit SIS lookup. `create_rubric` can attach a new rubric only when
+the assignment has no rubric. Editing uses `update_rubric` with every existing
+criterion/rating ID and its preview/confirmation flow. An explicitly requested association change uses
+`associate_rubric`. See [rubric behavior](docs/rubric-api-behavior.md).
+
 <a id="-agent-skills"></a>
 
 The eight maintained [agent workflows](skills/) are optional recipes on top of
@@ -147,9 +153,10 @@ and verified delivery are distinct states. A documentation/source merge does not
 restart a service, deploy the menu, release a package or send classroom grades.
 Tags and deployment/paid-review actions require separate authorization.
 
-The refreshed source incorporates upstream v1.16.1 security changes and later
-main-branch fixes. Upstream package releases and this fork's source or installed
-runtimes have separate release histories. This update alone installs no runtime.
+The refreshed source incorporates upstream v1.17.0, including strict course
+identifier matching, guarded rubric creation and accessibility source validation.
+Upstream package releases and this fork's source or installed runtimes have
+separate release histories. This update alone installs no runtime.
 Release notes remain in [CHANGELOG.md](CHANGELOG.md); dated audits and design
 records remain linked from the current guides. The
 [pre-trim README](https://github.com/sirdanielm/canvas-mcp/blob/d0794b247df2b865150c4805d816b9075768ae92/README.md)

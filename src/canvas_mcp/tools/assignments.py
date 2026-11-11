@@ -22,7 +22,7 @@ from ..core.untrusted_content import (
     fence_untrusted_inline,
     format_canvas_error,
 )
-from ..core.validation import coerce_canvas_id, validate_params
+from ..core.validation import coerce_canvas_id, numeric_id_error, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -154,6 +154,8 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
             include_description_sha256: Append the literal HTML SHA-256 for an
                 authorized unpublished description-only edit. Default False.
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         # Ensure assignment_id is a string
@@ -286,6 +288,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             reviewer_id: User ID of the student who will review
             reviewee_id: User ID of the student whose submission will be reviewed
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         reviewee = str(reviewee_id).strip()
@@ -354,6 +358,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         # Get all submissions for this assignment
@@ -501,6 +507,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                 omitted records are marked. Use get_student_submission for
                 individual records omitted by the total cap.
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         assignment_id_str = str(assignment_id)
         if include_body:
             assignment = coerce_canvas_id(assignment_id)
@@ -595,6 +603,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         # Ensure assignment_id is a string
@@ -1065,6 +1075,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             replace: Text that replaces find (may be empty to delete it)
             require: Strings that must already be present in the current description
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         guard = BodyGuard(expect_updated_at, find, replace, require)
         if expected_description_sha256 is not None and guard.active:
             return "HELD: expected_description_sha256 cannot be combined with other edit guards. No write attempted."
@@ -1260,6 +1272,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             require_name_match: Only delete if the assignment name matches this string exactly
             confirmation_token: Token from the preview call; omit to preview
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         assignment = await make_canvas_request(
@@ -1347,12 +1361,22 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             max_concurrent: Max concurrent grading operations (default: 5)
             rate_limit_delay: Delay between batches in seconds (default: 1.0)
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
 
         # Validate that we have grades to process
         if not grades:
             return "Error: No grades provided. The grades dictionary is empty."
+        # Every key becomes a path segment (/submissions/<user_id>). Check them
+        # all before the batch starts, so a bad key cannot follow sent grades.
+        bad_user = next((uid for uid in grades if coerce_canvas_id(uid) is None), None)
+        if bad_user is not None:
+            return (
+                "Error: every key in grades must be a numeric Canvas user ID; "
+                f"got {bad_user!r}. No grades were submitted."
+            )
 
         # Check if rubric is configured for grading (if using rubric assessments)
         has_rubric_grades = any(
