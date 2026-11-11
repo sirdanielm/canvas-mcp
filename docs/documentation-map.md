@@ -21,6 +21,7 @@ not establish current service liveness or publication authority.
 | Repository ownership and domain contracts | [Integration boundaries](grass-workflow-integration.md), [architecture pointer](GRASS_GREENFIELD_ARCHITECTURE_CONTRACT.md), [capture port](grass-capture-contract.md) |
 | Offline accepted-pair RELEASE prototype | [Unit 1 preview contract](unit1-pair-preview-contract.md) |
 | Curriculum authoring and course archives | [Authoring](sdm-canvas-authoring-workflow.md), [course mirror](course-mirror.md) |
+| Retained Canvas submissions and exact curriculum assignment joins | [Library ownership and intake](grass-workflow-integration.md#retained-canvas-submission-library), [LocalGrAss lookup](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/CANVAS-SUBMISSION-LIBRARY.md) |
 | Private student copies | [PIN policy](STUDENT-PIN-POLICY.md), [exports](local-pin-exports.md), [post-QC archives](post-qc-pin-archives.md) |
 | Source promotion, checkout retirement and recovery | [Maintenance](repository-maintenance.md), [workflow inventory](../.github/workflows/README.md), [release checklist](../internal/release-checklist.md) |
 | Security findings and repair evidence | [Resource/authentication follow-up status](superpowers/plans/2026-09-06-security-review-followups.md) |

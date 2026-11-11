@@ -10,10 +10,10 @@ status; this page owns cross-repository responsibilities. Procedures stay in the
 
 | Owner | Responsibility |
 | --- | --- |
-| Canvas MCP | Authoritative observations, permanent PIN source, exact identity/attempt targeting, protected GET/EDIT integrity, installed Canvas bindings, separately gated score/comment transport and readback |
+| Canvas MCP | Authoritative observations, retained Canvas captures and accepted-capture promotion, permanent PIN source, exact identity/attempt targeting, protected GET/EDIT integrity, installed Canvas bindings, separately gated score/comment transport and readback |
 | sdmGrAss | Assignment-grader engines, participation/profile policies and fleet lifecycle |
 | GrAss | Academic policy, original paper/question evidence, saved academic results and canonical proposal/feedback exports |
-| LocalGrAss | Shared import/QC and review tools, source-bound drafts, immutable revisions and authenticated final decisions |
+| LocalGrAss | Shared import/QC and review tools, aggregate retained-submission lookup and downstream intake, source-bound drafts, immutable revisions and authenticated final decisions |
 | d0t | One canonical queue, current scoped assignments, original-owner coordination and outcome-driven refill |
 
 LocalGrAss owns the canonical
@@ -21,6 +21,39 @@ LocalGrAss owns the canonical
 A repository's source acceptance does not establish another owner's installation,
 academic admission or destination delivery. Follow current case and source
 qualification rather than treating the architecture as activation authority.
+
+## Retained Canvas submission library
+
+For a new formative fleet scan or test intake, first discover electronic
+submissions through the registered private library. Use independently verified
+`course_id + assignment_id`, with purpose `formative` or `test`, following the
+[LocalGrAss lookup guide](https://github.com/sirdanielm/LocalGrAss/blob/main/docs/CANVAS-SUBMISSION-LIBRARY.md).
+That guide owns the CLI, private registration and optional Desktop shortcut.
+`--require-capture-id` can require the currently accepted capture to match an
+explicit expectation. Titles alone cannot select an assignment.
+
+Canvas owns the retained bytes, capture verification and accepted pointer.
+Its installed archive workflow rescans current Canvas metadata/history, reuses
+verified unchanged versions, retains partial runs and admits a capture only
+after QC, library indexing and intake-receipt verification. Locate that
+workflow through the operator's private registration and runbook; a fresh
+source clone does not install it. The separate
+[content-mirror CLI](course-mirror.md) and
+[gradebook refresh](sdm-gradebook-workflow.md) have different scopes.
+Curriculum catalogs retain their capture provenance; accepting a later capture
+does not refresh an older catalog export.
+
+LocalGrAss returns aggregate `ARCHIVE_CANDIDATES` or an explicit hold. Candidates
+require subsequent exact student identity, actual Canvas attempt/source version,
+original-byte and page-completeness checks, academic form/policy and current
+eligibility. An empty or held lookup does not prove that no work exists or
+justify a zero. Preserve unavailable Canvas-history and provider-only gaps;
+Canvas GET does not refresh Google exports or provider-held student work.
+
+Teacher-folder/paper intake proceeds with independently attributed identity,
+issued form, physical attempt and ordered pages. It can qualify even when
+Canvas has no retained attachment. Keep submission contents, identities,
+private locators and capture receipts outside public curriculum catalogs and Git.
 
 ## Handoff and recovery
 

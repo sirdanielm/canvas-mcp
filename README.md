@@ -20,12 +20,22 @@ interfaces. The main-server source defines **up to 129 tools** and
 
 ## Current goals
 
-For the SDM grading pipeline, prove both Unit 2 routes—Sheet/menu and local
-tools—with source-bound score/feedback proposals and verified Chemistry
-Gradebook EDIT readback, then adapt Unit 1. Formative work uses the existing
-NO_MODEL fleet and current Canvas/Sheet/cache joins, reusing applicable durable
+After repository maintenance, the next SDM priority is a functioning Unit 3 test
+grader pipeline with qualified real intake, saved-stage reuse and verified
+receiving readback. Continue proving the Unit 2 Sheet/menu and local routes,
+and advance Unit 1 and CER under their own source, form and policy contracts;
+independent eligible work follows the current work order. Formative work uses
+the existing NO_MODEL fleet and current
+Canvas/Sheet/cache joins, reusing applicable durable
 results before any eligible new model work. Canvas observation, local staging,
 teacher acceptance and Canvas publication remain separate.
+
+For new formative scans and test intake, use the registered private Canvas
+submission library to discover retained electronic sources by verified course
+and assignment IDs. Preserve capture history and use the
+[source-intake boundaries](docs/grass-workflow-integration.md#retained-canvas-submission-library)
+before selecting individual evidence. Teacher-folder/paper intake remains an
+independent lane.
 
 Read [goals and status](docs/goals-and-status.md) for the agenda, dated source
 milestones and actual capability limits. A source merge does not identify or
@@ -38,6 +48,7 @@ owns observations, GET/EDIT integrity and installed Canvas bindings.
 | Refresh/compare gradebook GET and EDIT | [Gradebook workflow](docs/sdm-gradebook-workflow.md), [worker](docs/sdm-gradebook-worker.md) |
 | Inspect gradebook snapshots, comparisons and historical status without writer controls | [Read-only gradebook connection](docs/gradebook-read-only-profile.md) |
 | Archive and inspect course content | [GET-only course mirror](docs/course-mirror.md) |
+| Find retained electronic submissions for formative or test intake | [Canvas library and LocalGrAss lookup](docs/grass-workflow-integration.md#retained-canvas-submission-library) |
 | Author assignments, rubrics and modules | [Authoring workflow](docs/sdm-canvas-authoring-workflow.md) |
 | Understand review/publisher ownership | [Workflow integration](docs/grass-workflow-integration.md) |
 
