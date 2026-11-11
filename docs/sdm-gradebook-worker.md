@@ -46,16 +46,21 @@ to use Keychain.
 After separately verified menu deployment, reload the workbook to load it.
 Save and pause all worksheet editing, request
 **Refresh both courses (Canvas GET only)** once, and use
-**Show stored refresh status** (dialog: **Stored mirror refresh status**).
-These are the maintained source labels; an older installed menu requires its
-own adoption check. New requests use `REFRESH_GET_BOTH`. Before admission,
+**Show refresh progress** (dialog: **Canvas gradebook refresh progress**) to
+inspect the queued request, receipt and worker heartbeat.
+New requests use `REFRESH_GET_BOTH`. Before admission,
 require READY no more than 90 seconds old in GET_ONLY mode and a clear queue;
 a legacy or full-sync heartbeat cannot admit them. Before resuming edits, require
 the exact request VERIFIED,
 its complete preservation receipt finalized, and queue cleanup confirmed.
-Refresh can take several minutes. The status dialog is a snapshot; reopen it
+Refresh can take several minutes. The progress dialog is a snapshot; reopen it
 to check again. When no request is queued, a displayed result belongs to the
 most recent recorded request and its timestamp, not a new refresh.
+
+**Show stored refresh status** (dialog: **Stored mirror refresh status**) is
+separate: it reads saved GET snapshot timestamps and course metadata. Use the
+progress command for request completion and READY checks. These are maintained
+source labels; an older installed menu requires its own adoption check.
 
 **Canvas - Fresh GET** uses the same queue; **Canvas - Review EDIT** only opens
 private comparisons. Neither publishes or runs imports/QC. A UUID, updated tab
