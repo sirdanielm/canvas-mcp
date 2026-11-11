@@ -544,8 +544,12 @@ def inspect_journal(
                     "Diagnostic request inventory exceeds its supported bound."
                 )
             for rid, status, payload, updated in rows:
-                if not UUID.fullmatch(rid) or (request_id and request_id != rid):
-                    continue
+                if not isinstance(rid, str) or not UUID.fullmatch(rid):
+                    raise ValueError(
+                        "Diagnostic journal contains an invalid request ID."
+                    )
+                if request_id and request_id != rid:
+                    raise ValueError("Diagnostic journal request identity differs.")
                 if not request_id and status in {"VERIFIED", "RELEASED"}:
                     continue
                 value = json.loads(payload)

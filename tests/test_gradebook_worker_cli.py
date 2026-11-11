@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from canvas_mcp.gradebook.client import GradebookError
+from canvas_mcp.gradebook.worker import RefreshJournal
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location(
@@ -42,13 +43,25 @@ def test_worker_factory_limits_only_the_named_reference(monkeypatch, tmp_path):
         return captured
 
     monkeypatch.setattr(cli, "GoogleSheets", client)
-    config = {"credential_path": str(tmp_path / "fictional.json"), "profile": "gradebook"}
-    result = cli.google_client(config, {"core": {"spreadsheet_id": "fictional_workbook"}})
+    config = {
+        "credential_path": str(tmp_path / "fictional.json"),
+        "profile": "gradebook",
+    }
+    result = cli.google_client(
+        config, {"core": {"spreadsheet_id": "fictional_workbook"}}
+    )
     assert result["workbook"] == "fictional_workbook"
     assert result["credential_path"] == tmp_path / "fictional.json"
     assert result["profile"] == "gradebook"
     assert result["sheet_cell_limits"] == {"Unit1 LI Records": 58_000}
-    assert set(result) == {"workbook", "credential_path", "profile", "sheet_cell_limits", "max_chunk_cells", "read_interval_seconds"}
+    assert set(result) == {
+        "workbook",
+        "credential_path",
+        "profile",
+        "sheet_cell_limits",
+        "max_chunk_cells",
+        "read_interval_seconds",
+    }
     assert result["max_chunk_cells"] == 100_000
     assert result["read_interval_seconds"] == 5.0
 
@@ -90,6 +103,7 @@ async def test_status_is_local_and_does_not_open_google(configured, monkeypatch)
     result = await cli.execute(args(configured, "status"))
     assert result["unresolved"] == 0 and result["worker_running"] == "unverified"
     assert result["state"] == "NO_LOCAL_HOLDS"
+    assert not Path(cli.load_config(configured)["state_dir"]).exists()
 
 
 async def test_diagnostics_does_not_open_clients_or_initialize_state(
@@ -98,7 +112,7 @@ async def test_diagnostics_does_not_open_clients_or_initialize_state(
     def forbidden(*_):
         pytest.fail("diagnostics must only read existing local files")
 
-    for name in ("google_client", "canvas_client", "Store", "RefreshJournal"):
+    for name in ("google_client", "canvas_client", "Store"):
         monkeypatch.setattr(cli, name, forbidden)
     state = Path(cli.load_config(configured)["state_dir"])
     assert not state.exists()
@@ -123,40 +137,87 @@ async def test_diagnostics_does_not_open_clients_or_initialize_state(
         (["UNKNOWN_PHASE"], "HELD"),
     ],
 )
-def test_local_status_distinguishes_progress_without_inferring_liveness(
-    configured, monkeypatch, phases, expected
-):
-    operations = {str(i): {"status": phase} for i, phase in enumerate(phases)}
-    monkeypatch.setattr(
-        cli,
-        "RefreshJournal",
-        lambda *_: SimpleNamespace(
-            unresolved=lambda: list(operations), get=operations.get
-        ),
-    )
-    result = cli.local_status(cli.load_config(configured), cli.bindings())
+def test_status_reads_real_journal_states(configured, phases, expected):
+    config, bound = cli.load_config(configured), cli.bindings()
+    workbook = bound["core"]["spreadsheet_id"]
+    journal = RefreshJournal(cli.Store(Path(config["state_dir"])).root, workbook)
+    with journal.connect() as db:
+        for i, phase in enumerate(phases):
+            rid = f"00000000-0000-4000-8000-{i:012d}"
+            db.execute(
+                "INSERT INTO operations VALUES (?, ?, ?, ?, ?)",
+                (rid, workbook, phase, "{}", "2026-01-01T00:00:00Z"),
+            )
+    result = cli.local_status(config, bound)
     assert result["state"] == expected
     assert result["unresolved"] == len(phases)
-    assert result["states"] == dict(cli.Counter(phases))
     assert result["worker_running"] == "unverified"
     assert result["source"] == "local_journal"
+    if "UNKNOWN_PHASE" in phases:
+        assert result["states"] == {"UNKNOWN": 1}
+
+
+def test_status_reads_existing_journal_without_store_or_permission_writes(
+    configured, monkeypatch
+):
+    rid = "00000000-0000-4000-8000-000000000001"
+    config, bound = cli.load_config(configured), cli.bindings()
+    journal = RefreshJournal(
+        cli.Store(Path(config["state_dir"])).root, bound["core"]["spreadsheet_id"]
+    )
+    journal.create({"id": rid}, 1)
+    journal.update(rid, "CLAIMED")
+    before = journal.path.read_bytes()
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("status must not initialize or change the journal")
+
+    monkeypatch.setattr(cli, "Store", forbidden)
+    monkeypatch.setattr(os, "chmod", forbidden)
+    result = cli.local_status(config, bound)
+    assert result == {
+        "state": "IN_PROGRESS",
+        "unresolved": 1,
+        "states": {"CLAIMED": 1},
+        "source": "local_journal",
+        "worker_running": "unverified",
+    }
+    assert cli.local_status(config, bound, rid)["state"] == "CLAIMED"
+    assert journal.path.read_bytes() == before
+
+
+def test_status_does_not_hide_an_invalid_unresolved_request(configured):
+    config, bound = cli.load_config(configured), cli.bindings()
+    workbook = bound["core"]["spreadsheet_id"]
+    journal = RefreshJournal(cli.Store(Path(config["state_dir"])).root, workbook)
+    with journal.connect() as db:
+        db.execute(
+            "INSERT INTO operations VALUES (?, ?, ?, ?, ?)",
+            ("invalid", workbook, "UNCERTAIN", "{}", "2026-01-01T00:00:00Z"),
+        )
+    with pytest.raises(ValueError, match="invalid request ID"):
+        cli.local_status(config, bound)
 
 
 @pytest.mark.parametrize("phase", ["HELD", "UNCERTAIN"])
-def test_status_exposes_owned_safe_failure_reason_only(configured, monkeypatch, phase):
+def test_status_exposes_owned_safe_failure_reason_only(configured, phase):
     rid = "00000000-0000-4000-8000-000000000001"
-    operation = {
-        "status": phase,
-        "payload": {
-            "failure_reason": "Trusted baseline course or origin differs.",
-            "other_private_payload": "not-output",
-        },
-    }
-    monkeypatch.setattr(
-        cli, "RefreshJournal", lambda *_: SimpleNamespace(get=lambda _: operation)
+    config, bound = cli.load_config(configured), cli.bindings()
+    journal = RefreshJournal(
+        cli.Store(Path(config["state_dir"])).root, bound["core"]["spreadsheet_id"]
     )
-    result = cli.local_status(cli.load_config(configured), cli.bindings(), rid)
-    assert result["failure_reason"] == operation["payload"]["failure_reason"]
+    journal.create({"id": rid}, 1)
+    if phase == "UNCERTAIN":
+        for state in ("CLAIMED", "PREPARED", "SENDING"):
+            journal.update(rid, state)
+    journal.update(
+        rid,
+        phase,
+        failure_reason="Trusted baseline course or origin differs.",
+        other_private_payload="not-output",
+    )
+    result = cli.local_status(config, bound, rid)
+    assert result["failure_reason"] == "Trusted baseline course or origin differs."
     assert "not-output" not in json.dumps(result)
 
 
@@ -164,7 +225,7 @@ def test_status_exposes_owned_safe_failure_reason_only(configured, monkeypatch, 
 def test_status_hides_historical_failure_without_changing_journal(configured, phase):
     rid = "00000000-0000-4000-8000-000000000001"
     config, bound = cli.load_config(configured), cli.bindings()
-    journal = cli.RefreshJournal(
+    journal = RefreshJournal(
         cli.Store(Path(config["state_dir"])).root, bound["core"]["spreadsheet_id"]
     )
     journal.create({"id": rid}, 1)
@@ -338,7 +399,9 @@ async def test_transient_journal_busy_is_local_busy_with_normal_polling(
     class Worker:
         async def step(self):
             if not during_heartbeat:
-                raise RefreshJournalBusy("Another local refresh worker owns this workbook.")
+                raise RefreshJournalBusy(
+                    "Another local refresh worker owns this workbook."
+                )
             return {"state": "IDLE"}
 
         async def heartbeat(self):
@@ -354,7 +417,9 @@ async def test_transient_journal_busy_is_local_busy_with_normal_polling(
         await cli.run_loop(Worker(), 30)
     assert delays == [30, 30, 30]
     messages = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-    assert messages == [{"state": "BUSY", "failure_code": "worker_busy", "canvas_writes": 0}]
+    assert messages == [
+        {"state": "BUSY", "failure_code": "worker_busy", "canvas_writes": 0}
+    ]
 
 
 def test_main_redacts_unexpected_exception(configured, monkeypatch, capsys):

@@ -10,7 +10,6 @@ import plistlib
 import re
 import sys
 import uuid
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +24,6 @@ ORIGIN = "https://fcps.instructure.com"
 
 from canvas_mcp.gradebook.client import GradebookClient, GradebookError  # noqa: E402
 from canvas_mcp.gradebook.diagnostics import (  # noqa: E402
-    REASONS,
     Diagnostics,
     failure_code,
     inspect_journal,
@@ -41,11 +39,7 @@ from canvas_mcp.gradebook.google_authorize import (  # noqa: E402
 from canvas_mcp.gradebook.native import validate_workbook  # noqa: E402
 from canvas_mcp.gradebook.store import Store  # noqa: E402
 from canvas_mcp.gradebook.workbook import edits_from_cells  # noqa: E402
-from canvas_mcp.gradebook.worker import (  # noqa: E402
-    RefreshJournal,
-    RefreshJournalBusy,
-    RefreshWorker,
-)
+from canvas_mcp.gradebook.worker import RefreshJournalBusy, RefreshWorker  # noqa: E402
 
 
 def bindings() -> dict[str, Any]:
@@ -219,47 +213,25 @@ async def doctor(
 def local_status(
     config: dict[str, Any], bound: dict[str, Any], request_id: str | None = None
 ) -> dict[str, Any]:
-    journal = RefreshJournal(
-        Store(Path(config["state_dir"])).root, bound["core"]["spreadsheet_id"]
-    )
+    """Report local journal state without creating or changing a store."""
     if request_id:
         _request_id(request_id)
-        operation = journal.get(request_id)
+    snapshot = inspect_journal(
+        Path(config["state_dir"]), bound["core"]["spreadsheet_id"], request_id
+    )
+    if request_id:
+        items = snapshot["requests"]
         result = {
-            "state": operation["status"] if operation else "NOT_FOUND",
+            "state": items[0]["state"] if items else "NOT_FOUND",
             "request_id": request_id,
             "source": "local_journal",
         }
-        # Reconciliation retains the earlier diagnostic in the journal payload.
-        # Present it as current only while the operation remains failed/held.
-        if (
-            operation
-            and operation["status"] in {"HELD", "UNCERTAIN"}
-            and isinstance(operation.get("payload", {}).get("failure_reason"), str)
-            and operation["payload"]["failure_reason"] in REASONS
-        ):
-            result["failure_reason"] = operation["payload"]["failure_reason"]
+        if items and "failure_reason" in items[0]:
+            result["failure_reason"] = items[0]["failure_reason"]
         return result
-    states: Counter[str] = Counter()
-    for rid in journal.unresolved():
-        operation = journal.get(rid)
-        if operation:
-            states[operation["status"]] += 1
-    in_progress = {"CLAIMING", "CLAIMED", "PREPARED", "SENDING", "VERIFYING"}
-    # These are durable operation phases, not evidence that a process is alive.
-    # Uncertainty or a hold takes precedence over another operation's progress.
-    if "UNCERTAIN" in states:
-        state = "UNCERTAIN"
-    elif set(states) - in_progress:
-        state = "HELD"
-    else:
-        state = "IN_PROGRESS" if states else "NO_LOCAL_HOLDS"
     return {
-        "state": state,
-        "unresolved": sum(states.values()),
-        "states": dict(states),
-        "source": "local_journal",
-        "worker_running": "unverified",
+        key: snapshot[key]
+        for key in ("state", "unresolved", "states", "source", "worker_running")
     }
 
 
