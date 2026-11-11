@@ -446,9 +446,10 @@ def plan_sparse_edit_axis_refresh(
         baseline["origin"],
     ):
         raise GradebookError("Sparse Edit source course or origin differs.")
-    if not set(old_students) <= set(fresh_students) or not set(old_assignments) <= set(
-        fresh_assignments
-    ):
+    # Retain absent students and their old targets in EDIT. Only current
+    # students receive newly appended targets; a roster removal never deletes
+    # teacher work or synthesizes grades for an inactive student.
+    if not set(old_assignments) <= set(fresh_assignments):
         raise GradebookError(
             "Sparse Edit target removals require separate reconciliation."
         )
