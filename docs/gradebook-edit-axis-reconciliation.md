@@ -113,8 +113,14 @@ helper formula.
 
 The planner appends assignment columns after the last existing opaque column
 containing a value, note or validation. Existing assignment columns and student
-rows remain in place. Every intervening non-assignment column is declared
-opaque. New fields must still be empty of values, notes and validation; formats
+rows remain in place. Students absent from the current active roster retain
+all original EDIT identities, baseline cells and teacher proposals. Only current
+students receive newly appended assignment targets; no score is synthesized for
+an absent student. Removed assignments and changed grading schemas remain held
+for separate reconciliation. This does not relax fresh publisher eligibility
+checks or authorize writes to inactive students.
+
+Every intervening non-assignment column is declared opaque. New fields must still be empty of values, notes and validation; formats
 remain preserved. New students receive only identity/label cells and declared
 grade cells. Opaque helper columns retain every existing selected field, even
 where their cells intersect a newly added student row.
