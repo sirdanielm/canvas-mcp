@@ -26,6 +26,13 @@ from its registry-bound `Student Info` source, described in the
 A content snapshot or description proposal also does not admit evidence into the
 [new grading workflow](grass-workflow-integration.md).
 
+For retained electronic submissions, use the separately installed
+[private Canvas library and LocalGrAss lookup](grass-workflow-integration.md#retained-canvas-submission-library).
+That accepted-capture workflow has its own submission manifests, retained bytes
+and intake receipts. This content collector's exclusions describe this CLI;
+they do not describe the full private library. Keep course-content QC,
+submission-capture coverage and downstream grading admission separate.
+
 ## Daily commands
 
 The control interface is `scripts/course_mirror.py`; there is currently no control
