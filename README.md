@@ -20,11 +20,12 @@ interfaces. The main-server source defines **up to 129 tools** and
 
 ## Current goals
 
-For the SDM grading pipeline, prove both Unit 2 routes—Sheet/menu and local
-tools—with source-bound score/feedback proposals and verified Chemistry
-Gradebook EDIT readback. Advance Unit 1, Unit 3 and CER under their own source,
-form and policy contracts; independent eligible work follows the current work
-order. Formative work uses the existing NO_MODEL fleet and current
+After repository maintenance, the next SDM priority is a functioning Unit 3 test
+grader pipeline with qualified real intake, saved-stage reuse and verified
+receiving readback. Continue proving the Unit 2 Sheet/menu and local routes,
+and advance Unit 1 and CER under their own source, form and policy contracts;
+independent eligible work follows the current work order. Formative work uses
+the existing NO_MODEL fleet and current
 Canvas/Sheet/cache joins, reusing applicable durable
 results before any eligible new model work. Canvas observation, local staging,
 teacher acceptance and Canvas publication remain separate.

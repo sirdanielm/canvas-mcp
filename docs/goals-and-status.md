@@ -8,9 +8,14 @@ case history, spending, installed pins and readback receipts stay private.
 
 ## Priorities
 
-Current work includes proving the Unit 2 Sheet and local grading routes,
-advancing Unit 1, Unit 3 and CER under their own source, form and policy contracts,
-and continuing formative intake and participation review. Work can proceed
+After repository maintenance, prioritize a functioning Unit 3 test grader
+pipeline: qualify real intake, reuse saved stages and verify the receiving
+result through the existing owners. Admit each source, form, policy, identity
+and attempt through its current qualification path.
+
+Continue proving the Unit 2 Sheet and local grading routes, advancing Unit 1
+and CER under their own source, form and policy contracts, and continuing
+formative intake and participation review. Work can proceed
 independently when its required evidence and authority are available; the user's
 current direction sets priorities. Reuse valid saved results and record genuine holds.
 
@@ -64,7 +69,7 @@ route requires its own actual qualification.
 | Portable operational source | Owner-policy injection, bounded typed capture and Unit 2 proposal helpers have fictional transport/contract coverage. [Private runtime composition](operational-source-boundaries.md), native dependency pins and installed adoption remain separate. |
 | Ordinary participation receiver | Reusable receiver and owner/executor integration are maintained source from [PR52](https://github.com/sirdanielm/canvas-mcp/pull/52). Native reader pins, private owner/provider bindings, installation qualification and exact-case admission remain separate. |
 | Canvas score/comment publishers | Distinct approval, durable-intent and readback gates; local EDIT is not Canvas publication. |
-| Runtime identity and read-only access | The general-server diagnostic excludes the dedicated gradebook server. The November 3 closeout recorded configured authoring and gradebook adoption through bounded process/source/policy observations and separate read-only protocol checks. Exact bindings and dated receipts stay private; neither source nor a past health check proves current service readiness. The gradebook [read-only profile](gradebook-read-only-profile.md) exposes only three tools. |
+| Runtime identity and read-only access | Both configured read-only profiles passed November 11 protocol qualification. Native client adoption is partial; older active clients retain their prior qualified runtime. Exact bindings and dated receipts stay private; neither source nor a past health check proves current service readiness. The general-server diagnostic excludes the dedicated gradebook server, whose [read-only profile](gradebook-read-only-profile.md) exposes only three tools. |
 | Older accepted-pair RELEASE prototype | Offline and unconnected; separate from the native EDIT routes. |
 
 ### November 11 source alignment
@@ -79,12 +84,15 @@ validation, strict course resolution and rubric protections
 submission lookup is merged in
 [PR88](https://github.com/sirdanielm/LocalGrAss/pull/88).
 
-The November 11 closeout verified the maintained source separately from the
-older, hash-pinned operational installation. Updated source and menu labels
-still require coordinated installed qualification; the closeout did not reload
-services or deploy the menu. Keep exact pins, accepted capture IDs, coverage
-gaps and runtime health evidence in the private operator receipts. Recheck
-current bindings before an operation.
+The later November 11 runtime qualification deployed the reviewed GET-only
+worker with verified live source digest, fresh GET_ONLY READY, clear queue and
+zero unresolved operations. Both fixed read-only MCP profiles passed actual
+initialize/list-tools qualification. Native clients have partially adopted the
+new runtime; older active clients were preserved for supported reconnects.
+Menu deployment remains separate and unverified by that work. Keep exact pins,
+accepted capture IDs, coverage gaps and runtime health evidence in the private
+operator receipts. These are dated observations; recheck current bindings and
+readiness before an operation.
 
 Earlier dated source milestones and their qualifications remain in the
 [November 3 snapshot](https://github.com/sirdanielm/canvas-mcp/blob/3a57c661fceab33f587e10f17e7161e4dad2bc70/docs/goals-and-status.md).
@@ -94,8 +102,9 @@ Use current source and private receipts for present status.
 
 | Lane | Owner and next proof |
 | --- | --- |
+| Unit 3 test grader: next after maintenance | Existing source, local-tool and receiving owners prove the functioning pipeline with qualified real intake, saved-stage reuse and destination readback. Retain each actual source/form/policy/identity/attempt hold. |
 | Unit 2 Sheet/menu and local tools | Original domain and tool owners prove each route with a real bound case; the sole EDIT writer retains complete score/feedback readback. |
-| Unit 1, Unit 3 and CER | Reuse qualified components and saved stages with each assignment's own source, form and policy; source installation in another lane does not prove this route. |
+| Unit 1 and CER | Reuse qualified components and saved stages with each assignment's own source, form and policy; source installation in another lane does not prove this route. |
 | Private Canvas library and curriculum joins | Canvas owner verifies captures, retained bytes, reuse and accepted-capture promotion. LocalGrAss owns aggregate assignment lookup and downstream intake; curriculum joins use verified course/assignment IDs. |
 | Formative intake and participation | sdmGrAss and LocalGrAss owners join current exports, Canvas/Sheet observations and durable cache results; resolve exact holds without repeating valid successes. |
 | Target integrity and delivery | Canvas owner preserves GET/EDIT, teacher fields, attempts and once history; resume the [transfer sequence](teacher-edit-transfer.md#activation-agenda-and-restart-sequence) at its first unfinished gate. |
