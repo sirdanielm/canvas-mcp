@@ -23,7 +23,7 @@ from .model import digest
 from .proposal_edit_transfer import CONTRACT as TRANSFER_CONTRACT
 from .proposal_edit_transfer import PROPOSAL_FIELDS, _note, _selection
 from .proposal_preview import _edpuzzle, _metadata
-from .teacher_edit_transfer import _prepare_native_transfer
+from .teacher_edit_transfer import _portable_state, _prepare_native_transfer
 
 CONTRACT = "CANVAS_PRIMARY_VISUAL_ADVISORY_V1"
 HASH = re.compile(r"[a-f0-9]{64}\Z")
@@ -177,6 +177,43 @@ def _assignment(binding: dict[str, Any], evidence: dict[str, Any]) -> None:
     )
 
 
+def first_submission_review_binding(
+    *,
+    evidence: dict[str, Any],
+    record: dict[str, Any],
+    assignment_binding: dict[str, Any],
+    raw: dict[str, Any],
+    baseline: dict[str, Any],
+    current: dict[str, Any],
+    pin_binding: dict[str, Any],
+) -> dict[str, Any]:
+    """Derive exact review pins; the trusted source owner must authorize them."""
+    key = record["user_id"] + ":" + record["assignment_id"]
+    cell = current["cells"].get(key)
+    return {
+        "contract": "CANVAS_PRIMARY_FIRST_SUBMISSION_REVIEW_V1",
+        "scope": "UNAPPROVED_EDIT_ONLY",
+        "origin": current["origin"],
+        "course_id": record["course_id"],
+        "assignment_id": record["assignment_id"],
+        "user_id": record["user_id"],
+        "pin": record["pin"],
+        "attempt": record["canvas_attempt"],
+        "baseline_sha256": digest(baseline),
+        "baseline_cell_sha256": digest(baseline["cells"].get(key)),
+        "current_cell_sha256": digest(cell),
+        "native_preimage_sha256": digest(_portable_state(raw)),
+        "pin_binding_sha256": digest(pin_binding),
+        "assignment_binding_sha256": digest(assignment_binding),
+        "record_sha256": evidence["record_sha256"],
+        "proposal_sha256": evidence["proposal_sha256"],
+        "source_sha256": evidence["canvas_source_sha256"],
+        "review_sha256": evidence["review_sha256"],
+        "policy_sha256": evidence["policy_sha256"],
+        "publication_allowed": False,
+    }
+
+
 def prepare_primary_review_transfer(
     *,
     evidence: dict[str, Any],
@@ -257,6 +294,20 @@ def prepare_primary_review_transfer(
         and record.get("proposed_score") == proposal.get("points_possible"),
         "PRIMARY_POLICY_SCORE_MISMATCH",
     )
+    # This exact binding is not authority: _verified requires the independently
+    # authenticated source owner to validate it before any native planning.
+    first = evidence.get("first_submission_review")
+    if first is not None:
+        expected_first = first_submission_review_binding(
+            evidence=evidence,
+            record=record,
+            assignment_binding=assignment_binding,
+            raw=context["raw"],
+            baseline=context["baseline"],
+            current=context["current"],
+            pin_binding=context["pin_binding"],
+        )
+        _need(first == expected_first, "FIRST_SUBMISSION_REVIEW_CHANGED")
     selected = copy.deepcopy(evidence)
 
     def source_check(
@@ -286,6 +337,7 @@ def prepare_primary_review_transfer(
         note_factory=_note,
         contract=TRANSFER_CONTRACT,
         reviewed_current_attempt=True,
+        first_submission_review=first is not None,
         **context,
     )
     return {

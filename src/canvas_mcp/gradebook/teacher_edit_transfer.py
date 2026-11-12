@@ -344,6 +344,79 @@ def prepare_transfer(
     )
 
 
+def _first_submission_projection(
+    baseline: dict[str, Any], current: dict[str, Any], record: dict[str, Any]
+) -> dict[str, Any]:
+    """Mirror the existing first-submission-only comparison projection.
+
+    This does not change the retained baseline or native workbook. The caller
+    must separately authenticate an exact review and current source.
+    """
+    key = record["user_id"] + ":" + record["assignment_id"]
+    old, cell = baseline["cells"].get(key), current["cells"].get(key)
+    required = {
+        "attempt",
+        "workflow_state",
+        "submitted_at",
+        "graded_at",
+        "value",
+        "grade",
+        "visible",
+        "excused",
+        "grade_matches_current_submission",
+        "points_deducted",
+    }
+    _need(
+        type(old) is dict
+        and type(cell) is dict
+        and required <= set(old)
+        and required <= set(cell),
+        "FIRST_SUBMISSION_CONTEXT_HELD",
+    )
+    _need(
+        old["attempt"] is None
+        and old["workflow_state"] == "unsubmitted"
+        and old["submitted_at"] is None
+        and old["graded_at"] is None
+        and old["value"] is None
+        and old["grade"] is None
+        and type(cell["attempt"]) is int
+        and cell["attempt"] == 1
+        and cell["workflow_state"] == "submitted"
+        and type(cell["submitted_at"]) is str
+        and bool(cell["submitted_at"].strip())
+        and cell["graded_at"] is None
+        and cell["value"] is None
+        and cell["grade"] is None,
+        "FIRST_SUBMISSION_TRANSITION_HELD",
+    )
+    for item in (old, cell):
+        deduction = item["points_deducted"]
+        _need(
+            item["visible"] is True
+            and item["excused"] is False
+            and item["grade_matches_current_submission"] is True
+            and (
+                deduction is None or type(deduction) in (int, float) and deduction == 0
+            ),
+            "FIRST_SUBMISSION_ELIGIBILITY_HELD",
+        )
+    changed = {
+        k
+        for k in set(old) | set(cell)
+        if k not in old or k not in cell or old[k] != cell[k]
+    }
+    _need(
+        {"attempt", "workflow_state", "submitted_at"}
+        <= changed
+        <= {"attempt", "late", "points_deducted", "submitted_at", "workflow_state"},
+        "FIRST_SUBMISSION_CHANGED_FIELDS_HELD",
+    )
+    projected = copy.deepcopy(baseline)
+    projected["cells"][key] = copy.deepcopy(cell)
+    return projected
+
+
 def _prepare_native_transfer(
     record: dict[str, Any],
     decision: dict[str, Any],
@@ -360,6 +433,7 @@ def _prepare_native_transfer(
     note_factory: Callable[[str, str, str], str],
     contract: str,
     reviewed_current_attempt: bool = False,
+    first_submission_review: bool = False,
 ) -> dict[str, Any]:
     """Shared native preservation; each public caller validates its own authority.
 
@@ -400,7 +474,14 @@ def _prepare_native_transfer(
         "WORKBOOK_IDENTITY_CHANGED",
     )
     context = _basis(current, record)
-    prior_context = _basis(baseline, record)
+    comparison_baseline = baseline
+    if first_submission_review:
+        _need(
+            reviewed_current_attempt is True and preservation is None,
+            "FIRST_SUBMISSION_SCOPE_HELD",
+        )
+        comparison_baseline = _first_submission_projection(baseline, current, record)
+    prior_context = _basis(comparison_baseline, record)
     _need(
         context["course_workflow_state"] == "available"
         and record["section"] in context["student"]["sections"],
@@ -507,11 +588,11 @@ def _prepare_native_transfer(
         "HIGHER_CANVAS_SCORE_PRESERVED",
     )
     review = compare_edits(
-        baseline,
+        comparison_baseline,
         current,
         {
             "course_id": record["course_id"],
-            "snapshot_id": digest(baseline),
+            "snapshot_id": digest(comparison_baseline),
             "edits": [
                 {
                     "user_id": record["user_id"],
@@ -612,6 +693,8 @@ def _prepare_native_transfer(
         "canvas_writes": 0,
         "sheets_writes": 0,
     }
+    if first_submission_review:
+        plan["first_submission_comparison_sha256"] = digest(comparison_baseline)
     if "delivery_policy" in selected:
         plan["delivery_policy"] = delivery_policy
     if preservation is not None:

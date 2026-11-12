@@ -333,3 +333,163 @@ def test_edpuzzle_in_assignment_name_excluded(case):
     case["assignment_binding"]["assignment_metadata_sha256"] = digest(metadata)
     with pytest.raises(GradebookError, match="EXCLUDED_PROVIDER"):
         prepare_primary_review_transfer(**case)
+
+
+@pytest.fixture
+def first_submission_case(case):
+    from test_gradebook_native import initial_raw
+
+    from canvas_mcp.gradebook.canvas_primary_review import (
+        first_submission_review_binding,
+    )
+
+    key = case["record"]["user_id"] + ":" + case["record"]["assignment_id"]
+    before = case["baseline"]["cells"][key]
+    before.update(
+        attempt=None,
+        workflow_state="unsubmitted",
+        submitted_at=None,
+        graded_at=None,
+        value=None,
+        grade=None,
+        visible=True,
+        excused=False,
+        grade_matches_current_submission=True,
+        points_deducted=None,
+        late=False,
+    )
+    case["current"]["cells"][key] = copy.deepcopy(before)
+    case["current"]["cells"][key].update(
+        attempt=1,
+        workflow_state="submitted",
+        submitted_at="2026-11-12T12:00:00Z",
+        late=True,
+        points_deducted=0,
+    )
+    case["record"]["canvas_attempt"] = 1
+    case["evidence"]["canvas_attempt"] = 1
+    case["evidence"]["record_sha256"] = digest(case["record"])
+    case["evidence"]["current_cell_sha256"] = digest(case["current"]["cells"][key])
+    case["raw"] = initial_raw(case["baseline"], case["binding"])
+    case["evidence"]["first_submission_review"] = first_submission_review_binding(
+        evidence=case["evidence"],
+        record=case["record"],
+        assignment_binding=case["assignment_binding"],
+        raw=case["raw"],
+        baseline=case["baseline"],
+        current=case["current"],
+        pin_binding=case["pin_binding"],
+    )
+    expected = copy.deepcopy(case["evidence"])
+
+    def genuine_source_assertion(actual):
+        if actual != expected:
+            raise ValueError("changed reviewed source")
+
+    case["authority"] = genuine_source_assertion
+    return case
+
+
+def test_reviewed_first_submission_retains_original_baseline(first_submission_case):
+    from canvas_mcp.gradebook.teacher_edit_transfer import _first_submission_projection
+
+    before = copy.deepcopy(first_submission_case["baseline"])
+    plan = prepare_primary_review_transfer(**first_submission_case)
+    transfer = plan["transfer"]
+    projected = _first_submission_projection(
+        before, first_submission_case["current"], first_submission_case["record"]
+    )
+    assert transfer["baseline"] == before == first_submission_case["baseline"]
+    assert transfer["first_submission_comparison_sha256"] == digest(projected)
+    assert transfer["current_basis"]["cell"]["attempt"] == 1
+    assert transfer["requests"][0]["updateCells"]["fields"] == "userEnteredValue"
+    revalidate_primary_review_transfer(
+        plan,
+        expected_plan_sha256=digest(plan),
+        authority=first_submission_case["authority"],
+        raw=first_submission_case["raw"],
+        current=first_submission_case["current"],
+        pin_binding=first_submission_case["pin_binding"],
+    )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "no_permit",
+        "tampered_permit",
+        "new_attempt",
+        "deduction",
+        "excused",
+        "positive_grade",
+        "current_match_false",
+        "non_first",
+        "baseline_changed",
+        "native_changed",
+    ],
+)
+def test_first_submission_scope_and_preimage_changes_hold(
+    first_submission_case, change
+):
+    c = first_submission_case
+    cell = c["current"]["cells"]["101:21"]
+    if change == "no_permit":
+        del c["evidence"]["first_submission_review"]
+    elif change == "tampered_permit":
+        c["evidence"]["first_submission_review"]["baseline_sha256"] = "0" * 64
+    elif change == "new_attempt":
+        cell["attempt"] = 2
+    elif change == "deduction":
+        cell["points_deducted"] = 1
+    elif change == "excused":
+        cell["excused"] = True
+    elif change == "positive_grade":
+        cell["value"] = 20
+    elif change == "current_match_false":
+        cell["grade_matches_current_submission"] = False
+    elif change == "non_first":
+        c["baseline"]["cells"]["101:21"]["attempt"] = 1
+    elif change == "baseline_changed":
+        c["baseline"]["cells"]["101:21"]["late"] = True
+    else:
+        c["raw"]["sheets"][0]["properties"]["title"] = "changed"
+    if change in {
+        "new_attempt",
+        "deduction",
+        "excused",
+        "positive_grade",
+        "current_match_false",
+        "non_first",
+    }:
+        # Rebind a genuine hypothetical fresh authority and permit to the changed
+        # context: the transition policy itself must reject, not just old hashes.
+        from test_gradebook_native import initial_raw
+
+        from canvas_mcp.gradebook.canvas_primary_review import (
+            first_submission_review_binding,
+        )
+
+        if change == "new_attempt":
+            c["record"]["canvas_attempt"] = 2
+            c["evidence"]["canvas_attempt"] = 2
+            c["evidence"]["record_sha256"] = digest(c["record"])
+        c["evidence"]["current_cell_sha256"] = digest(cell)
+        c["raw"] = initial_raw(c["baseline"], c["binding"])
+        c["evidence"]["first_submission_review"] = first_submission_review_binding(
+            evidence=c["evidence"],
+            record=c["record"],
+            assignment_binding=c["assignment_binding"],
+            raw=c["raw"],
+            baseline=c["baseline"],
+            current=c["current"],
+            pin_binding=c["pin_binding"],
+        )
+        expected = copy.deepcopy(c["evidence"])
+
+        def changed_source_authority(actual):
+            if actual != expected:
+                raise ValueError("source changed")
+
+        c["authority"] = changed_source_authority
+    with pytest.raises(GradebookError):
+        prepare_primary_review_transfer(**c)
