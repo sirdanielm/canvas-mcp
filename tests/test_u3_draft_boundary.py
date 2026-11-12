@@ -219,3 +219,16 @@ def test_raw_u3_held_result_is_not_a_generic_proposal(projected):
     ]
     with pytest.raises(GradebookError, match="PRODUCER_REFERENCE_REQUIRED"):
         prepare_preview(**projected)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["teacher_approval", "score_approval", "comment_approval", "publication_allowed"],
+)
+def test_producer_flags_cannot_grant_final_or_publication_authority(projected, field):
+    projected["proposals"][0][field] = True
+    preview_fixtures.repin(projected)
+    plan = prepare_preview(**projected)
+    assert plan["envelope"]["edits"] == []
+    assert plan["holds"][0]["code"] == "PROPOSAL_AUTHORITY_HELD"
+    assert plan["publication_allowed"] is False and plan["canvas_writes"] == 0
