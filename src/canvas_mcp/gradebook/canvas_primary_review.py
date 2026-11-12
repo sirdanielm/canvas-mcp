@@ -135,6 +135,12 @@ def _verified(evidence: dict[str, Any], authority: Callable[..., Any]) -> None:
 
 def _assignment(binding: dict[str, Any], evidence: dict[str, Any]) -> None:
     """Allow only the existing explicitly reviewed Google LTI exception, not Edpuzzle."""
+    metadata = binding.get("assignment_metadata")
+    _need(
+        type(metadata) is dict
+        and "edpuzzle" not in str(metadata.get("name", "")).casefold(),
+        "EXCLUDED_PROVIDER",
+    )
     try:
         _metadata(binding)
         return

@@ -325,3 +325,11 @@ def test_wrong_participation_lane_or_policy_held(case, change):
         case["record"]["policy"] = "3" * 64
     with pytest.raises(GradebookError):
         prepare_primary_review_transfer(**case)
+
+
+def test_edpuzzle_in_assignment_name_excluded(case):
+    metadata = case["assignment_binding"]["assignment_metadata"]
+    metadata["name"] = "Edpuzzle activity"
+    case["assignment_binding"]["assignment_metadata_sha256"] = digest(metadata)
+    with pytest.raises(GradebookError, match="EXCLUDED_PROVIDER"):
+        prepare_primary_review_transfer(**case)
