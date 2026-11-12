@@ -20,6 +20,32 @@ from canvas_mcp.gradebook.store import Store
 
 @pytest.fixture
 def connection(case, tmp_path):
+    from test_gradebook_native import raw_from_state
+
+    from canvas_mcp.gradebook import native
+
+    state = native._state(case["raw"])
+    sheet = copy.deepcopy(state["sheets"][1])
+    sheet["properties"]["sheetId"] = 99
+    sheet["properties"]["title"] = "Student Info"
+    sheet["cells"] = {}
+    for col, name in enumerate(
+        ("Canvas ID", "Student Number", "Canvas Enrollment", "Course", "Section")
+    ):
+        sheet["cells"][f"0:{col}"] = {"userEnteredValue": {"stringValue": name}}
+    for col, value in enumerate(
+        (
+            case["record"]["user_id"],
+            case["record"]["pin"],
+            "Active",
+            case["binding"]["label"],
+            case["record"]["section"],
+        )
+    ):
+        sheet["cells"][f"1:{col}"] = {"userEnteredValue": {"stringValue": value}}
+    state["sheets"][99] = sheet
+    case["raw"] = raw_from_state(state)
+
     class Authority:
         ready = False
         refresh_count = 0
@@ -291,3 +317,70 @@ async def test_composed_owner_refreshes_before_send_but_not_reconcile_or_disable
     again = await owner.execute(plan_id, enabled=True)
     assert again["status"] == "PLANNED_OUTPUT_OBSERVED"
     assert connection.authority.refresh_count == count + 2 and owner.google.writes == 1
+
+
+@pytest.mark.asyncio
+async def test_current_student_info_identity_or_pin_drift_holds(connection, case):
+    from test_gradebook_native import raw_from_state
+
+    from canvas_mcp.gradebook import native
+
+    await connection.refresh_source("fictional-canvas")
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+    for column, bad in (
+        (0, "999"),
+        (1, "8888"),
+        (2, "Inactive"),
+        (3, "Other"),
+        (4, "Wrong"),
+    ):
+        state = native._state(case["raw"])
+        state["sheets"][99]["cells"][f"1:{column}"]["userEnteredValue"][
+            "stringValue"
+        ] = bad
+        with pytest.raises(GradebookError, match="PRIMARY_CURRENT_STUDENT_INFO_HELD"):
+            connection.revalidate(
+                plan,
+                expected_plan_sha256=digest(plan),
+                raw=raw_from_state(state),
+                current=case["current"],
+                pin_binding=case["pin_binding"],
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    ["duplicate_row", "duplicate_header", "numeric_id", "formula_pin", "missing_sheet"],
+)
+async def test_nonliteral_and_duplicate_identity_cells_hold(connection, case, mutation):
+    from test_gradebook_native import raw_from_state
+
+    from canvas_mcp.gradebook import native
+
+    await connection.refresh_source("fictional-canvas")
+    state = native._state(case["raw"])
+    cells = state["sheets"][99]["cells"]
+    if mutation == "duplicate_row":
+        for col in range(5):
+            cells[f"2:{col}"] = copy.deepcopy(cells[f"1:{col}"])
+    elif mutation == "duplicate_header":
+        cells["0:8"] = copy.deepcopy(cells["0:0"])
+    elif mutation == "numeric_id":
+        cells["2:0"] = {"userEnteredValue": {"numberValue": 101}}
+    elif mutation == "formula_pin":
+        cells["2:1"] = {"userEnteredValue": {"formulaValue": '= "0042"'}}
+    else:
+        del state["sheets"][99]
+    with pytest.raises(GradebookError, match="PRIMARY_CURRENT_STUDENT_INFO_HELD"):
+        connection.prepare(
+            **{
+                **{
+                    k: case[k]
+                    for k in ("binding", "baseline", "current", "pin_binding")
+                },
+                "raw": raw_from_state(state),
+            }
+        )

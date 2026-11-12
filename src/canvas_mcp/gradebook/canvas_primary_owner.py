@@ -13,6 +13,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from . import native
 from .canvas_primary_review import (
     CONTRACT,
     _verified,
@@ -148,6 +149,83 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
         )
         return [self.record["assignment_id"]]
 
+    def _current_student_info(
+        self, raw: dict[str, Any], binding: dict[str, Any]
+    ) -> None:
+        """Rejoin the live workbook row, not only a retained registry capture."""
+        state = native._state(raw)
+        sheets = [
+            s
+            for s in state["sheets"].values()
+            if s["properties"].get("title") == "Student Info"
+        ]
+        _need(len(sheets) == 1, "PRIMARY_CURRENT_STUDENT_INFO_HELD")
+        cells = sheets[0]["cells"]
+
+        def literal(cell: dict[str, Any]) -> str | None:
+            value = cell.get("userEnteredValue", {})
+            return (
+                value.get("stringValue")
+                if set(value) == {"stringValue"}
+                and type(value.get("stringValue")) is str
+                else None
+            )
+
+        required = (
+            "Canvas ID",
+            "Student Number",
+            "Canvas Enrollment",
+            "Course",
+            "Section",
+        )
+        headers = {
+            name: [
+                int(address.split(":")[1])
+                for address, value in cells.items()
+                if address.startswith("0:") and literal(value) == name
+            ]
+            for name in required
+        }
+        _need(
+            all(len(cols) == 1 for cols in headers.values()),
+            "PRIMARY_CURRENT_STUDENT_INFO_HELD",
+        )
+        columns = {name: cols[0] for name, cols in headers.items()}
+        rows = {
+            int(address.split(":")[0])
+            for address in cells
+            if not address.startswith("0:")
+        }
+
+        def values(row: int) -> dict[str, str | None]:
+            return {
+                name: literal(cells.get(f"{row}:{col}", {}))
+                for name, col in columns.items()
+            }
+
+        # Any nonliteral ID or PIN could conceal a collision (including a
+        # formula or a numeric value that has lost leading zeroes). Hold the
+        # workbook rather than treating that row as absent.
+        for row in rows:
+            for name in ("Canvas ID", "Student Number"):
+                cell = cells.get(f"{row}:{columns[name]}", {})
+                entered = cell.get("userEnteredValue", {})
+                _need(
+                    not entered or literal(cell) is not None,
+                    "PRIMARY_CURRENT_STUDENT_INFO_HELD",
+                )
+        records = [values(row) for row in rows]
+        matching_id = [x for x in records if x["Canvas ID"] == self.record["user_id"]]
+        matching_pin = [x for x in records if x["Student Number"] == self.record["pin"]]
+        _need(
+            len(matching_id) == len(matching_pin) == 1
+            and matching_id == matching_pin
+            and matching_id[0]["Canvas Enrollment"] == "Active"
+            and matching_id[0]["Course"] == binding.get("label")
+            and matching_id[0]["Section"] == self.record["section"],
+            "PRIMARY_CURRENT_STUDENT_INFO_HELD",
+        )
+
     def prepare(
         self,
         *,
@@ -158,6 +236,7 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
         pin_binding: dict[str, Any],
     ) -> dict[str, Any]:
         target = self._registered()
+        self._current_student_info(raw, binding)
         matches = [
             x
             for x in current["assignments"]
@@ -231,6 +310,7 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
         pin_binding: dict[str, Any],
     ) -> None:
         self.validate_plan(plan, expected_plan_sha256=expected_plan_sha256)
+        self._current_student_info(raw, plan["binding"])
         target = self._registered()
         _need(
             plan["assignment_bindings_sha256"] == self.assignment_sha256
