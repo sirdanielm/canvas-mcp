@@ -133,6 +133,27 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             result.close()
         _need(result is None, "PRIMARY_FRESH_SOURCE_REQUIRED")
 
+    def _assert_observed_format(
+        self,
+        raw: dict[str, Any],
+        binding: dict[str, Any],
+        baseline: dict[str, Any],
+        receipt_sha256: str,
+    ) -> None:
+        _need(
+            self._source_fresh
+            and receipt_sha256 == self.evidence.get("observed_format_sha256")
+            and callable(getattr(self.authority, "assert_observed_format", None)),
+            "OBSERVED_FORMAT_AUTHORITY_REQUIRED",
+        )
+        self._assert_current(self.evidence)
+        result = self.authority.assert_observed_format(
+            raw, binding, baseline, receipt_sha256
+        )
+        if inspect.iscoroutine(result):
+            result.close()
+        _need(result is None, "OBSERVED_FORMAT_AUTHORITY_REQUIRED")
+
     def _registered(self) -> dict[str, Any]:
         _need(
             self.files.file_sha(self.assignment_path) == self.assignment_sha256,
@@ -290,6 +311,11 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             authority=self._assert_current,
             protection_registry=protection,
             protection_authority=self.authority.assert_protection_current,
+            observed_format_authority=(
+                self._assert_observed_format
+                if self.evidence.get("observed_format_sha256") is not None
+                else None
+            ),
             raw=raw,
             binding=binding,
             baseline=baseline,
@@ -349,6 +375,19 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             "canvas_writes",
             "sheets_writes",
         }
+        evidence = primary["evidence"]
+        observed = evidence.get("observed_format_sha256")
+        observed_rule = evidence.get("observed_format_rule_sha256")
+        _need(
+            (observed is None and observed_rule is None)
+            or (
+                type(observed) is str
+                and HASH.fullmatch(observed)
+                and type(observed_rule) is str
+                and HASH.fullmatch(observed_rule)
+            ),
+            "PRIMARY_OWNER_PLAN_CHANGED",
+        )
         if plan.get("plan_layout") == "SINGLE_TRANSFER_V1":
             _need(
                 set(primary) == expected_fields | {"transfer_sha256"}
@@ -415,6 +454,11 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             authority=self._assert_current,
             protection_registry=protection,
             protection_authority=self.authority.assert_protection_current,
+            observed_format_authority=(
+                self._assert_observed_format
+                if self.evidence.get("observed_format_sha256") is not None
+                else None
+            ),
             raw=raw,
             current=current,
             pin_binding=pin_binding,
@@ -427,6 +471,13 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
         CanvasPrimaryEditConnection.validate_plan(
             plan, expected_plan_sha256=expected_plan_sha256
         )
+        observed_rule = plan["primary_plan"]["evidence"].get(
+            "observed_format_rule_sha256"
+        )
+        if observed_rule is not None:
+            from .sparse_edit_axis_refresh import assert_observed_raw_rule
+
+            assert_observed_raw_rule(raw, plan["binding"], observed_rule)
         return classify_proposal_readback(
             plan["transfer"], raw, expected_plan_sha256=digest(plan["transfer"])
         )

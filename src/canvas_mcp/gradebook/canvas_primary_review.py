@@ -24,7 +24,11 @@ from .model import digest
 from .proposal_edit_transfer import CONTRACT as TRANSFER_CONTRACT
 from .proposal_edit_transfer import PROPOSAL_FIELDS, _note, _selection
 from .proposal_preview import _edpuzzle, _metadata
-from .teacher_edit_transfer import _portable_state, _prepare_native_transfer
+from .teacher_edit_transfer import (
+    _PRIMARY_OBSERVED_FORMAT_SCOPE,
+    _portable_state,
+    _prepare_native_transfer,
+)
 
 CONTRACT = "CANVAS_PRIMARY_VISUAL_ADVISORY_V1"
 HASH = re.compile(r"[a-f0-9]{64}\Z")
@@ -224,6 +228,7 @@ def prepare_primary_review_transfer(
     authority: Callable[..., Any],
     protection_registry: dict[str, Any],
     protection_authority: Callable[..., Any],
+    observed_format_authority: Callable[..., Any] | None = None,
     **context: Any,
 ) -> dict[str, Any]:
     """Plan one unapproved local draft through the existing exact native planner.
@@ -314,6 +319,24 @@ def prepare_primary_review_transfer(
             pin_binding=context["pin_binding"],
         )
         _need(first == expected_first, "FIRST_SUBMISSION_REVIEW_CHANGED")
+    observed_format = evidence.get("observed_format_sha256")
+    observed_rule = evidence.get("observed_format_rule_sha256")
+    _need(
+        (
+            observed_format is None
+            and observed_rule is None
+            and observed_format_authority is None
+        )
+        or (
+            type(observed_format) is str
+            and HASH.fullmatch(observed_format)
+            and type(observed_rule) is str
+            and HASH.fullmatch(observed_rule)
+            and callable(observed_format_authority)
+            and first is not None
+        ),
+        "OBSERVED_FORMAT_AUTHORITY_REQUIRED",
+    )
     selected = copy.deepcopy(evidence)
 
     def source_check(
@@ -344,6 +367,12 @@ def prepare_primary_review_transfer(
         contract=TRANSFER_CONTRACT,
         reviewed_current_attempt=True,
         first_submission_review=first is not None,
+        observed_format_sha256=observed_format,
+        observed_format_rule_sha256=observed_rule,
+        observed_format_authority=observed_format_authority,
+        _observed_format_scope=(
+            _PRIMARY_OBSERVED_FORMAT_SCOPE if observed_format is not None else None
+        ),
         **context,
     )
     return {
@@ -366,6 +395,7 @@ def revalidate_primary_review_transfer(
     authority: Callable[..., Any],
     protection_registry: dict[str, Any],
     protection_authority: Callable[..., Any],
+    observed_format_authority: Callable[..., Any] | None = None,
     raw: dict[str, Any],
     current: dict[str, Any],
     pin_binding: dict[str, Any],
@@ -396,6 +426,7 @@ def revalidate_primary_review_transfer(
         authority=authority,
         protection_registry=protection_registry,
         protection_authority=protection_authority,
+        observed_format_authority=observed_format_authority,
         raw=raw,
         binding=transfer["binding"],
         baseline=transfer["baseline"],

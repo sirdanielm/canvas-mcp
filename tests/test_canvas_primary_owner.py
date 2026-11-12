@@ -488,3 +488,32 @@ async def test_single_transfer_tampering_holds_even_with_recomputed_outer_digest
         plan["plan_layout"] = "UNKNOWN"
     with pytest.raises(GradebookError, match="PRIMARY_OWNER_PLAN_CHANGED"):
         connection.validate_plan(plan, expected_plan_sha256=digest(plan))
+
+
+def test_observed_format_owner_hook_requires_fresh_trusted_exact_receipt(
+    connection, case
+):
+    connection.evidence["observed_format_sha256"] = "a" * 64
+    calls = []
+    connection.authority.assert_current = lambda evidence: None
+    connection.authority.assert_observed_format = (
+        lambda raw, binding, baseline, receipt: calls.append(receipt)
+    )
+    with pytest.raises(GradebookError, match="OBSERVED_FORMAT_AUTHORITY_REQUIRED"):
+        connection._assert_observed_format(
+            case["raw"], case["binding"], case["baseline"], "a" * 64
+        )
+    connection._source_fresh = True
+    with pytest.raises(GradebookError, match="OBSERVED_FORMAT_AUTHORITY_REQUIRED"):
+        connection._assert_observed_format(
+            case["raw"], case["binding"], case["baseline"], "b" * 64
+        )
+    connection._assert_observed_format(
+        case["raw"], case["binding"], case["baseline"], "a" * 64
+    )
+    assert calls == ["a" * 64]
+    del connection.authority.assert_observed_format
+    with pytest.raises(GradebookError, match="OBSERVED_FORMAT_AUTHORITY_REQUIRED"):
+        connection._assert_observed_format(
+            case["raw"], case["binding"], case["baseline"], "a" * 64
+        )

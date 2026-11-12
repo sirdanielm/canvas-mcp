@@ -24,6 +24,7 @@ from .native_edit_review import extract_native_edits
 from .refresh import build_requests
 
 SourceCheck = Callable[[dict[str, Any], dict[str, Any], dict[str, Any]], Any]
+_PRIMARY_OBSERVED_FORMAT_SCOPE = object()
 CONTRACT = "CENTRAL_TEACHER_EDIT_TRANSFER_V1"
 HASH = re.compile(r"[a-f0-9]{64}")
 RECORD_FIELDS = (
@@ -434,6 +435,10 @@ def _prepare_native_transfer(
     contract: str,
     reviewed_current_attempt: bool = False,
     first_submission_review: bool = False,
+    observed_format_sha256: str | None = None,
+    observed_format_rule_sha256: str | None = None,
+    observed_format_authority: Callable[..., Any] | None = None,
+    _observed_format_scope: object | None = None,
 ) -> dict[str, Any]:
     """Shared native preservation; each public caller validates its own authority.
 
@@ -467,7 +472,45 @@ def _prepare_native_transfer(
         and current["course_id"] == record["course_id"] == str(binding["course_id"]),
         "CANVAS_SCOPE_CHANGED",
     )
-    extract_native_edits(raw, binding, baseline)
+    if observed_format_sha256 is None:
+        _need(
+            observed_format_authority is None
+            and observed_format_rule_sha256 is None
+            and _observed_format_scope is None,
+            "OBSERVED_FORMAT_UNEXPECTED",
+        )
+        extract_native_edits(raw, binding, baseline)
+    else:
+        # Only a separately authenticated application owner may opt into the
+        # narrowly observed presentation. The source receipt is not authority.
+        _need(
+            type(observed_format_sha256) is str
+            and HASH.fullmatch(observed_format_sha256)
+            and type(observed_format_rule_sha256) is str
+            and HASH.fullmatch(observed_format_rule_sha256)
+            and callable(observed_format_authority)
+            and _observed_format_scope is _PRIMARY_OBSERVED_FORMAT_SCOPE
+            and reviewed_current_attempt is True
+            and first_submission_review is True
+            and "working_layout" in baseline,
+            "OBSERVED_FORMAT_AUTHORITY_REQUIRED",
+        )
+        result = observed_format_authority(
+            copy.deepcopy(raw),
+            copy.deepcopy(binding),
+            copy.deepcopy(baseline),
+            observed_format_sha256,
+        )
+        if inspect.iscoroutine(result):
+            result.close()
+        _need(result is None, "OBSERVED_FORMAT_AUTHORITY_REQUIRED")
+        from .sparse_edit_axis_refresh import (
+            assert_observed_raw_rule,
+            extract_sparse_edits,
+        )
+
+        assert_observed_raw_rule(raw, binding, observed_format_rule_sha256)
+        extract_sparse_edits(raw, binding, baseline, _observed_green=True)
     before = native._state(raw)
     _need(
         before["spreadsheetId"] == binding["spreadsheet_id"],

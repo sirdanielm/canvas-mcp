@@ -568,3 +568,55 @@ def test_absent_student_does_not_relax_grading_schema_hold(scenario):
     current["assignments"][0]["points_possible"] += 1
     with pytest.raises(GradebookError, match="grading schema"):
         plan_sparse_edit_axis_refresh("core", binding, before, baseline, current)
+
+
+def _fictional_observed_green(scenario):
+    plan, after = prepared(scenario)
+    working = next(s for s in after["sheets"] if s["properties"]["sheetId"] == 2)
+    fmt = working["conditionalFormats"][0]["booleanRule"]["format"]
+    fmt["backgroundColor"]["green"] = 0.9490196
+    fmt["backgroundColorStyle"] = {"rgbColor": copy.deepcopy(fmt["backgroundColor"])}
+    return plan, after
+
+
+def test_observed_green_is_opt_in_exact_and_does_not_modify_raw(scenario):
+    plan, raw = _fictional_observed_green(scenario)
+    baseline = plan["merged_baseline"]
+    original = copy.deepcopy(raw)
+    with pytest.raises(GradebookError, match="highlight rule differs"):
+        extract_sparse_edits(raw, scenario[1], baseline)
+    with pytest.raises(GradebookError, match="highlight rule differs"):
+        extract_native_edits(raw, scenario[1], baseline)
+    out = extract_sparse_edits(raw, scenario[1], baseline, _observed_green=True)
+    assert out["edits"]
+    assert raw == original
+
+
+@pytest.mark.parametrize(
+    "mutation", ["formula", "range", "other_color", "green", "alias", "extra_rule"]
+)
+def test_observed_green_rejects_every_other_rule_or_alias_change(scenario, mutation):
+    plan, raw = _fictional_observed_green(scenario)
+    sheet = next(s for s in raw["sheets"] if s["properties"]["sheetId"] == 2)
+    rule = sheet["conditionalFormats"][0]
+    fmt = rule["booleanRule"]["format"]
+    if mutation == "formula":
+        rule["booleanRule"]["condition"]["values"][0]["userEnteredValue"] = "=TRUE"
+    elif mutation == "range":
+        rule["ranges"][0]["endColumnIndex"] -= 1
+    elif mutation == "other_color":
+        fmt["backgroundColor"]["red"] = 0.1
+        fmt["backgroundColorStyle"]["rgbColor"]["red"] = 0.1
+    elif mutation == "green":
+        fmt["backgroundColor"]["green"] = 0.949
+        fmt["backgroundColorStyle"]["rgbColor"]["green"] = 0.949
+    elif mutation == "alias":
+        fmt["backgroundColorStyle"]["rgbColor"]["green"] = 0.95
+    else:
+        sheet["conditionalFormats"].append(copy.deepcopy(rule))
+    before = copy.deepcopy(raw)
+    with pytest.raises(GradebookError, match="highlight"):
+        extract_sparse_edits(
+            raw, scenario[1], plan["merged_baseline"], _observed_green=True
+        )
+    assert raw == before

@@ -546,3 +546,191 @@ def test_primary_planner_cannot_bypass_exact_protected_target(case):
     case["protection_authority"] = trusted_policy
     with pytest.raises(GradebookError, match="PROTECTED_TARGET_HELD"):
         prepare_primary_review_transfer(**case)
+
+
+@pytest.fixture
+def observed_first_submission_case(first_submission_case):
+    from test_gradebook_native import raw_from_state
+
+    from canvas_mcp.gradebook import native
+    from canvas_mcp.gradebook.canvas_primary_review import (
+        first_submission_review_binding,
+    )
+    from canvas_mcp.gradebook.sparse_edit_axis_refresh import _editable, _sparse_rule
+
+    c = first_submission_case
+    base = c["baseline"]
+    binding = c["binding"]
+    rows = {5 + i: s["id"] for i, s in enumerate(base["students"])}
+    cols = {2 + i: a["id"] for i, a in enumerate(base["assignments"])}
+    base["working_layout"] = {
+        "schema_version": 1,
+        "mode": "SPARSE_ASSIGNMENT_COLUMNS",
+        "spreadsheet_id": binding["spreadsheet_id"],
+        "course_id": str(binding["course_id"]),
+        "working_sheet_id": binding["sheets"]["Working"],
+        "rows": [{"index": i, "id": x} for i, x in rows.items()],
+        "columns": [{"index": i, "id": x} for i, x in cols.items()],
+        "opaque_columns": [],
+        "get_rows": max(rows) + 1,
+        "get_columns": max(cols) + 1,
+    }
+    state = native._state(initial_raw(base, binding))
+    sid = binding["sheets"]["Working"]
+    state["sheets"][binding["sheets"]["_Sync"]]["cells"]["1:1"]["userEnteredValue"] = {
+        "stringValue": digest(base)
+    }
+    state["sheets"][sid]["protectedRanges"][0]["unprotectedRanges"] = _editable(
+        sid, rows, cols
+    )
+    state["sheets"][sid]["conditionalFormats"] = [
+        _sparse_rule(binding, rows, cols, max(rows) + 1, max(cols) + 1)
+    ]
+    raw = raw_from_state(state)
+    sheet = next(s for s in raw["sheets"] if s["properties"]["sheetId"] == sid)
+    fmt = sheet["conditionalFormats"][0]["booleanRule"]["format"]
+    fmt["backgroundColor"]["green"] = 0.9490196
+    fmt["backgroundColorStyle"] = {"rgbColor": copy.deepcopy(fmt["backgroundColor"])}
+    c["raw"] = raw
+    evidence = c["evidence"]
+    evidence["observed_format_sha256"] = "a" * 64
+    evidence["observed_format_rule_sha256"] = digest(sheet["conditionalFormats"][0])
+    evidence["first_submission_review"] = first_submission_review_binding(
+        evidence=evidence,
+        record=c["record"],
+        assignment_binding=c["assignment_binding"],
+        raw=raw,
+        baseline=base,
+        current=c["current"],
+        pin_binding=c["pin_binding"],
+    )
+    expected = copy.deepcopy(evidence)
+
+    def source(actual):
+        if actual != expected:
+            raise ValueError("changed")
+
+    c["authority"] = source
+    return c
+
+
+def test_primary_observed_rule_requires_trusted_callback_and_revalidates(
+    observed_first_submission_case,
+):
+    c = observed_first_submission_case
+    with pytest.raises(GradebookError, match="OBSERVED_FORMAT_AUTHORITY_REQUIRED"):
+        prepare_primary_review_transfer(**c)
+    seen = []
+
+    def observed(raw, binding, baseline, receipt):
+        seen.append(receipt)
+        assert raw == c["raw"] and binding == c["binding"] and baseline == c["baseline"]
+        assert receipt == "a" * 64
+
+    c["observed_format_authority"] = observed
+    before = copy.deepcopy(c["raw"])
+    plan = prepare_primary_review_transfer(**c)
+    assert len(plan["transfer"]["requests"]) == 1
+    assert (
+        plan["transfer"]["requests"][0]["updateCells"]["fields"] == "userEnteredValue"
+    )
+    sid = c["binding"]["sheets"]["Working"]
+    assert (
+        plan["transfer"]["before_state"]["sheets"][str(sid)]["conditionalFormats"]
+        == plan["transfer"]["after_state"]["sheets"][str(sid)]["conditionalFormats"]
+    )
+    assert c["raw"] == before and seen == ["a" * 64]
+    revalidate_primary_review_transfer(
+        plan,
+        expected_plan_sha256=digest(plan),
+        authority=c["authority"],
+        protection_registry=c["protection_registry"],
+        protection_authority=c["protection_authority"],
+        observed_format_authority=observed,
+        raw=c["raw"],
+        current=c["current"],
+        pin_binding=c["pin_binding"],
+    )
+    assert seen == ["a" * 64, "a" * 64]
+
+
+@pytest.mark.parametrize("behavior", ["raise", "return_value"])
+def test_primary_observed_rule_rejects_failing_or_nonvoid_authority(
+    observed_first_submission_case, behavior
+):
+    c = observed_first_submission_case
+
+    def bad(*args):
+        if behavior == "raise":
+            raise ValueError("not trusted")
+        return True
+
+    c["observed_format_authority"] = bad
+    with pytest.raises((GradebookError, ValueError)):
+        prepare_primary_review_transfer(**c)
+
+
+def test_observed_rule_raw_digest_is_bound_through_owner_readback(
+    observed_first_submission_case,
+):
+    from canvas_mcp.gradebook.canvas_primary_owner import CanvasPrimaryEditConnection
+
+    c = observed_first_submission_case
+    c["observed_format_authority"] = lambda *args: None
+    primary = prepare_primary_review_transfer(**c)
+    transfer = primary.pop("transfer")
+    primary["transfer_sha256"] = digest(transfer)
+    record = transfer["record"]
+    plan = {
+        "contract": "CANVAS_PRIMARY_VISUAL_ADVISORY_V1",
+        "plan_layout": "SINGLE_TRANSFER_V1",
+        "binding": copy.deepcopy(c["binding"]),
+        "items": [{"key": record["user_id"] + ":" + record["assignment_id"]}],
+        "primary_plan": primary,
+        "transfer": transfer,
+        "canvas_writes": 0,
+        "sheets_writes": 0,
+        "publication_allowed": False,
+    }
+    assert (
+        CanvasPrimaryEditConnection.classify(
+            plan, c["raw"], expected_plan_sha256=digest(plan)
+        )["status"]
+        == "BEFORE_STILL_PRESENT"
+    )
+    drift = copy.deepcopy(c["raw"])
+    sheet = next(
+        s
+        for s in drift["sheets"]
+        if s["properties"]["sheetId"] == c["binding"]["sheets"]["Working"]
+    )
+    fmt = sheet["conditionalFormats"][0]["booleanRule"]["format"]
+    fmt["backgroundColor"]["green"] += 0.00000001
+    with pytest.raises(GradebookError, match="observed raw highlight differs"):
+        CanvasPrimaryEditConnection.classify(
+            plan, drift, expected_plan_sha256=digest(plan)
+        )
+
+
+def test_generic_proposal_cannot_activate_primary_observed_scope(
+    observed_first_submission_case,
+):
+    from canvas_mcp.gradebook.proposal_edit_transfer import prepare_proposal_transfer
+
+    c = observed_first_submission_case
+    with pytest.raises(GradebookError, match="OBSERVED_FORMAT_AUTHORITY_REQUIRED"):
+        prepare_proposal_transfer(
+            c["record"],
+            c["proposal"],
+            raw=c["raw"],
+            binding=c["binding"],
+            baseline=c["baseline"],
+            current=c["current"],
+            pin_binding=c["pin_binding"],
+            source_check=lambda *args: None,
+            reviewed_current_attempt=True,
+            first_submission_review=True,
+            observed_format_sha256="a" * 64,
+            observed_format_rule_sha256=c["evidence"]["observed_format_rule_sha256"],
+            observed_format_authority=lambda *args: None,
+        )

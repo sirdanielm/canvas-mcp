@@ -201,6 +201,27 @@ def _wire_format(raw: dict[str, Any], sid: int) -> dict[str, Any]:
         ) from exc
 
 
+def assert_observed_raw_rule(
+    raw: dict[str, Any], binding: dict[str, Any], expected_sha256: str
+) -> None:
+    """Bind the complete raw rule, not merely normalized color or aliases."""
+    try:
+        sheets = [
+            s
+            for s in raw["sheets"]
+            if s["properties"]["sheetId"] == binding["sheets"]["Working"]
+        ]
+        if (
+            len(sheets) != 1
+            or raw["spreadsheetId"] != binding["spreadsheet_id"]
+            or len(sheets[0]["conditionalFormats"]) != 1
+            or digest(sheets[0]["conditionalFormats"][0]) != expected_sha256
+        ):
+            raise ValueError
+    except (KeyError, TypeError, ValueError) as exc:
+        raise GradebookError("Sparse Edit observed raw highlight differs.") from exc
+
+
 def _permission_ranges_equal(actual: Any, expected: list[dict[str, int]]) -> bool:
     """Only list order is immaterial; retain all fields and multiplicity."""
     if not isinstance(actual, list) or any(
@@ -244,6 +265,7 @@ def _ownership(
     expected_rule: dict[str, Any],
     *,
     legacy: bool = False,
+    observed_green: bool = False,
 ) -> None:
     sid = binding["sheets"]["Working"]
     sheet = state["sheets"][sid]
@@ -270,6 +292,18 @@ def _ownership(
             value["userEnteredValue"] = value["userEnteredValue"].replace("\\'", "'")
         except (KeyError, TypeError, AttributeError, IndexError) as exc:
             raise GradebookError("Sparse Edit owned highlight rule differs.") from exc
+    if observed_green:
+        # This path is reachable only after the primary source owner has
+        # authenticated an exact observed rule and both raw preimages. It is
+        # not canonical ownership and must not normalize the workbook.
+        try:
+            color = actual["booleanRule"]["format"]["backgroundColor"]
+            expected_color = expected_rule["booleanRule"]["format"]["backgroundColor"]
+            if color["green"] != 0.94902 or expected_color["green"] != 0.95294:
+                raise ValueError
+            color["green"] = expected_color["green"]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise GradebookError("Sparse Edit owned highlight rule differs.") from exc
     if actual != expected_rule:
         raise GradebookError("Sparse Edit owned highlight rule differs.")
 
@@ -278,8 +312,29 @@ def extract_sparse_edits(
     raw: dict[str, Any],
     binding: dict[str, Any],
     baseline: dict[str, Any],
+    *,
+    _observed_green: bool = False,
 ) -> dict[str, Any]:
     """Project only declared grade cells into an unchanged dense edit envelope."""
+    if _observed_green:
+        # Inspect raw aliases before native normalization can coalesce them.
+        try:
+            sheet = next(
+                s
+                for s in raw["sheets"]
+                if s["properties"]["sheetId"] == binding["sheets"]["Working"]
+            )
+            rules = sheet["conditionalFormats"]
+            if len(rules) != 1:
+                raise ValueError
+            fmt = rules[0]["booleanRule"]["format"]
+            if (
+                fmt["backgroundColor"]["green"] != 0.9490196
+                or fmt["backgroundColorStyle"]["rgbColor"] != fmt["backgroundColor"]
+            ):
+                raise ValueError
+        except (KeyError, TypeError, ValueError, StopIteration) as exc:
+            raise GradebookError("Sparse Edit observed raw highlight differs.") from exc
     views = validate_get_workbook(raw, {"bound": binding})["bound"]
     sync = views["_Sync"]
     if sync["B2"] != digest(baseline) or (
@@ -303,6 +358,7 @@ def extract_sparse_edits(
             layout["get_rows"],
             layout["get_columns"],
         ),
+        observed_green=_observed_green,
     )
     assignments = {item["id"]: item for item in baseline["assignments"]}
     projected: dict[str, Any] = {}
