@@ -25,6 +25,7 @@ from .proposal_edit_transfer import CONTRACT as TRANSFER_CONTRACT
 from .proposal_edit_transfer import PROPOSAL_FIELDS, _note, _selection
 from .proposal_preview import _edpuzzle, _metadata
 from .teacher_edit_transfer import (
+    _PRIMARY_CURRENT_ATTEMPT_SCOPE,
     _PRIMARY_OBSERVED_FORMAT_SCOPE,
     _portable_state,
     _prepare_native_transfer,
@@ -308,6 +309,30 @@ def prepare_primary_review_transfer(
     # This exact binding is not authority: _verified requires the independently
     # authenticated source owner to validate it before any native planning.
     first = evidence.get("first_submission_review")
+    current_attempt = evidence.get("current_attempt_review")
+    _need(
+        not (first is not None and current_attempt is not None),
+        "PRIMARY_REVIEW_VARIANT_HELD",
+    )
+
+    def current_attempt_projection() -> dict[str, Any]:
+        from .canvas_primary_current_attempt import prepare_comparison
+
+        return prepare_comparison(
+            evidence=evidence,
+            record=record,
+            proposal=proposal,
+            assignment_binding=assignment_binding,
+            binding=context["binding"],
+            raw=context["raw"],
+            baseline=context["baseline"],
+            current=context["current"],
+            pin_binding=context["pin_binding"],
+            protection_registry=protection_registry,
+            source_authority=authority,
+            protection_authority=protection_authority,
+        )
+
     if first is not None:
         expected_first = first_submission_review_binding(
             evidence=evidence,
@@ -333,7 +358,7 @@ def prepare_primary_review_transfer(
             and type(observed_rule) is str
             and HASH.fullmatch(observed_rule)
             and callable(observed_format_authority)
-            and first is not None
+            and (first is not None or current_attempt is not None)
         ),
         "OBSERVED_FORMAT_AUTHORITY_REQUIRED",
     )
@@ -367,6 +392,12 @@ def prepare_primary_review_transfer(
         contract=TRANSFER_CONTRACT,
         reviewed_current_attempt=True,
         first_submission_review=first is not None,
+        _primary_current_attempt=current_attempt_projection
+        if current_attempt is not None
+        else None,
+        _current_attempt_scope=_PRIMARY_CURRENT_ATTEMPT_SCOPE
+        if current_attempt is not None
+        else None,
         observed_format_sha256=observed_format,
         observed_format_rule_sha256=observed_rule,
         observed_format_authority=observed_format_authority,
