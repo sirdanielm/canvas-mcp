@@ -1,0 +1,293 @@
+"""Fictional owner wiring; fake callbacks only and no network or live writes."""
+
+import copy
+import hashlib
+import json
+from contextlib import contextmanager
+from types import ModuleType
+
+import pytest
+from test_canvas_primary_review import case as case
+from test_gradebook import snapshot as snapshot
+from test_gradebook_native import binding as binding
+
+from canvas_mcp.gradebook.canvas_primary_owner import CanvasPrimaryEditConnection
+from canvas_mcp.gradebook.client import GradebookError
+from canvas_mcp.gradebook.localgrass_edit_execution import execute_local_edit_once
+from canvas_mcp.gradebook.model import digest
+from canvas_mcp.gradebook.store import Store
+
+
+@pytest.fixture
+def connection(case, tmp_path):
+    class Authority:
+        ready = False
+        refresh_count = 0
+
+        async def refresh(self, canvas, evidence):
+            self.ready = False
+            self.refresh_count += 1
+            if (
+                canvas != "fictional-canvas"
+                and getattr(canvas, "label", None) != "fictional-canvas"
+            ):
+                raise ValueError("not current")
+            case["authority"](evidence)
+            self.ready = True
+
+        def assert_current(self, evidence):
+            if not self.ready:
+                raise ValueError("fresh source missing")
+            case["authority"](evidence)
+
+    files = ModuleType("fictional_files")
+    files.file_sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+    files.load = lambda p: json.loads(p.read_text())
+    files.local_path = lambda p: p
+    files.private_directory = lambda p: p.mkdir(parents=True, exist_ok=True) or p
+
+    @contextmanager
+    def locked(_):
+        yield
+
+    files.locked = locked
+
+    def write(path, data):
+        path.write_bytes(data if isinstance(data, bytes) else json.dumps(data).encode())
+
+    files.write = write
+    target = {
+        k: v
+        for k, v in case["assignment_binding"].items()
+        if k not in ("assignment_metadata", "assignment_metadata_sha256")
+    }
+    path = tmp_path / "bindings.json"
+    path.write_text(json.dumps([target]))
+    return CanvasPrimaryEditConnection(
+        store=Store(tmp_path / "store"),
+        files=files,
+        authority=Authority(),
+        evidence=case["evidence"],
+        record=case["record"],
+        proposal=case["proposal"],
+        assignment_bindings_path=path,
+        expected_assignment_bindings_sha256=files.file_sha(path),
+        registry_path=tmp_path / "registry.json",
+    )
+
+
+@pytest.mark.asyncio
+async def test_owner_fresh_source_plan_and_revalidation(connection, case):
+    with pytest.raises(GradebookError):
+        connection.assignment_targets(
+            course_id=case["record"]["course_id"], pin_binding=case["pin_binding"]
+        )
+    await connection.refresh_source("fictional-canvas")
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+    assert plan["canvas_writes"] == plan["sheets_writes"] == 0
+    assert plan["publication_allowed"] is False
+    assert plan["items"] == [{"key": "101:21"}]
+    connection.revalidate(
+        plan,
+        expected_plan_sha256=digest(plan),
+        raw=case["raw"],
+        current=case["current"],
+        pin_binding=case["pin_binding"],
+    )
+    assert (
+        connection.classify(plan, case["raw"], expected_plan_sha256=digest(plan))[
+            "status"
+        ]
+        == "BEFORE_STILL_PRESENT"
+    )
+
+
+@pytest.mark.asyncio
+async def test_disabled_executor_never_writes(connection, case, tmp_path):
+    await connection.refresh_source("fictional-canvas")
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+
+    def forbidden(*args):
+        raise AssertionError("unexpected call")
+
+    result = await execute_local_edit_once(
+        connection,
+        plan,
+        expected_plan_sha256=digest(plan),
+        output_root=tmp_path / "history",
+        read_context=forbidden,
+        write_requests=forbidden,
+    )
+    assert result["status"] == "LOCAL_EDIT_WRITE_DISABLED"
+
+
+@pytest.mark.asyncio
+async def test_changed_assignment_binding_and_source_hold(connection, case):
+    await connection.refresh_source("fictional-canvas")
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+    changed = copy.deepcopy(case["current"])
+    changed["cells"]["101:21"]["attempt"] += 1
+    with pytest.raises(GradebookError):
+        connection.revalidate(
+            plan,
+            expected_plan_sha256=digest(plan),
+            raw=case["raw"],
+            current=changed,
+            pin_binding=case["pin_binding"],
+        )
+    connection.assignment_path.write_text("[]")
+    with pytest.raises(GradebookError, match="ASSIGNMENT_BINDINGS_CHANGED"):
+        connection.revalidate(
+            plan,
+            expected_plan_sha256=digest(plan),
+            raw=case["raw"],
+            current=case["current"],
+            pin_binding=case["pin_binding"],
+        )
+
+
+@pytest.mark.asyncio
+async def test_failed_refresh_invalidates_previous_seal(connection, case):
+    await connection.refresh_source("fictional-canvas")
+    with pytest.raises(ValueError):
+        await connection.refresh_source("wrong-canvas")
+    with pytest.raises(GradebookError):
+        connection.assignment_targets(
+            course_id=case["record"]["course_id"], pin_binding=case["pin_binding"]
+        )
+
+
+@pytest.mark.asyncio
+async def test_fake_one_shot_and_repeat_does_not_resend(connection, case, tmp_path):
+    from test_gradebook_native import raw_from_state
+
+    from canvas_mcp.gradebook import native
+
+    await connection.refresh_source("fictional-canvas")
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+    state = {"raw": copy.deepcopy(case["raw"]), "writes": 0}
+
+    def read():
+        return {
+            "raw": state["raw"],
+            "current": case["current"],
+            "pin_binding": case["pin_binding"],
+        }
+
+    def write(spreadsheet, requests):
+        assert spreadsheet == case["binding"]["spreadsheet_id"]
+        assert len(requests) == 1
+        item = requests[0]["updateCells"]
+        assert item["fields"] == "userEnteredValue"
+        native_state = native._state(state["raw"])
+        start = item["start"]
+        address = f"{start['rowIndex']}:{start['columnIndex']}"
+        native_state["sheets"][start["sheetId"]]["cells"][address].update(
+            item["rows"][0]["values"][0]
+        )
+        state["raw"] = raw_from_state(native_state)
+        state["writes"] += 1
+
+    kwargs = {
+        "expected_plan_sha256": digest(plan),
+        "output_root": tmp_path / "history",
+        "read_context": read,
+        "write_requests": write,
+        "enabled": True,
+    }
+    result = await execute_local_edit_once(connection, plan, **kwargs)
+    assert result["status"] == "PLANNED_OUTPUT_OBSERVED"
+    assert state["writes"] == 1
+    again = await execute_local_edit_once(connection, plan, **kwargs)
+    assert again["status"] == "PLANNED_OUTPUT_OBSERVED"
+    assert state["writes"] == 1
+
+
+@pytest.mark.asyncio
+async def test_composed_owner_refreshes_before_send_but_not_reconcile_or_disabled(
+    connection, case, tmp_path
+):
+    from types import SimpleNamespace
+
+    from test_gradebook_native import raw_from_state
+
+    from canvas_mcp.gradebook import native
+    from canvas_mcp.gradebook.localgrass_edit_owner import LocalGrAssEditOwner
+
+    class Canvas:
+        label = "fictional-canvas"
+        origin = case["current"]["origin"]
+
+        async def snapshot(self, course_id):
+            assert course_id == case["record"]["course_id"]
+            return copy.deepcopy(case["current"])
+
+        async def get(self, path):
+            assert path.endswith("/assignments/" + case["record"]["assignment_id"])
+            return copy.deepcopy(case["assignment_binding"]["assignment_metadata"])
+
+    class Google:
+        workbook_id = case["binding"]["spreadsheet_id"]
+
+        def __init__(self):
+            self.raw = copy.deepcopy(case["raw"])
+            self.writes = 0
+
+        async def read_workbook(self):
+            return copy.deepcopy(self.raw)
+
+        async def send_preflighted_batch(self, requests):
+            assert len(requests) == 1
+            update = requests[0]["updateCells"]
+            state = native._state(self.raw)
+            point = update["start"]
+            address = f"{point['rowIndex']}:{point['columnIndex']}"
+            state["sheets"][point["sheetId"]]["cells"][address].update(
+                update["rows"][0]["values"][0]
+            )
+            self.raw = raw_from_state(state)
+            self.writes += 1
+
+    class Journal:
+        @contextmanager
+        def exclusive(self):
+            yield
+
+    owner = object.__new__(LocalGrAssEditOwner)
+    owner.connection, owner.canvas, owner.google, owner.journal = (
+        connection,
+        Canvas(),
+        Google(),
+        Journal(),
+    )
+    owner.binding = case["binding"]
+    owner.runtime_root = tmp_path
+    owner.output_root = tmp_path / "history"
+    owner._configuration = lambda: None
+    owner._check_owner = lambda **kwargs: None
+    owner._pin_module = SimpleNamespace(
+        canonical_pin_binding=lambda *args: copy.deepcopy(case["pin_binding"])
+    )
+    await connection.refresh_source(owner.canvas)
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+    plan_id, _ = connection.store.save("review", plan)
+    count = connection.authority.refresh_count
+    disabled = await owner.execute(plan_id)
+    assert disabled["status"] == "LOCAL_EDIT_WRITE_DISABLED"
+    assert connection.authority.refresh_count == count and owner.google.writes == 0
+    sent = await owner.execute(plan_id, enabled=True)
+    assert sent["status"] == "PLANNED_OUTPUT_OBSERVED"
+    assert connection.authority.refresh_count == count + 2 and owner.google.writes == 1
+    again = await owner.execute(plan_id, enabled=True)
+    assert again["status"] == "PLANNED_OUTPUT_OBSERVED"
+    assert connection.authority.refresh_count == count + 2 and owner.google.writes == 1

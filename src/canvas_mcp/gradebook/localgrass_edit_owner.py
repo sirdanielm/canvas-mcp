@@ -177,6 +177,12 @@ class LocalGrAssEditOwner:
 
     async def _context(self) -> dict[str, Any]:
         self._configuration()
+        # Source-specific owner hook must obtain current submission evidence
+        # before each existing native preflight, never from request JSON.
+        from .canvas_primary_owner import CanvasPrimaryEditConnection
+
+        if isinstance(self.connection, CanvasPrimaryEditConnection):
+            await self.connection.refresh_source(self.canvas)
         current = await self.canvas.snapshot(str(self.binding["course_id"]))
         _need(
             current.get("origin") == self.canvas.origin
