@@ -41,7 +41,11 @@ PROPOSAL_FIELDS = (
 def _selection(record: dict[str, Any], proposal: dict[str, Any]) -> None:
     _need(type(record) is dict and type(proposal) is dict, "EXACT_SELECTION_REQUIRED")
     _need(all(k in record for k in RECORD_FIELDS), "SELECTED_EVALUATION_INCOMPLETE")
-    _need(set(proposal) == set(PROPOSAL_FIELDS), "UNAPPROVED_PROPOSAL_REQUIRED")
+    _need(
+        set(PROPOSAL_FIELDS) <= set(proposal)
+        and set(proposal) <= set(PROPOSAL_FIELDS) | {"source_lane", "delivery_policy"},
+        "UNAPPROVED_PROPOSAL_REQUIRED",
+    )
     for field in ("evaluation_id", "source_revision", "result_revision", "source_key"):
         _need(
             type(record[field]) is str and HASH.fullmatch(record[field]),

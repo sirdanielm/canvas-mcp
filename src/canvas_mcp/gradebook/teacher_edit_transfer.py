@@ -359,6 +359,7 @@ def _prepare_native_transfer(
     selection_key: str,
     note_factory: Callable[[str, str, str], str],
     contract: str,
+    reviewed_current_attempt: bool = False,
 ) -> dict[str, Any]:
     """Shared native preservation; each public caller validates its own authority.
 
@@ -432,7 +433,11 @@ def _prepare_native_transfer(
         "CANVAS_EXCUSAL_PRESERVED",
     )
     _need(
-        cell.get("grade_matches_current_submission") is True,
+        cell.get("grade_matches_current_submission") is True
+        or (
+            reviewed_current_attempt is True
+            and cell.get("grade_matches_current_submission") is False
+        ),
         "CURRENT_CANVAS_GRADE_UNKNOWN",
     )
     score = decision["total_score"]
@@ -682,7 +687,9 @@ def classify_readback(
     status = (
         "PLANNED_OUTPUT_OBSERVED"
         if actual == plan["after_state"]
-        else "BEFORE_STILL_PRESENT" if actual == plan["before_state"] else "DIVERGED"
+        else "BEFORE_STILL_PRESENT"
+        if actual == plan["before_state"]
+        else "DIVERGED"
     )
     return {
         "contract": CONTRACT,
