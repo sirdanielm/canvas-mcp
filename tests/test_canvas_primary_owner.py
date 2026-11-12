@@ -61,6 +61,10 @@ def connection(case, tmp_path):
             case["authority"](evidence)
             self.ready = True
 
+        def assert_protection_current(self, registry, target):
+            if registry != self.expected_registry:
+                raise ValueError("unverified protection source")
+
         def assert_current(self, evidence):
             if not self.ready:
                 raise ValueError("fresh source missing")
@@ -89,16 +93,34 @@ def connection(case, tmp_path):
     }
     path = tmp_path / "bindings.json"
     path.write_text(json.dumps([target]))
+    policy = {
+        "contract": "CANVAS_PRIMARY_TARGET_PROTECTION_V1",
+        "population_state": "COMPLETE",
+        "population_evidence_sha256": "a" * 64,
+        "protected_students": [
+            {"user_id": "202", "evidence_sha256": "b" * 64},
+            {"user_id": "303", "evidence_sha256": "c" * 64},
+        ],
+        "coverage": [],
+        "protected_targets": [],
+    }
+    policy_path = tmp_path / "private-protection.json"
+    policy_path.write_text(json.dumps(policy))
+    policy_path.chmod(0o600)
+    auth = Authority()
+    auth.expected_registry = copy.deepcopy(policy)
     return CanvasPrimaryEditConnection(
         store=Store(tmp_path / "store"),
         files=files,
-        authority=Authority(),
+        authority=auth,
         evidence=case["evidence"],
         record=case["record"],
         proposal=case["proposal"],
         assignment_bindings_path=path,
         expected_assignment_bindings_sha256=files.file_sha(path),
         registry_path=tmp_path / "registry.json",
+        protection_registry_path=policy_path,
+        expected_protection_registry_sha256=files.file_sha(policy_path),
     )
 
 
@@ -383,4 +405,22 @@ async def test_nonliteral_and_duplicate_identity_cells_hold(connection, case, mu
                 },
                 "raw": raw_from_state(state),
             }
+        )
+
+
+@pytest.mark.asyncio
+async def test_registry_change_blocks_existing_plan_before_send(connection, case):
+    await connection.refresh_source("fictional-canvas")
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+    # A newer registry means the pinned authority/config must be reviewed anew.
+    connection.protection_registry_path.write_text("{}")
+    with pytest.raises(GradebookError, match="PROTECTION_REGISTRY_HELD"):
+        connection.revalidate(
+            plan,
+            expected_plan_sha256=digest(plan),
+            raw=case["raw"],
+            current=case["current"],
+            pin_binding=case["pin_binding"],
         )

@@ -104,8 +104,26 @@ def case(tmp_path, snapshot, binding):
 
     args.pop("decision")
     args.pop("source_check")
+    protection = {
+        "contract": "CANVAS_PRIMARY_TARGET_PROTECTION_V1",
+        "population_state": "COMPLETE",
+        "population_evidence_sha256": "a" * 64,
+        "protected_students": [{"user_id": "202", "evidence_sha256": "b" * 64}],
+        "coverage": [],
+        "protected_targets": [],
+    }
+
+    def protection_authority(registry, target):
+        if registry != protection:
+            raise ValueError("unverified protection source")
+
     args.update(
-        evidence=evidence, proposal=proposal, assignment_binding=ab, authority=authority
+        evidence=evidence,
+        proposal=proposal,
+        assignment_binding=ab,
+        authority=authority,
+        protection_registry=protection,
+        protection_authority=protection_authority,
     )
     return args
 
@@ -124,6 +142,8 @@ def test_valid_is_only_an_unapproved_existing_native_plan(case):
         result,
         expected_plan_sha256=digest(result),
         authority=case["authority"],
+        protection_registry=case["protection_registry"],
+        protection_authority=case["protection_authority"],
         raw=case["raw"],
         current=case["current"],
         pin_binding=case["pin_binding"],
@@ -186,6 +206,8 @@ def test_revalidation_rejects_changed_source_and_plan(case):
             plan,
             expected_plan_sha256=expected,
             authority=case["authority"],
+            protection_registry=case["protection_registry"],
+            protection_authority=case["protection_authority"],
             raw=case["raw"],
             current=case["current"],
             pin_binding=case["pin_binding"],
@@ -227,6 +249,8 @@ def test_exact_reviewed_stale_grade_flag_is_preserved_not_rewritten(case):
         plan,
         expected_plan_sha256=digest(plan),
         authority=case["authority"],
+        protection_registry=case["protection_registry"],
+        protection_authority=case["protection_authority"],
         raw=case["raw"],
         current=case["current"],
         pin_binding=case["pin_binding"],
@@ -262,6 +286,8 @@ def test_fresh_source_authority_failure_holds(case):
             plan,
             expected_plan_sha256=digest(plan),
             authority=changed,
+            protection_registry=case["protection_registry"],
+            protection_authority=case["protection_authority"],
             raw=case["raw"],
             current=case["current"],
             pin_binding=case["pin_binding"],
@@ -295,6 +321,8 @@ def test_exact_google_assignment_review_is_only_unapproved_draft(case):
         plan,
         expected_plan_sha256=digest(plan),
         authority=case["authority"],
+        protection_registry=case["protection_registry"],
+        protection_authority=case["protection_authority"],
         raw=case["raw"],
         current=case["current"],
         pin_binding=case["pin_binding"],
@@ -407,6 +435,8 @@ def test_reviewed_first_submission_retains_original_baseline(first_submission_ca
         plan,
         expected_plan_sha256=digest(plan),
         authority=first_submission_case["authority"],
+        protection_registry=first_submission_case["protection_registry"],
+        protection_authority=first_submission_case["protection_authority"],
         raw=first_submission_case["raw"],
         current=first_submission_case["current"],
         pin_binding=first_submission_case["pin_binding"],
@@ -493,3 +523,26 @@ def test_first_submission_scope_and_preimage_changes_hold(
         c["authority"] = changed_source_authority
     with pytest.raises(GradebookError):
         prepare_primary_review_transfer(**c)
+
+
+def test_primary_planner_cannot_bypass_exact_protected_target(case):
+    protected = copy.deepcopy(case["protection_registry"])
+    protected["protected_students"].append(
+        {"user_id": "101", "evidence_sha256": "c" * 64}
+    )
+    protected["protected_targets"].append(
+        {
+            "course_id": "12",
+            "assignment_id": "21",
+            "user_id": "101",
+            "evidence_sha256": "d" * 64,
+        }
+    )
+    case["protection_registry"] = protected
+
+    def trusted_policy(registry, target):
+        assert registry == protected
+
+    case["protection_authority"] = trusted_policy
+    with pytest.raises(GradebookError, match="PROTECTED_TARGET_HELD"):
+        prepare_primary_review_transfer(**case)

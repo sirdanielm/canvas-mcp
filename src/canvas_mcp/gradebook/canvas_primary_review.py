@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from .canvas_primary_protection import assert_target_unprotected
 from .client import GradebookError
 from .model import digest
 from .proposal_edit_transfer import CONTRACT as TRANSFER_CONTRACT
@@ -221,6 +222,8 @@ def prepare_primary_review_transfer(
     proposal: dict[str, Any],
     assignment_binding: dict[str, Any],
     authority: Callable[..., Any],
+    protection_registry: dict[str, Any],
+    protection_authority: Callable[..., Any],
     **context: Any,
 ) -> dict[str, Any]:
     """Plan one unapproved local draft through the existing exact native planner.
@@ -269,6 +272,7 @@ def prepare_primary_review_transfer(
     )
     _need(
         type(cell) is dict
+        and "value" in cell
         and digest(cell) == evidence["current_cell_sha256"]
         and cell.get("workflow_state") == "submitted"
         and type(cell.get("submitted_at")) is str
@@ -279,6 +283,8 @@ def prepare_primary_review_transfer(
         and type(cell.get("grade_matches_current_submission")) is bool,
         "PRIMARY_CURRENT_ATTEMPT_CHANGED",
     )
+    target = {key: record[key] for key in ("course_id", "user_id", "assignment_id")}
+    assert_target_unprotected(protection_registry, target, cell, protection_authority)
     _need(
         record.get("policy") == proposal.get("policy") == evidence["policy_sha256"]
         and record.get("source_lane")
@@ -344,6 +350,7 @@ def prepare_primary_review_transfer(
         "contract": CONTRACT,
         "evidence": selected,
         "assignment_binding": copy.deepcopy(assignment_binding),
+        "protection_registry_sha256": digest(protection_registry),
         "transfer": transfer,
         "teacher_accepted": False,
         "publication_allowed": False,
@@ -357,6 +364,8 @@ def revalidate_primary_review_transfer(
     *,
     expected_plan_sha256: str,
     authority: Callable[..., Any],
+    protection_registry: dict[str, Any],
+    protection_authority: Callable[..., Any],
     raw: dict[str, Any],
     current: dict[str, Any],
     pin_binding: dict[str, Any],
@@ -368,6 +377,10 @@ def revalidate_primary_review_transfer(
         and digest(plan) == expected_plan_sha256
         and plan.get("contract") == CONTRACT,
         "PRIMARY_PLAN_CHANGED",
+    )
+    _need(
+        plan.get("protection_registry_sha256") == digest(protection_registry),
+        "PROTECTION_REGISTRY_CHANGED",
     )
     evidence, transfer = plan["evidence"], plan["transfer"]
     _verified(evidence, authority)
@@ -381,6 +394,8 @@ def revalidate_primary_review_transfer(
         proposal=proposal,
         assignment_binding=plan["assignment_binding"],
         authority=authority,
+        protection_registry=protection_registry,
+        protection_authority=protection_authority,
         raw=raw,
         binding=transfer["binding"],
         baseline=transfer["baseline"],

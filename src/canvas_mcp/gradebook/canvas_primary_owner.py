@@ -14,6 +14,10 @@ from types import ModuleType
 from typing import Any
 
 from . import native
+from .canvas_primary_protection import (
+    assert_target_unprotected,
+    read_protection_registry,
+)
 from .canvas_primary_review import (
     CONTRACT,
     _verified,
@@ -49,6 +53,8 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
         assignment_bindings_path: Path,
         expected_assignment_bindings_sha256: str,
         registry_path: Path,
+        protection_registry_path: Path,
+        expected_protection_registry_sha256: str,
         preservation: dict[str, Any] | None = None,
     ) -> None:
         _need(
@@ -66,13 +72,18 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
                 )
             )
             and callable(getattr(authority, "refresh", None))
-            and callable(getattr(authority, "assert_current", None)),
+            and callable(getattr(authority, "assert_current", None))
+            and callable(getattr(authority, "assert_protection_current", None)),
             "PRIMARY_INSTALLED_OWNERS_REQUIRED",
         )
         _need(
             all(
                 isinstance(p, Path) and p.is_absolute()
-                for p in (assignment_bindings_path, registry_path)
+                for p in (
+                    assignment_bindings_path,
+                    registry_path,
+                    protection_registry_path,
+                )
             ),
             "PRIMARY_EXPLICIT_BINDINGS_REQUIRED",
         )
@@ -85,6 +96,12 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
         self.registry_path, self.preservation = (
             registry_path,
             copy.deepcopy(preservation),
+        )
+        self.protection_registry_path = protection_registry_path
+        self.protection_registry_sha256 = expected_protection_registry_sha256
+        # Validate presence, ownership, pin and schema before any planning.
+        read_protection_registry(
+            protection_registry_path, expected_protection_registry_sha256
         )
         self.current_attempt_review_binding = None
         self.evidence, self.record, self.proposal = (
@@ -148,6 +165,22 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             "PRIMARY_TARGET_CHANGED",
         )
         return [self.record["assignment_id"]]
+
+    def _protect(self, current: dict[str, Any]) -> dict[str, Any]:
+        registry = read_protection_registry(
+            self.protection_registry_path, self.protection_registry_sha256
+        )
+        target = {
+            key: self.record[key] for key in ("course_id", "user_id", "assignment_id")
+        }
+        cell = current.get("cells", {}).get(
+            target["user_id"] + ":" + target["assignment_id"]
+        )
+        _need(type(cell) is dict and "value" in cell, "PROTECTION_TARGET_HELD")
+        assert_target_unprotected(
+            registry, target, cell, self.authority.assert_protection_current
+        )
+        return registry
 
     def _current_student_info(
         self, raw: dict[str, Any], binding: dict[str, Any]
@@ -237,6 +270,7 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
     ) -> dict[str, Any]:
         target = self._registered()
         self._current_student_info(raw, binding)
+        protection = self._protect(current)
         matches = [
             x
             for x in current["assignments"]
@@ -253,6 +287,8 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             proposal=self.proposal,
             assignment_binding=target,
             authority=self._assert_current,
+            protection_registry=protection,
+            protection_authority=self.authority.assert_protection_current,
             raw=raw,
             binding=binding,
             baseline=baseline,
@@ -311,6 +347,7 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
     ) -> None:
         self.validate_plan(plan, expected_plan_sha256=expected_plan_sha256)
         self._current_student_info(raw, plan["binding"])
+        protection = self._protect(current)
         target = self._registered()
         _need(
             plan["assignment_bindings_sha256"] == self.assignment_sha256
@@ -325,6 +362,8 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             plan["primary_plan"],
             expected_plan_sha256=digest(plan["primary_plan"]),
             authority=self._assert_current,
+            protection_registry=protection,
+            protection_authority=self.authority.assert_protection_current,
             raw=raw,
             current=current,
             pin_binding=pin_binding,
