@@ -20,6 +20,7 @@ from .canvas_primary_protection import (
 )
 from .canvas_primary_review import (
     CONTRACT,
+    HASH,
     _verified,
     prepare_primary_review_transfer,
     revalidate_primary_review_transfer,
@@ -296,15 +297,18 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             pin_binding=pin_binding,
             preservation=self.preservation,
         )
+        transfer = primary.pop("transfer")
+        primary["transfer_sha256"] = digest(transfer)
         return {
             "contract": CONTRACT,
+            "plan_layout": "SINGLE_TRANSFER_V1",
             "binding": copy.deepcopy(binding),
             "items": [
                 {"key": self.record["user_id"] + ":" + self.record["assignment_id"]}
             ],
             "assignment_bindings_sha256": self.assignment_sha256,
             "primary_plan": primary,
-            "transfer": copy.deepcopy(primary["transfer"]),
+            "transfer": transfer,
             "canvas_writes": 0,
             "sheets_writes": 0,
             "publication_allowed": False,
@@ -320,11 +324,49 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             and plan.get("canvas_writes") == plan.get("sheets_writes") == 0,
             "PRIMARY_OWNER_PLAN_CHANGED",
         )
-        primary = plan.get("primary_plan", {})
-        record = primary.get("transfer", {}).get("record", {})
+        primary = plan.get("primary_plan")
+        transfer = plan.get("transfer")
         _need(
-            plan.get("binding") == primary.get("transfer", {}).get("binding")
-            and plan.get("transfer") == primary.get("transfer")
+            type(primary) is dict
+            and type(transfer) is dict
+            and primary.get("contract") == CONTRACT
+            and primary.get("teacher_accepted") is False
+            and primary.get("publication_allowed") is False
+            and primary.get("canvas_writes") == primary.get("sheets_writes") == 0
+            and type(primary.get("evidence")) is dict
+            and type(primary.get("assignment_binding")) is dict
+            and type(primary.get("protection_registry_sha256")) is str
+            and HASH.fullmatch(primary["protection_registry_sha256"]),
+            "PRIMARY_OWNER_PLAN_CHANGED",
+        )
+        expected_fields = {
+            "contract",
+            "evidence",
+            "assignment_binding",
+            "protection_registry_sha256",
+            "teacher_accepted",
+            "publication_allowed",
+            "canvas_writes",
+            "sheets_writes",
+        }
+        if plan.get("plan_layout") == "SINGLE_TRANSFER_V1":
+            _need(
+                set(primary) == expected_fields | {"transfer_sha256"}
+                and primary.get("transfer_sha256") == digest(transfer),
+                "PRIMARY_OWNER_PLAN_CHANGED",
+            )
+        else:
+            # Read existing legacy plans for recovery, never create this shape.
+            _need(
+                "plan_layout" not in plan
+                and set(primary) == expected_fields | {"transfer"}
+                and primary.get("transfer") == transfer,
+                "PRIMARY_OWNER_PLAN_CHANGED",
+            )
+        record = transfer.get("record", {})
+        _need(
+            type(record) is dict
+            and plan.get("binding") == transfer.get("binding")
             and plan.get("items")
             == [
                 {
@@ -335,6 +377,14 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             ],
             "PRIMARY_OWNER_PLAN_CHANGED",
         )
+
+    @staticmethod
+    def _expanded_primary(plan: dict[str, Any]) -> dict[str, Any]:
+        primary = copy.deepcopy(plan["primary_plan"])
+        if plan.get("plan_layout") == "SINGLE_TRANSFER_V1":
+            primary.pop("transfer_sha256")
+            primary["transfer"] = copy.deepcopy(plan["transfer"])
+        return primary
 
     def revalidate(
         self,
@@ -358,9 +408,10 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             and plan["primary_plan"]["evidence"] == self.evidence,
             "PRIMARY_OWNER_SOURCE_CHANGED",
         )
+        primary = self._expanded_primary(plan)
         revalidate_primary_review_transfer(
-            plan["primary_plan"],
-            expected_plan_sha256=digest(plan["primary_plan"]),
+            primary,
+            expected_plan_sha256=digest(primary),
             authority=self._assert_current,
             protection_registry=protection,
             protection_authority=self.authority.assert_protection_current,

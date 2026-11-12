@@ -424,3 +424,67 @@ async def test_registry_change_blocks_existing_plan_before_send(connection, case
             current=case["current"],
             pin_binding=case["pin_binding"],
         )
+
+
+@pytest.mark.asyncio
+async def test_single_transfer_layout_is_bound_and_legacy_recovery_remains_readable(
+    connection, case
+):
+    await connection.refresh_source("fictional-canvas")
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+    assert plan["plan_layout"] == "SINGLE_TRANSFER_V1"
+    assert "transfer" not in plan["primary_plan"]
+    assert plan["primary_plan"]["transfer_sha256"] == digest(plan["transfer"])
+    connection.validate_plan(plan, expected_plan_sha256=digest(plan))
+    legacy = copy.deepcopy(plan)
+    legacy.pop("plan_layout")
+    legacy["primary_plan"].pop("transfer_sha256")
+    legacy["primary_plan"]["transfer"] = copy.deepcopy(legacy["transfer"])
+    connection.validate_plan(legacy, expected_plan_sha256=digest(legacy))
+    connection.revalidate(
+        legacy,
+        expected_plan_sha256=digest(legacy),
+        raw=case["raw"],
+        current=case["current"],
+        pin_binding=case["pin_binding"],
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "transfer",
+        "transfer_pin",
+        "missing_pin",
+        "duplicate_transfer",
+        "layout",
+        "approval_flag",
+        "protection_pin",
+    ],
+)
+async def test_single_transfer_tampering_holds_even_with_recomputed_outer_digest(
+    connection, case, mutation
+):
+    await connection.refresh_source("fictional-canvas")
+    plan = connection.prepare(
+        **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
+    )
+    if mutation == "transfer":
+        plan["transfer"]["canvas_writes"] = 1
+    elif mutation == "transfer_pin":
+        plan["primary_plan"]["transfer_sha256"] = "0" * 64
+    elif mutation == "missing_pin":
+        del plan["primary_plan"]["transfer_sha256"]
+    elif mutation == "duplicate_transfer":
+        plan["primary_plan"]["transfer"] = copy.deepcopy(plan["transfer"])
+    elif mutation == "approval_flag":
+        plan["primary_plan"]["teacher_accepted"] = True
+    elif mutation == "protection_pin":
+        plan["primary_plan"]["protection_registry_sha256"] = "bad"
+    else:
+        plan["plan_layout"] = "UNKNOWN"
+    with pytest.raises(GradebookError, match="PRIMARY_OWNER_PLAN_CHANGED"):
+        connection.validate_plan(plan, expected_plan_sha256=digest(plan))
