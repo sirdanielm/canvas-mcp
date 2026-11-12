@@ -899,9 +899,11 @@ class Publisher:
     ) -> dict[str, Any]:
         _owner_controls(owner_controls)
         review = self.store.load("review", review_id)
-        if "unit1_pair_score_intent" in review and owner_controls is None:
+        if "canvas_primary_source_review" in review:
+            raise GradebookError("A derived Canvas-primary review cannot be prepared again.")
+        if any(key in review for key in ("unit1_pair_score_intent", "canvas_primary_publication_intent", "canvas_primary_source_review")) and owner_controls is None:
             raise GradebookError(
-                "This approved intent requires its source owner controls."
+                "This source-owned intent requires its source owner controls."
             )
         baseline = self.store.load("snapshot", review["baseline_id"])
         if (baseline["course_id"], baseline["origin"]) != (
@@ -926,6 +928,13 @@ class Publisher:
             raise GradebookError("Only an active, available course can accept a push.")
         self.store.save("snapshot", current)
         fresh = compare_edits(baseline, current, edits)
+        if "canvas_primary_publication_intent" in review:
+            # Preserve source ownership on the freshly compared review. It must
+            # never become an unowned generic review by dropping its origin.
+            fresh["canvas_primary_source_review"] = {
+                "source_review_id": review_id,
+                "intent_sha256": digest(review["canvas_primary_publication_intent"]),
+            }
         fresh_id, _ = self.store.save("review", fresh)
         display = write_review_html(self.store, fresh)
         if not fresh["changes"] or fresh["counts"].get("review_required"):
