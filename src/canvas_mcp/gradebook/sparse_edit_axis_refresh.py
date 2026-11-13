@@ -8,6 +8,9 @@ Only declared physical grades are projected into the existing dense envelope.
 from __future__ import annotations
 
 import copy
+import inspect
+import re
+from collections.abc import Callable
 from typing import Any
 
 from . import native
@@ -20,6 +23,7 @@ from .refresh import cell, grade_validation_formula
 from .workbook import column_name, edits_from_cells
 
 MODE = "SPARSE_EDIT_AXIS_APPEND"
+_AXIS_OBSERVED_FORMAT_SCOPE = object()
 LAYOUT_MODE = "SPARSE_ASSIGNMENT_COLUMNS"
 LAYOUT_KEYS = {
     "schema_version",
@@ -70,10 +74,15 @@ def _layout_axes(
         layout = baseline["working_layout"]
         if (
             not isinstance(layout, dict)
-            or set(layout) != LAYOUT_KEYS
+            or set(layout)
+            != (
+                LAYOUT_KEYS
+                if layout.get("schema_version") == 1
+                else LAYOUT_KEYS | {"editable_ranges", "excluded_targets"}
+            )
             or (
                 type(layout["schema_version"]) is not int
-                or layout["schema_version"] != 1
+                or layout["schema_version"] not in (1, 2)
                 or layout["mode"] != LAYOUT_MODE
                 or layout["spreadsheet_id"] != binding["spreadsheet_id"]
                 or layout["course_id"] != identifier(binding["course_id"])
@@ -133,6 +142,19 @@ def _layout_axes(
             assignments
         ):
             raise ValueError
+        if layout["schema_version"] == 2:
+            _layout_permissions(layout, binding, rows, columns)
+            row_for = {uid: row for row, uid in rows.items()}
+            col_for = {aid: col for col, aid in columns.items()}
+            for item in layout["excluded_targets"]:
+                target = sheet["cells"].get(
+                    f"{row_for[item['user_id']]}:{col_for[item['assignment_id']]}", {}
+                )
+                if any(
+                    field in target
+                    for field in ("userEnteredValue", "note", "dataValidation")
+                ):
+                    raise ValueError
         for address, item in sheet["cells"].items():
             row, col = map(int, address.split(":"))
             if not ((col == 0 and row >= 5) or (row == 4 and col >= 2)):
@@ -154,6 +176,58 @@ def _layout_axes(
         raise GradebookError(
             "Sparse Edit physical layout or identity axes differ."
         ) from exc
+
+
+def _layout_permissions(
+    layout: dict[str, Any],
+    binding: dict[str, Any],
+    rows: dict[int, str],
+    columns: dict[int, str],
+) -> list[dict[str, int]]:
+    """Validate an immutable v2 score mask, including explicit excluded pairs."""
+    ranges = layout["editable_ranges"]
+    excluded = layout["excluded_targets"]
+    if not isinstance(ranges, list) or not isinstance(excluded, list):
+        raise ValueError
+    row_for = {uid: row for row, uid in rows.items()}
+    col_for = {aid: col for col, aid in columns.items()}
+    holes: set[tuple[int, int]] = set()
+    for item in excluded:
+        if not isinstance(item, dict) or set(item) != {"user_id", "assignment_id"}:
+            raise ValueError
+        pair = (row_for[item["user_id"]], col_for[item["assignment_id"]])
+        if pair in holes:
+            raise ValueError
+        holes.add(pair)
+    included: set[tuple[int, int]] = set()
+    for item in ranges:
+        if (
+            not isinstance(item, dict)
+            or set(item)
+            != {
+                "sheetId",
+                "startRowIndex",
+                "endRowIndex",
+                "startColumnIndex",
+                "endColumnIndex",
+            }
+            or any(type(value) is not int for value in item.values())
+            or item["sheetId"] != binding["sheets"]["Working"]
+            or not 5 <= item["startRowIndex"] < item["endRowIndex"] <= max(rows) + 1
+            or not 2
+            <= item["startColumnIndex"]
+            < item["endColumnIndex"]
+            <= max(columns) + 1
+        ):
+            raise ValueError
+        for row in range(item["startRowIndex"], item["endRowIndex"]):
+            for col in range(item["startColumnIndex"], item["endColumnIndex"]):
+                if row not in rows or col not in columns or (row, col) in included:
+                    raise ValueError
+                included.add((row, col))
+    if included != {(row, col) for row in rows for col in columns} - holes:
+        raise ValueError
+    return copy.deepcopy(ranges)
 
 
 def _sparse_rule(
@@ -266,6 +340,7 @@ def _ownership(
     *,
     legacy: bool = False,
     observed_green: bool = False,
+    editable_ranges: list[dict[str, int]] | None = None,
 ) -> None:
     sid = binding["sheets"]["Working"]
     sheet = state["sheets"][sid]
@@ -279,7 +354,10 @@ def _ownership(
         len(protections) != 1
         or not native._whole_sheet(protections[0], sid)
         or not _permission_ranges_equal(
-            protections[0].get("unprotectedRanges"), _editable(sid, rows, columns)
+            protections[0].get("unprotectedRanges"),
+            _editable(sid, rows, columns)
+            if editable_ranges is None
+            else editable_ranges,
         )
     ):
         raise GradebookError("Sparse Edit owned score protection differs.")
@@ -359,6 +437,11 @@ def extract_sparse_edits(
             layout["get_columns"],
         ),
         observed_green=_observed_green,
+        editable_ranges=(
+            _layout_permissions(layout, binding, rows, columns)
+            if layout["schema_version"] == 2
+            else None
+        ),
     )
     assignments = {item["id"]: item for item in baseline["assignments"]}
     projected: dict[str, Any] = {}
@@ -492,8 +575,54 @@ def plan_sparse_edit_axis_refresh(
     before_raw: dict[str, Any],
     baseline: dict[str, Any],
     current: dict[str, Any],
+    *,
+    _observed_format_authority: Callable[..., Any] | None = None,
+    _observed_format_rule_sha256: str | None = None,
+    _observed_format_receipt_sha256: str | None = None,
+    _observed_format_scope: object = None,
+    _growth_assignment_id: str | None = None,
+    _current_rows_only: bool = False,
 ) -> dict[str, Any]:
     """Append after the last opaque column; never reuse or move existing cells."""
+    observed = _observed_format_authority is not None
+    if observed:
+        if (
+            _observed_format_scope is not _AXIS_OBSERVED_FORMAT_SCOPE
+            or not callable(_observed_format_authority)
+            or not isinstance(_observed_format_rule_sha256, str)
+            or not re.fullmatch(r"[a-f0-9]{64}", _observed_format_rule_sha256)
+            or not isinstance(_observed_format_receipt_sha256, str)
+            or not re.fullmatch(r"[a-f0-9]{64}", _observed_format_receipt_sha256)
+            or "working_layout" not in baseline
+            or _current_rows_only is not True
+            or not isinstance(_growth_assignment_id, str)
+        ):
+            raise GradebookError("Sparse Edit observed format authority required.")
+        assert_observed_raw_rule(before_raw, binding, _observed_format_rule_sha256)
+        try:
+            response = _observed_format_authority(
+                copy.deepcopy(before_raw),
+                copy.deepcopy(binding),
+                copy.deepcopy(baseline),
+                _observed_format_receipt_sha256,
+            )
+            if inspect.iscoroutine(response):
+                response.close()
+            if response is not None:
+                raise ValueError
+        except Exception as exc:
+            raise GradebookError(
+                "Sparse Edit observed format authority rejected."
+            ) from exc
+    elif any(
+        x is not None
+        for x in (
+            _observed_format_rule_sha256,
+            _observed_format_receipt_sha256,
+            _observed_format_scope,
+        )
+    ):
+        raise GradebookError("Sparse Edit observed format authority required.")
     views = validate_get_workbook(before_raw, {course: binding})[course]
     old_students, old_assignments = _inventory(baseline)
     fresh_students, fresh_assignments = _inventory(current)
@@ -523,7 +652,9 @@ def plan_sparse_edit_axis_refresh(
     sheet = state["sheets"][sid]
     get_rows, get_columns = _get_source(views, state, binding, current)
     if "working_layout" in baseline:
-        original_edits = extract_sparse_edits(before_raw, binding, baseline)
+        original_edits = extract_sparse_edits(
+            before_raw, binding, baseline, _observed_green=observed
+        )
         rows, columns = _layout_axes(sheet, binding, baseline)
     else:
         original_edits = extract_native_edits(before_raw, binding, baseline)
@@ -546,6 +677,33 @@ def plan_sparse_edit_axis_refresh(
     new_assignments = [
         item for aid, item in fresh_assignments.items() if aid not in old_assignments
     ]
+    if type(_current_rows_only) is not bool:
+        raise GradebookError("Sparse Edit current-row scope invalid.")
+    if (_current_rows_only or _growth_assignment_id is not None) and (
+        not _current_rows_only
+        or type(_growth_assignment_id) is not str
+        or len(new_assignments) != 1
+        or new_assignments[0]["id"] != _growth_assignment_id
+        or new_students
+        or any(
+            current["cells"].get(f"{uid}:{_growth_assignment_id}", {}).get("value")
+            not in (None, "")
+            for uid in fresh_students
+        )
+    ):
+        raise GradebookError("Sparse Edit scoped blank assignment growth required.")
+    if (
+        new_assignments
+        and set(old_students) - set(fresh_students)
+        and not _current_rows_only
+    ):
+        raise GradebookError(
+            "Sparse Edit absent-student target permissions require scoped layout."
+        )
+    if baseline.get("working_layout", {}).get("schema_version") == 2 and (
+        new_students or (new_assignments and not _current_rows_only)
+    ):
+        raise GradebookError("Sparse Edit v2 additions require scoped layout.")
     old_end_row = max(rows) + 1
     last_column = max(columns)
     for address, item in sheet["cells"].items():
@@ -565,8 +723,13 @@ def plan_sparse_edit_axis_refresh(
     for col, item in enumerate(new_assignments, last_column + 1):
         all_columns[col] = item["id"]
     grid = sheet["properties"]["gridProperties"]
-    if max(all_rows) >= min(grid["rowCount"], 1000) or max(all_columns) >= min(
-        grid["columnCount"], 258
+    if max(all_rows) >= min(grid["rowCount"], 1000) or max(all_columns) >= 258:
+        raise GradebookError("Sparse Edit appends exceed existing empty grid capacity.")
+    growth = max(all_columns) >= grid["columnCount"]
+    if growth and (
+        _growth_assignment_id is None
+        or max(all_columns) != grid["columnCount"]
+        or len(new_assignments) != 1
     ):
         raise GradebookError("Sparse Edit appends exceed existing empty grid capacity.")
     merged = copy.deepcopy(baseline)
@@ -606,6 +769,45 @@ def plan_sparse_edit_axis_refresh(
         "get_rows": get_rows,
         "get_columns": get_columns,
     }
+    if _current_rows_only:
+        prior_ranges = [
+            p
+            for p in sheet["protectedRanges"]
+            if p.get("protectedRangeId") == binding["working_protection_id"]
+        ][0]["unprotectedRanges"]
+        excluded = copy.deepcopy(
+            baseline.get("working_layout", {}).get("excluded_targets", [])
+        )
+        new_col = next(
+            col for col, aid in all_columns.items() if aid == _growth_assignment_id
+        )
+        included_rows = [row for row, uid in rows.items() if uid in fresh_students]
+        runs: list[tuple[int, int]] = []
+        for row in included_rows:
+            if runs and runs[-1][1] == row:
+                runs[-1] = (runs[-1][0], row + 1)
+            else:
+                runs.append((row, row + 1))
+        additions = [
+            {
+                "sheetId": sid,
+                "startRowIndex": first,
+                "endRowIndex": last,
+                "startColumnIndex": new_col,
+                "endColumnIndex": new_col + 1,
+            }
+            for first, last in runs
+        ]
+        excluded.extend(
+            {"user_id": uid, "assignment_id": _growth_assignment_id}
+            for uid in rows.values()
+            if uid not in fresh_students
+        )
+        merged["working_layout"].update(
+            schema_version=2,
+            editable_ranges=copy.deepcopy(prior_ranges) + additions,
+            excluded_targets=excluded,
+        )
     writes: dict[tuple[int, int], Any] = {}
     for row, uid in all_rows.items():
         if uid in new_uids:
@@ -632,9 +834,26 @@ def plan_sparse_edit_axis_refresh(
             raise GradebookError(
                 "Sparse Edit append destination contains existing content."
             )
-    requests = _updates(sid, writes)
+    requests = []
+    if growth:
+        requests.append(
+            {
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": sid,
+                        "gridProperties": {"columnCount": grid["columnCount"] + 1},
+                    },
+                    "fields": "gridProperties.columnCount",
+                }
+            }
+        )
+    requests.extend(_updates(sid, writes))
     added_columns = {col: aid for col, aid in all_columns.items() if aid in new_aids}
-    requests.extend(_validation(sid, 5, old_end_row, added_columns))
+    if _current_rows_only:
+        for first, last in runs:
+            requests.extend(_validation(sid, first, last, added_columns))
+    else:
+        requests.extend(_validation(sid, 5, old_end_row, added_columns))
     requests.extend(_validation(sid, old_end_row, max(all_rows) + 1, all_columns))
     if writes:
         wire_rule = _sparse_rule(binding, all_rows, all_columns, get_rows, get_columns)
@@ -645,7 +864,11 @@ def plan_sparse_edit_axis_refresh(
                     "updateProtectedRange": {
                         "protectedRange": {
                             "protectedRangeId": binding["working_protection_id"],
-                            "unprotectedRanges": _editable(sid, all_rows, all_columns),
+                            "unprotectedRanges": merged["working_layout"][
+                                "editable_ranges"
+                            ]
+                            if _current_rows_only
+                            else _editable(sid, all_rows, all_columns),
                         },
                         "fields": "unprotectedRanges",
                     }
@@ -676,7 +899,7 @@ def plan_sparse_edit_axis_refresh(
     native._apply_requests(projected, requests, binding)
     after_raw = _raw(projected)
     expanded_edits = (
-        extract_sparse_edits(after_raw, binding, merged)
+        extract_sparse_edits(after_raw, binding, merged, _observed_green=observed)
         if "working_layout" in merged
         else extract_native_edits(after_raw, binding, merged)
     )
@@ -684,7 +907,7 @@ def plan_sparse_edit_axis_refresh(
         raise GradebookError(
             "Sparse Edit expansion changed existing teacher proposals."
         )
-    return {
+    result = {
         "mode": MODE,
         "course": course,
         "binding_digest": digest(binding),
@@ -711,6 +934,15 @@ def plan_sparse_edit_axis_refresh(
         },
         "canvas_writes": 0,
     }
+    if _current_rows_only:
+        result["current_rows_only_assignment_id"] = _growth_assignment_id
+    if observed:
+        result["observed_format"] = {
+            "rule_sha256": _observed_format_rule_sha256,
+            "receipt_sha256": _observed_format_receipt_sha256,
+            "growth_assignment_id": _growth_assignment_id,
+        }
+    return result
 
 
 def verify_sparse_edit_axis_output(
@@ -718,6 +950,9 @@ def verify_sparse_edit_axis_output(
     after: dict[str, Any],
     plans: Any,
     bindings: dict[str, Any],
+    *,
+    _observed_format_authorities: dict[str, Callable[..., Any]] | None = None,
+    _observed_format_scope: object = None,
 ) -> None:
     """Independently regenerate exact requests and every native preserved field."""
     validate_get_workbook(before, bindings)
@@ -742,12 +977,41 @@ def verify_sparse_edit_axis_output(
     expected = native._state(before)
     for plan in iterable:
         course = plan["course"]
+        observed = plan.get("observed_format")
+        scoped_id = plan.get("current_rows_only_assignment_id")
+        if scoped_id is not None and type(scoped_id) is not str:
+            raise GradebookError("Sparse Edit current-row scope invalid.")
+        if observed is not None and (
+            _observed_format_scope is not _AXIS_OBSERVED_FORMAT_SCOPE
+            or not isinstance(observed, dict)
+            or set(observed)
+            != {"rule_sha256", "receipt_sha256", "growth_assignment_id"}
+            or not isinstance(_observed_format_authorities, dict)
+            or course not in _observed_format_authorities
+            or observed.get("growth_assignment_id") != scoped_id
+        ):
+            raise GradebookError("Sparse Edit observed format authority required.")
+        scoped_args = (
+            {"_current_rows_only": True, "_growth_assignment_id": scoped_id}
+            if scoped_id is not None
+            else {}
+        )
+        if observed is not None:
+            scoped_args.update(
+                {
+                    "_observed_format_authority": _observed_format_authorities[course],
+                    "_observed_format_rule_sha256": observed["rule_sha256"],
+                    "_observed_format_receipt_sha256": observed["receipt_sha256"],
+                    "_observed_format_scope": _AXIS_OBSERVED_FORMAT_SCOPE,
+                }
+            )
         canonical = plan_sparse_edit_axis_refresh(
             course,
             bindings[course],
             before,
             plan["original_baseline"],
             plan["current_snapshot"],
+            **scoped_args,
         )
         if plan != canonical:
             raise GradebookError(
@@ -757,18 +1021,22 @@ def verify_sparse_edit_axis_output(
             expected, canonical["batch_update"]["requests"], bindings[course]
         )
         baseline = canonical["merged_baseline"]
-        observed = (
-            extract_sparse_edits(after, bindings[course], baseline)
+        output = (
+            extract_sparse_edits(
+                after, bindings[course], baseline, _observed_green=observed is not None
+            )
             if "working_layout" in baseline
             else extract_native_edits(after, bindings[course], baseline)
         )
         original = canonical["original_baseline"]
         prior = (
-            extract_sparse_edits(before, bindings[course], original)
+            extract_sparse_edits(
+                before, bindings[course], original, _observed_green=observed is not None
+            )
             if "working_layout" in original
             else extract_native_edits(before, bindings[course], original)
         )
-        if observed["edits"] != prior["edits"]:
+        if output["edits"] != prior["edits"]:
             raise GradebookError(
                 "Sparse Edit readback changed existing teacher proposals."
             )
