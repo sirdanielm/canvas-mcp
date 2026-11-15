@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Raised the dependency floors and lock to `dnspython 2.9.2` for
+  [CVE-2026-128089](https://github.com/rthalley/dnspython/security/advisories/GHSA-vvf4-9x63-8xvv)
+  and `opentelemetry-api 1.45.2` for
+  [CVE-2026-126360](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-mf5v-w3w3-f6cg).
+  Added regressions for WKS service-number bounds and rejecting oversized trace
+  context before regex parsing, with valid-input coverage. Installed environments
+  require separate adoption of these patched dependencies.
+
 - Raised the JOSE dependency floor and lock to `joserfc 1.7.7` for
   [CVE-2026-119284](https://github.com/advisories/GHSA-9pg5-8c7x-5hfx),
   which checks compact JWS size before allocating split segments. The advisory
