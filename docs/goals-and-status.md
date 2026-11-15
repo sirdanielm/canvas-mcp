@@ -31,6 +31,26 @@ For each grading route, bind evidence to the source, physical attempt, form and
 policy; preserve supported score and feedback, and verify the receiving result.
 A prior canary is evidence for its own case, not proof of another route.
 
+### Local pipeline autonomy — November 15, 2026
+
+The first development goal is a reusable local image/PDF pipeline that runs
+from scripts and assignment profiles. Prove a fresh Unit 3 packet from intake
+through literal reading, policy-bound draft feedback and receiving receipts,
+then qualify Unit 2, Unit 1 and CER 3.1e profiles. Each profile binds packet
+grouping, form/page geometry, identity, key or rubric, policy and destination;
+loose images need an explicit grouping rule. Preserve originals and record
+each stage's completed, held or unattempted state so unchanged replay reuses
+evidence without duplicate receiving rows.
+
+Printed OCR, MC mark detection, handwriting transcription and scoring need
+separate evidence. A missing transcript is not a blank, and a replay of saved
+answer rows does not prove autonomous reading of fresh scans. LocalGrAss owns
+shared intake/read tools, GrAss owns assessment scoring and feedback, and
+sdmGrAss owns the non-Canvas Sheet controller. Canvas owns exact destination
+bindings and protected EDIT/Canvas receiving. Non-Canvas Drive intake and the
+Canvas assignment fleet remain separately qualified lanes. This development
+goal changes no installed pin, pause, provider budget or classroom authority.
+
 New model work is eligible only when Canvas is ungraded **and** no applicable
 successful durable model result exists. Eligibility alone does not clear source,
 policy, tool or spending limits. Preserve the existing **15-minute participation
