@@ -471,11 +471,17 @@ def create_server(
             review = store.load("review", review_id)
             scoped = scope_requires_owner(course_id, review_id, review.get("changes"))
             if (scoped or contains_protected_target(course_id, review.get("changes"))
+                    or review.get("contract") == "CANVAS_PRIMARY_VISUAL_ADVISORY_V1"
                     or any(key in review for key in (
                         "unit1_pair_score_intent", "manual_four_authority", "owner_binding",
+                        "canvas_primary_publication_intent", "canvas_primary_source_review",
                     ))):
                 ensure_source_handlers()
-            if "unit1_pair_score_intent" in review:
+            if review.get("contract") == "CANVAS_PRIMARY_VISUAL_ADVISORY_V1":
+                if pair_score_handler is None or not pair_score_handler.recognizes_review(review_id):
+                    raise GradebookError("The exact Canvas-primary source owner is required for this intent.")
+                prepared = await pair_score_handler.prepare(publisher, course_id, review_id)
+            elif "unit1_pair_score_intent" in review:
                 if pair_score_handler is None or not pair_score_handler.recognizes_review(review_id):
                     raise GradebookError("The exact paired source owner is required for this intent.")
                 prepared = await pair_score_handler.prepare(publisher, course_id, review_id)
@@ -485,14 +491,14 @@ def create_server(
             elif unit1_score_handler is not None and unit1_score_handler.recognizes_review(review_id):
                 prepared = await unit1_score_handler.prepare(publisher, course_id, review_id)
             else:
-                if any(key in review for key in ("manual_four_authority", "owner_binding")):
+                if any(key in review for key in ("manual_four_authority", "owner_binding", "canvas_primary_publication_intent", "canvas_primary_source_review")):
                     raise GradebookError("The exact source-approved review is required.")
                 if (contains_protected_target(course_id, review.get("changes"))
                         or scoped and source_score_scope is not None
                         and unit1_pair_score_handler_factory is None):
                     raise GradebookError("Exact source-qualified review reference required.")
                 prepared = await publisher.prepare(course_id, review_id)
-            return {**prepared, "publishing_available": enable_push}
+            return {**prepared, "publishing_available": enable_push and prepared.get("publication_confirm_enabled", True) is True}
         except GradebookError as exc:
             return {"error": str(exc), "canvas_writes": 0}
         except Exception:
