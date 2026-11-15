@@ -185,7 +185,11 @@ def assert_target_unprotected(
     current_cell: dict[str, Any],
     authority: Callable[..., Any],
 ) -> None:
-    """Reject exact protected targets and unresolved zeros of monitored students."""
+    """Reject protected targets and unresolved monitored zeros.
+
+    The synchronous authority asserts current evidence and returns None on
+    success. Returned approval values and awaitables never grant authority.
+    """
     _validate_registry(registry)
     _need(
         type(target) is dict
@@ -219,19 +223,16 @@ def assert_target_unprotected(
             grade_value(current_cell["value"]),
             grade_value(current_cell["grade"]),
         )
-        zero_observed = any(
+        if any(
             type(value) in (int, float) and value == 0 for value in values
-        )
-    else:
-        zero_observed = False
-    if monitored and zero_observed:
-        match = [
-            x
-            for x in registry["coverage"]
-            if x["course_id"] == target["course_id"]
-            and x["user_id"] == target["user_id"]
-        ]
-        _need(
-            len(match) == 1 and match[0]["state"] == "COMPLETE",
-            "PROTECTED_ZERO_PROVENANCE_HELD",
-        )
+        ):
+            match = [
+                x
+                for x in registry["coverage"]
+                if x["course_id"] == target["course_id"]
+                and x["user_id"] == target["user_id"]
+            ]
+            _need(
+                len(match) == 1 and match[0]["state"] == "COMPLETE",
+                "PROTECTED_ZERO_PROVENANCE_HELD",
+            )

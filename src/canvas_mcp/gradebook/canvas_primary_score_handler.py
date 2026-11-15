@@ -108,6 +108,7 @@ def _write_handoff_preview(store: Any, review: dict[str, Any]) -> str:
                     + '">Open the Canvas assignment</a> and select the student in SpeedGrader.</p>'
                 )
         except ValueError:
+            # An invalid assignment URL stays unlinked in the private preview.
             pass
     content = (
         "<!doctype html><html lang='en'><meta charset='utf-8'>"

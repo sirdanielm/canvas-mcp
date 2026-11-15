@@ -178,7 +178,8 @@ def test_rejects_unqualified_or_changed_case(case, change):
     elif change == "null_score":
         case["proposal"]["total_score"] = None
     elif change == "changed_bytes":
-        open(case["evidence"]["originals"][0]["path"], "wb").write(b"changed")
+        with open(case["evidence"]["originals"][0]["path"], "wb") as stream:
+            stream.write(b"changed")
     elif change == "duplicate_pin":
         case["pin_binding"]["by_pin"]["9999"] = case["record"]["user_id"]
     elif change == "edpuzzle":

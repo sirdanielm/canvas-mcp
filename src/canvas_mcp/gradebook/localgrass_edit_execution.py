@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from .canvas_primary_owner import CanvasPrimaryEditConnection
 from .client import GradebookError
 from .localgrass_draft_edit import CONTRACT as DRAFT_CONTRACT
 from .localgrass_draft_edit import LocalGrAssDraftEditConnection
@@ -108,7 +109,9 @@ def _load_prior_plan(files: Any, path: Path) -> dict[str, Any]:
 
 
 async def _execute_local_edit_once(
-    connection: LocalGrAssEditConnection | LocalGrAssDraftEditConnection,
+    connection: LocalGrAssEditConnection
+    | LocalGrAssDraftEditConnection
+    | CanvasPrimaryEditConnection,
     plan: dict[str, Any],
     *,
     expected_plan_sha256: str,
@@ -127,7 +130,12 @@ async def _execute_local_edit_once(
     """
     _need(
         isinstance(
-            connection, (LocalGrAssEditConnection, LocalGrAssDraftEditConnection)
+            connection,
+            (
+                LocalGrAssEditConnection,
+                LocalGrAssDraftEditConnection,
+                CanvasPrimaryEditConnection,
+            ),
         ),
         "AUTHENTICATED_CONNECTION_REQUIRED",
     )
@@ -347,7 +355,9 @@ async def _execute_local_edit_once(
 
 
 async def execute_local_edit_once(
-    connection: LocalGrAssEditConnection | LocalGrAssDraftEditConnection,
+    connection: LocalGrAssEditConnection
+    | LocalGrAssDraftEditConnection
+    | CanvasPrimaryEditConnection,
     plan: dict[str, Any],
     *,
     expected_plan_sha256: str,

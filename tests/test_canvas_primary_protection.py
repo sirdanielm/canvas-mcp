@@ -2,6 +2,7 @@
 
 import copy
 import hashlib
+import inspect
 import json
 
 import pytest
@@ -85,6 +86,45 @@ def test_unrelated_student_and_other_unprotected_blank_allowed(protection):
         {"value": None, "grade": None},
         authority(data),
     )
+
+
+@pytest.mark.parametrize("returned", [True, False, 0, {}, []])
+def test_protection_assertion_must_not_return_an_approval_value(protection, returned):
+    _, path, pin = protection
+    policy = read_protection_registry(path, pin)
+
+    def returns_approval_value(registry, target):
+        return returned
+
+    with pytest.raises(GradebookError, match="^PROTECTION_AUTHORITY_HELD$"):
+        assert_target_unprotected(
+            policy,
+            {"course_id": "12", "assignment_id": "22", "user_id": "999"},
+            {"value": None, "grade": None},
+            returns_approval_value,
+        )
+
+
+def test_protection_assertion_rejects_and_closes_a_returned_coroutine(protection):
+    _, path, pin = protection
+    policy = read_protection_registry(path, pin)
+
+    async def asynchronous_assertion():
+        return None
+
+    pending = asynchronous_assertion()
+
+    def returns_coroutine(registry, target):
+        return pending
+
+    with pytest.raises(GradebookError, match="^PROTECTION_AUTHORITY_HELD$"):
+        assert_target_unprotected(
+            policy,
+            {"course_id": "12", "assignment_id": "22", "user_id": "999"},
+            {"value": None, "grade": None},
+            returns_coroutine,
+        )
+    assert inspect.getcoroutinestate(pending) == inspect.CORO_CLOSED
 
 
 def test_monitored_student_zero_requires_complete_scope(protection):

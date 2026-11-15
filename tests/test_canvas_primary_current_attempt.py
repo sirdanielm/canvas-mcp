@@ -319,6 +319,7 @@ def test_unsafe_states_hold(case, change):
         try:
             rebind(case)
         except GradebookError:
+            # Invalid test input may already hold during rebinding; compare must hold too.
             pass
     with pytest.raises((GradebookError, ValueError, KeyError)):
         m.prepare_comparison(**case)

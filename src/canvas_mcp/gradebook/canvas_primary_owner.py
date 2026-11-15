@@ -26,7 +26,6 @@ from .canvas_primary_review import (
     revalidate_primary_review_transfer,
 )
 from .client import GradebookError
-from .localgrass_draft_edit import LocalGrAssDraftEditConnection
 from .model import digest
 from .proposal_edit_transfer import classify_proposal_readback
 from .store import Store
@@ -37,7 +36,7 @@ def _need(value: Any, code: str) -> None:
         raise GradebookError(code)
 
 
-class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
+class CanvasPrimaryEditConnection:
     """Advisory adapter for the existing owner and one-shot execution protocol."""
 
     contract = CONTRACT
@@ -104,7 +103,7 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
         read_protection_registry(
             protection_registry_path, expected_protection_registry_sha256
         )
-        self.current_attempt_review_binding = None
+        self.current_attempt_review_binding: dict[str, str] | None = None
         self.evidence, self.record, self.proposal = (
             copy.deepcopy(evidence),
             copy.deepcopy(record),

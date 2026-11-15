@@ -173,6 +173,77 @@ async def test_disabled_executor_never_writes(connection, case, tmp_path):
     assert result["status"] == "LOCAL_EDIT_WRITE_DISABLED"
 
 
+def test_owner_accepts_independent_primary_but_rejects_a_duck_type(
+    connection, case, tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from canvas_mcp.gradebook import localgrass_edit_owner
+    from canvas_mcp.gradebook.client import GradebookClient
+    from canvas_mcp.gradebook.google import GoogleSheets
+    from canvas_mcp.gradebook.localgrass_draft_edit import LocalGrAssDraftEditConnection
+    from canvas_mcp.gradebook.localgrass_edit_owner import LocalGrAssEditOwner
+    from canvas_mcp.gradebook.worker import RefreshJournal
+
+    assert not isinstance(connection, LocalGrAssDraftEditConnection)
+    config = {"output_root": tmp_path, "runtime_root": tmp_path}
+    monkeypatch.setattr(LocalGrAssEditOwner, "_configuration", lambda self: config)
+    monkeypatch.setattr(
+        localgrass_edit_owner,
+        "importlib",
+        SimpleNamespace(import_module=lambda name: SimpleNamespace()),
+    )
+    canvas = object.__new__(GradebookClient)
+    google = object.__new__(GoogleSheets)
+    google.workbook_id = case["binding"]["spreadsheet_id"]
+    journal = object.__new__(RefreshJournal)
+    journal.root = connection.store.root / "refresh-journal"
+    journal.workbook_id = google.workbook_id
+
+    def owner(candidate):
+        return LocalGrAssEditOwner(
+            candidate,
+            canvas,
+            google,
+            journal,
+            staging_config_path=tmp_path / "staging.json",
+            expected_staging_config_sha256="a" * 64,
+            binding=case["binding"],
+        )
+
+    assert owner(connection).connection is connection
+    duck = SimpleNamespace(**vars(connection))
+    for name in ("prepare", "validate_plan", "revalidate", "classify"):
+        setattr(duck, name, getattr(connection, name))
+    with pytest.raises(GradebookError, match="EXISTING_LOCAL_EDIT_OWNERS_REQUIRED"):
+        owner(duck)
+
+
+@pytest.mark.asyncio
+async def test_executor_rejects_a_duck_type_before_any_callback(connection, tmp_path):
+    from types import SimpleNamespace
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Unrecognized connection reached a callback")
+
+    duck = SimpleNamespace(
+        **vars(connection),
+        contract=connection.contract,
+        validate_plan=forbidden,
+        revalidate=forbidden,
+        classify=forbidden,
+    )
+    with pytest.raises(GradebookError, match="AUTHENTICATED_CONNECTION_REQUIRED"):
+        await execute_local_edit_once(
+            duck,
+            {},
+            expected_plan_sha256="a" * 64,
+            output_root=tmp_path,
+            read_context=forbidden,
+            write_requests=forbidden,
+        )
+
+
 @pytest.mark.asyncio
 async def test_changed_assignment_binding_and_source_hold(connection, case):
     await connection.refresh_source("fictional-canvas")
@@ -270,16 +341,25 @@ async def test_composed_owner_refreshes_before_send_but_not_reconcile_or_disable
     from canvas_mcp.gradebook import native
     from canvas_mcp.gradebook.localgrass_edit_owner import LocalGrAssEditOwner
 
+    reads = []
+
     class Canvas:
         label = "fictional-canvas"
         origin = case["current"]["origin"]
 
         async def snapshot(self, course_id):
             assert course_id == case["record"]["course_id"]
-            return copy.deepcopy(case["current"])
+            assert connection.authority.ready
+            reads.append("snapshot")
+            current = copy.deepcopy(case["current"])
+            for assignment in current["assignments"]:
+                assignment.pop("assignment_metadata", None)
+                assignment.pop("assignment_metadata_sha256", None)
+            return current
 
         async def get(self, path):
             assert path.endswith("/assignments/" + case["record"]["assignment_id"])
+            reads.append("assignment")
             return copy.deepcopy(case["assignment_binding"]["assignment_metadata"])
 
     class Google:
@@ -290,6 +370,7 @@ async def test_composed_owner_refreshes_before_send_but_not_reconcile_or_disable
             self.writes = 0
 
         async def read_workbook(self):
+            reads.append("native")
             return copy.deepcopy(self.raw)
 
         async def send_preflighted_batch(self, requests):
@@ -333,12 +414,16 @@ async def test_composed_owner_refreshes_before_send_but_not_reconcile_or_disable
     disabled = await owner.execute(plan_id)
     assert disabled["status"] == "LOCAL_EDIT_WRITE_DISABLED"
     assert connection.authority.refresh_count == count and owner.google.writes == 0
+    assert reads == []
     sent = await owner.execute(plan_id, enabled=True)
     assert sent["status"] == "PLANNED_OUTPUT_OBSERVED"
     assert connection.authority.refresh_count == count + 2 and owner.google.writes == 1
+    assert reads[:3] == ["snapshot", "assignment", "native"]
+    assert reads.count("assignment") == 2
     again = await owner.execute(plan_id, enabled=True)
     assert again["status"] == "PLANNED_OUTPUT_OBSERVED"
     assert connection.authority.refresh_count == count + 2 and owner.google.writes == 1
+    assert reads.count("assignment") == 2
 
 
 @pytest.mark.asyncio

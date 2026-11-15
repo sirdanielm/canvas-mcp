@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .canvas_primary_owner import CanvasPrimaryEditConnection
 from .client import GradebookClient, GradebookError
 from .get_only_refresh import validate_get_workbook
 from .google import GoogleSheets
@@ -40,7 +41,9 @@ class LocalGrAssEditOwner:
 
     def __init__(
         self,
-        connection: LocalGrAssEditConnection | LocalGrAssDraftEditConnection,
+        connection: LocalGrAssEditConnection
+        | LocalGrAssDraftEditConnection
+        | CanvasPrimaryEditConnection,
         canvas: GradebookClient,
         google: GoogleSheets,
         journal: RefreshJournal,
@@ -51,7 +54,12 @@ class LocalGrAssEditOwner:
     ) -> None:
         _need(
             isinstance(
-                connection, (LocalGrAssEditConnection, LocalGrAssDraftEditConnection)
+                connection,
+                (
+                    LocalGrAssEditConnection,
+                    LocalGrAssDraftEditConnection,
+                    CanvasPrimaryEditConnection,
+                ),
             )
             and isinstance(canvas, GradebookClient)
             and isinstance(google, GoogleSheets)
@@ -179,8 +187,6 @@ class LocalGrAssEditOwner:
         self._configuration()
         # Source-specific owner hook must obtain current submission evidence
         # before each existing native preflight, never from request JSON.
-        from .canvas_primary_owner import CanvasPrimaryEditConnection
-
         if isinstance(self.connection, CanvasPrimaryEditConnection):
             await self.connection.refresh_source(self.canvas)
         current = await self.canvas.snapshot(str(self.binding["course_id"]))
@@ -192,7 +198,9 @@ class LocalGrAssEditOwner:
         pins = self._pin_module.canonical_pin_binding(
             self.connection.registry_path, self.runtime_root
         )
-        if isinstance(self.connection, LocalGrAssDraftEditConnection):
+        if isinstance(
+            self.connection, (LocalGrAssDraftEditConnection, CanvasPrimaryEditConnection)
+        ):
             # Generic snapshots omit external-tool metadata. Reuse the existing
             # owner client to bind fresh raw target details before draft staging.
             # Enrich only this context copy; retained baselines stay unchanged.
