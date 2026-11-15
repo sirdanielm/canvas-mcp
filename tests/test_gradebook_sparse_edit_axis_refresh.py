@@ -509,38 +509,12 @@ def absent_student_scenario(scenario, *, already_sparse=False, append=True):
 
 
 @pytest.mark.parametrize("already_sparse", [False, True])
-def test_sparse_append_retains_absent_students_without_synthesizing_new_scores(
-    scenario, already_sparse
-):
-    case = absent_student_scenario(scenario, already_sparse=already_sparse)
-    before, binding, baseline, current = case
-    untouched = copy.deepcopy(case)
-    plan, after = prepared(case)
-    assert case == untouched
-    merged = plan["merged_baseline"]
-    assert merged["students"] == (
-        baseline["students"]
-        if already_sparse
-        else baseline["students"] + current["students"]
+def test_unscoped_append_with_absent_students_holds(scenario, already_sparse):
+    before, binding, baseline, current = absent_student_scenario(
+        scenario, already_sparse=already_sparse
     )
-    assert merged["cells"]["101:21"] == baseline["cells"]["101:21"]
-    new_aid, new_col = ("23", 5) if already_sparse else ("22", 4)
-    assert f"101:{new_aid}" not in merged["cells"]
-    assert plan["counts"]["new_students"] == (0 if already_sparse else 1)
-    assert plan["counts"]["new_targets"] == (1 if already_sparse else 2)
-    old, new = native._state(before), native._state(after)
-    for address in ("5:0", "5:1", "5:2", "5:3"):
-        assert new["sheets"][2]["cells"][address] == old["sheets"][2]["cells"][address]
-    assert "userEnteredValue" not in new["sheets"][2]["cells"][f"5:{new_col}"]
-    if already_sparse:
-        assert new["sheets"][2]["cells"]["5:4"] == old["sheets"][2]["cells"]["5:4"]
-        assert merged["cells"]["102:23"]["value"] == 7
-    assert new["sheets"][1] == old["sheets"][1]
-    assert plan["canvas_writes"] == 0
-    verify_sparse_edit_axis_output(before, after, [plan], {"core": binding})
-    assert extract_sparse_edits(after, binding, merged)["edits"] == [
-        {"user_id": "101", "assignment_id": "21", "value": 20}
-    ]
+    with pytest.raises(GradebookError, match="absent-student target permissions"):
+        plan_sparse_edit_axis_refresh("core", binding, before, baseline, current)
 
 
 def test_absent_student_without_new_coverage_is_a_noop(scenario):
@@ -620,3 +594,339 @@ def test_observed_green_rejects_every_other_rule_or_alias_change(scenario, mutat
             raw, scenario[1], plan["merged_baseline"], _observed_green=True
         )
     assert raw == before
+
+
+def _fictional_observed_u3_axis_case(scenario):
+    before, binding, baseline, current = absent_student_scenario(
+        scenario, already_sparse=True
+    )
+    current["cells"].pop("102:23")
+    state = native._state(before)
+    native._apply_requests(
+        state, get_only_requests(current, digest(current), binding, state), binding
+    )
+    sheet = state["sheets"][binding["sheets"]["Working"]]
+    sheet["properties"]["gridProperties"]["columnCount"] = 5
+    sheet["columnMetadata"] = {
+        k: v for k, v in sheet["columnMetadata"].items() if int(k) < 5
+    }
+    sheet["cells"] = {
+        k: v for k, v in sheet["cells"].items() if int(k.split(":")[1]) < 5
+    }
+    before = raw_from_state(state)
+    raw_sheet = next(
+        s
+        for s in before["sheets"]
+        if s["properties"]["sheetId"] == binding["sheets"]["Working"]
+    )
+    fmt = raw_sheet["conditionalFormats"][0]["booleanRule"]["format"]
+    fmt["backgroundColor"]["green"] = 0.9490196
+    fmt["backgroundColorStyle"] = {"rgbColor": copy.deepcopy(fmt["backgroundColor"])}
+    rule_hash = digest(raw_sheet["conditionalFormats"][0])
+    receipt = "a" * 64
+    expected_raw = copy.deepcopy(before)
+    expected_binding = copy.deepcopy(binding)
+    expected_baseline = copy.deepcopy(baseline)
+
+    def authority(raw, b, base, ref):
+        if (raw, b, base, ref) != (
+            expected_raw,
+            expected_binding,
+            expected_baseline,
+            receipt,
+        ):
+            raise ValueError("fictional authority rejected")
+
+    args = {
+        "_observed_format_authority": authority,
+        "_observed_format_rule_sha256": rule_hash,
+        "_observed_format_receipt_sha256": receipt,
+        "_observed_format_scope": candidate._AXIS_OBSERVED_FORMAT_SCOPE,
+        "_growth_assignment_id": "23",
+        "_current_rows_only": True,
+    }
+    return before, binding, baseline, current, args
+
+
+def test_scoped_observed_blank_axis_growth_preserves_every_selected_field(scenario):
+    before, binding, baseline, current, args = _fictional_observed_u3_axis_case(
+        scenario
+    )
+    original = copy.deepcopy((before, binding, baseline, current))
+    with pytest.raises(GradebookError):
+        plan_sparse_edit_axis_refresh("core", binding, before, baseline, current)
+    plan = plan_sparse_edit_axis_refresh(
+        "core", binding, before, baseline, current, **args
+    )
+    assert (before, binding, baseline, current) == original
+    assert (
+        plan["counts"]["new_students"] == 0 and plan["counts"]["new_assignments"] == 1
+    )
+    assert plan["batch_update"]["requests"][0] == {
+        "updateSheetProperties": {
+            "properties": {"sheetId": 2, "gridProperties": {"columnCount": 6}},
+            "fields": "gridProperties.columnCount",
+        }
+    }
+    state = native._state(before)
+    native._apply_requests(state, plan["batch_update"]["requests"], binding)
+    after = raw_from_state(state)
+    verify_sparse_edit_axis_output(
+        before,
+        after,
+        [plan],
+        {"core": binding},
+        _observed_format_authorities={"core": args["_observed_format_authority"]},
+        _observed_format_scope=candidate._AXIS_OBSERVED_FORMAT_SCOPE,
+    )
+    old_rule = next(s for s in before["sheets"] if s["properties"]["sheetId"] == 2)[
+        "conditionalFormats"
+    ][0]
+    new_rule = next(s for s in after["sheets"] if s["properties"]["sheetId"] == 2)[
+        "conditionalFormats"
+    ][0]
+    assert old_rule["booleanRule"]["format"] == new_rule["booleanRule"]["format"]
+    assert (
+        plan["original_baseline"] == baseline
+        and "101:23" not in plan["merged_baseline"]["cells"]
+    )
+    with pytest.raises(GradebookError, match="authority required"):
+        verify_sparse_edit_axis_output(before, after, [plan], {"core": binding})
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing_scope",
+        "missing_authority",
+        "wrong_rule",
+        "wrong_receipt",
+        "authority_returns_true",
+        "authority_raises",
+        "wrong_assignment",
+        "nonblank",
+        "extra_student",
+        "formula",
+        "green",
+        "alias",
+        "protection",
+    ],
+)
+def test_scoped_observed_axis_rejects_tampering(scenario, mutation):
+    before, binding, baseline, current, args = _fictional_observed_u3_axis_case(
+        scenario
+    )
+    if mutation == "missing_scope":
+        args["_observed_format_scope"] = None
+    elif mutation == "missing_authority":
+        args["_observed_format_authority"] = None
+    elif mutation == "wrong_rule":
+        args["_observed_format_rule_sha256"] = "b" * 64
+    elif mutation == "wrong_receipt":
+        args["_observed_format_receipt_sha256"] = "b" * 64
+    elif mutation == "authority_returns_true":
+        args["_observed_format_authority"] = lambda *_: True
+    elif mutation == "authority_raises":
+        args["_observed_format_authority"] = lambda *_: (_ for _ in ()).throw(
+            ValueError()
+        )
+    elif mutation == "wrong_assignment":
+        args["_growth_assignment_id"] = "99"
+    elif mutation == "nonblank":
+        current["cells"]["102:23"] = {"value": 0}
+    elif mutation == "extra_student":
+        current["students"].append({"id": "999", "name": "Fictional", "sections": []})
+    else:
+        sheet = next(s for s in before["sheets"] if s["properties"]["sheetId"] == 2)
+        rule = sheet["conditionalFormats"][0]
+        if mutation == "formula":
+            rule["booleanRule"]["condition"]["values"][0]["userEnteredValue"] = "=TRUE"
+        elif mutation == "green":
+            rule["booleanRule"]["format"]["backgroundColor"]["green"] = 0.9
+        elif mutation == "alias":
+            rule["booleanRule"]["format"]["backgroundColorStyle"]["rgbColor"][
+                "green"
+            ] = 0.9
+        else:
+            sheet["protectedRanges"][0]["warningOnly"] = True
+    with pytest.raises(GradebookError):
+        plan_sparse_edit_axis_refresh(
+            "core", binding, before, baseline, current, **args
+        )
+
+
+def _fictional_current_only_case(scenario):
+    before, binding, baseline, current, _ = _fictional_observed_u3_axis_case(scenario)
+    sheet = next(s for s in before["sheets"] if s["properties"]["sheetId"] == 2)
+    fmt = sheet["conditionalFormats"][0]["booleanRule"]["format"]
+    fmt["backgroundColor"]["green"] = 0.9529412
+    fmt["backgroundColorStyle"]["rgbColor"] = copy.deepcopy(fmt["backgroundColor"])
+    return before, binding, baseline, current
+
+
+def test_current_rows_only_v2_preserves_permissions_and_retired_cell(scenario):
+    before, binding, baseline, current = _fictional_current_only_case(scenario)
+    old = native._state(before)
+    plan = plan_sparse_edit_axis_refresh(
+        "core",
+        binding,
+        before,
+        baseline,
+        current,
+        _current_rows_only=True,
+        _growth_assignment_id="23",
+    )
+    layout = plan["merged_baseline"]["working_layout"]
+    assert layout["schema_version"] == 2
+    assert layout["excluded_targets"] == [{"user_id": "101", "assignment_id": "23"}]
+    assert (
+        layout["editable_ranges"][
+            : len(old["sheets"][2]["protectedRanges"][0]["unprotectedRanges"])
+        ]
+        == old["sheets"][2]["protectedRanges"][0]["unprotectedRanges"]
+    )
+    state = native._state(before)
+    native._apply_requests(state, plan["batch_update"]["requests"], binding)
+    after = raw_from_state(state)
+    verify_sparse_edit_axis_output(before, after, [plan], {"core": binding})
+    assert all(
+        k not in state["sheets"][2]["cells"].get("5:5", {})
+        for k in ("userEnteredValue", "note", "dataValidation")
+    )
+    assert "dataValidation" in state["sheets"][2]["cells"]["6:5"]
+    for pos in ("5:0", "5:1", "5:2", "5:3", "5:4"):
+        assert state["sheets"][2]["cells"].get(pos, {}) == old["sheets"][2][
+            "cells"
+        ].get(pos, {})
+    assert not any(
+        r["startRowIndex"] <= 5 < r["endRowIndex"]
+        and r["startColumnIndex"] <= 5 < r["endColumnIndex"]
+        for r in layout["editable_ranges"]
+    )
+    assert any(
+        r["startRowIndex"] <= 6 < r["endRowIndex"]
+        and r["startColumnIndex"] <= 5 < r["endColumnIndex"]
+        for r in layout["editable_ranges"]
+    )
+    again = plan_sparse_edit_axis_refresh(
+        "core", binding, after, plan["merged_baseline"], current
+    )
+    assert (
+        again["batch_update"]["requests"] == []
+        and again["merged_baseline"] == plan["merged_baseline"]
+    )
+    verify_sparse_edit_axis_output(after, after, [again], {"core": binding})
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "drop_hole",
+        "duplicate_hole",
+        "wrong_student",
+        "overlap_range",
+        "helper_range",
+        "expand_hole",
+        "excluded_value",
+        "excluded_note",
+        "excluded_validation",
+    ],
+)
+def test_v2_permission_mask_tamper_holds(scenario, mutation):
+    before, binding, baseline, current = _fictional_current_only_case(scenario)
+    plan = plan_sparse_edit_axis_refresh(
+        "core",
+        binding,
+        before,
+        baseline,
+        current,
+        _current_rows_only=True,
+        _growth_assignment_id="23",
+    )
+    state = native._state(before)
+    native._apply_requests(state, plan["batch_update"]["requests"], binding)
+    base = copy.deepcopy(plan["merged_baseline"])
+    layout = base["working_layout"]
+    cell = state["sheets"][2]["cells"].setdefault("5:5", {})
+    if mutation == "drop_hole":
+        layout["excluded_targets"] = []
+    elif mutation == "duplicate_hole":
+        layout["excluded_targets"].append(copy.deepcopy(layout["excluded_targets"][0]))
+    elif mutation == "wrong_student":
+        layout["excluded_targets"][0]["user_id"] = "999"
+    elif mutation == "overlap_range":
+        layout["editable_ranges"].append(copy.deepcopy(layout["editable_ranges"][0]))
+    elif mutation == "helper_range":
+        layout["editable_ranges"][0]["endColumnIndex"] += 1
+    elif mutation == "expand_hole":
+        layout["editable_ranges"][-1]["startRowIndex"] -= 1
+    elif mutation == "excluded_value":
+        cell["userEnteredValue"] = {"numberValue": 0}
+    elif mutation == "excluded_note":
+        cell["note"] = "fictional"
+    else:
+        cell["dataValidation"] = {"strict": True}
+    state["sheets"][3]["cells"]["1:1"]["userEnteredValue"] = {
+        "stringValue": digest(base)
+    }
+    with pytest.raises(GradebookError):
+        extract_sparse_edits(raw_from_state(state), binding, base)
+
+
+def test_v2_second_append_preserves_prior_exclusion_and_old_permissions(scenario):
+    before, binding, baseline, current = _fictional_current_only_case(scenario)
+    first = plan_sparse_edit_axis_refresh(
+        "core",
+        binding,
+        before,
+        baseline,
+        current,
+        _current_rows_only=True,
+        _growth_assignment_id="23",
+    )
+    state = native._state(before)
+    native._apply_requests(state, first["batch_update"]["requests"], binding)
+    after = raw_from_state(state)
+    updated = copy.deepcopy(current)
+    assignment = copy.deepcopy(updated["assignments"][0])
+    assignment.update(id="24", name="Fictional follow-up", position=4)
+    updated["assignments"].append(assignment)
+    state = native._state(after)
+    native._apply_requests(
+        state, get_only_requests(updated, digest(updated), binding, state), binding
+    )
+    latest = raw_from_state(state)
+    second = plan_sparse_edit_axis_refresh(
+        "core",
+        binding,
+        latest,
+        first["merged_baseline"],
+        updated,
+        _current_rows_only=True,
+        _growth_assignment_id="24",
+    )
+    layout = second["merged_baseline"]["working_layout"]
+    assert layout["excluded_targets"] == [
+        {"user_id": "101", "assignment_id": "23"},
+        {"user_id": "101", "assignment_id": "24"},
+    ]
+    assert (
+        layout["editable_ranges"][
+            : len(first["merged_baseline"]["working_layout"]["editable_ranges"])
+        ]
+        == first["merged_baseline"]["working_layout"]["editable_ranges"]
+    )
+    state = native._state(latest)
+    native._apply_requests(state, second["batch_update"]["requests"], binding)
+    out = raw_from_state(state)
+    verify_sparse_edit_axis_output(latest, out, [second], {"core": binding})
+    for col in (5, 6):
+        assert all(
+            k not in state["sheets"][2]["cells"].get(f"5:{col}", {})
+            for k in ("userEnteredValue", "note", "dataValidation")
+        )
+        assert not any(
+            r["startRowIndex"] <= 5 < r["endRowIndex"]
+            and r["startColumnIndex"] <= col < r["endColumnIndex"]
+            for r in layout["editable_ranges"]
+        )
