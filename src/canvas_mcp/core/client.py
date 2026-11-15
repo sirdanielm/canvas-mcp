@@ -783,6 +783,7 @@ async def upload_file_to_storage(
 
             # Canvas storage upload can return:
             # - 200/201 with JSON body containing file info
+            # - 201 with Location for retrieving the completed file's metadata
             # - 301/302/303 redirect to Canvas API with file info
             if response.status_code in (200, 201):
                 # Direct success response
@@ -790,11 +791,14 @@ async def upload_file_to_storage(
                     body: dict[str, Any] = response.json()
                     return body
                 except ValueError:
-                    # Some storage backends return empty success
-                    return {"success": True, "status_code": response.status_code}
+                    # A Created response can omit JSON and provide its file
+                    # representation through Location. Use the same guarded
+                    # confirmation GET as redirects; never repeat the upload.
+                    if response.status_code != 201 or not response.headers.get("Location"):
+                        return {"success": True, "status_code": response.status_code}
 
-            elif response.status_code in (301, 302, 303):
-                # Redirect - follow it to get file info from Canvas
+            if response.status_code in (201, 301, 302, 303):
+                # Retrieve file info only from the authenticated Canvas origin.
                 redirect_url = response.headers.get('Location')
                 if redirect_url:
                     # Storage chooses Location; only Canvas may get the token.

@@ -22,13 +22,16 @@ TOKEN = "synthetic-canvas-token"
 async def transfer_http(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[Any]:
     """Keep real clients and request construction; replace only the network."""
     requests: list[httpx.Request] = []
-    routes: dict[str, httpx.Response] = {}
+    routes: dict[str, httpx.Response | Exception] = {}
     clients: list[httpx.AsyncClient] = []
     real_client = httpx.AsyncClient
 
     def respond(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        return routes.get(str(request.url), httpx.Response(200, content=b"file bytes"))
+        response = routes.get(str(request.url), httpx.Response(200, content=b"file bytes"))
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     def make_client(**kwargs: Any) -> httpx.AsyncClient:
         client = real_client(transport=httpx.MockTransport(respond), **kwargs)
@@ -147,7 +150,7 @@ async def test_off_origin_download_has_no_canvas_token(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [301, 302, 303])
+@pytest.mark.parametrize("status", [201, 301, 302, 303])
 @pytest.mark.parametrize(
     "target",
     [
@@ -182,6 +185,7 @@ async def test_upload_refuses_non_canvas_confirmation(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("status", [201, 303])
 @pytest.mark.parametrize(
     "target",
     [
@@ -195,11 +199,12 @@ async def test_upload_confirms_only_on_canvas_origin(
     transfer_http: Any,
     tmp_path: Any,
     target: str,
+    status: int,
 ) -> None:
     upload = tmp_path / "upload.txt"
     upload.write_bytes(b"upload content")
     transfer_http.routes[f"{CANVAS}/upload"] = httpx.Response(
-        303, headers={"Location": target}
+        status, headers={"Location": target}
     )
     transfer_http.routes[f"{CANVAS}/confirm"] = httpx.Response(201, json={"id": 7})
     result = await client_module.upload_file_to_storage(
@@ -216,16 +221,91 @@ async def test_upload_confirms_only_on_canvas_origin(
 
 
 @pytest.mark.asyncio
+async def test_created_storage_upload_confirms_file_metadata(
+    transfer_http: Any, tmp_path: Any
+) -> None:
+    upload = tmp_path / "upload.txt"
+    upload.write_bytes(b"upload content")
+    transfer_http.routes[f"{STORAGE}/upload"] = httpx.Response(
+        201, headers={"Location": f"{CANVAS}/confirm"}
+    )
+    transfer_http.routes[f"{CANVAS}/confirm"] = httpx.Response(200, json={"id": 7})
+
+    result = await client_module.upload_file_to_storage(
+        f"{STORAGE}/upload", {}, str(upload), "upload.txt", "text/plain"
+    )
+
+    assert result == {"id": 7}
+    assert [
+        (r.method, str(r.url), r.headers.get("Authorization"))
+        for r in transfer_http.requests
+    ] == [
+        ("POST", f"{STORAGE}/upload", None),
+        ("GET", f"{CANVAS}/confirm", f"Bearer {TOKEN}"),
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [200, 201])
+@pytest.mark.parametrize("body", [None, {"id": 7}])
+async def test_upload_direct_success_without_location_is_preserved(
+    transfer_http: Any, tmp_path: Any, status: int, body: dict[str, int] | None
+) -> None:
+    upload = tmp_path / "upload.txt"
+    upload.write_bytes(b"upload content")
+    transfer_http.routes[f"{STORAGE}/upload"] = (
+        httpx.Response(status, json=body) if body is not None else httpx.Response(status)
+    )
+    result = await client_module.upload_file_to_storage(
+        f"{STORAGE}/upload", {}, str(upload), "upload.txt", "text/plain"
+    )
+    assert result == (body if body is not None else {"success": True, "status_code": status})
+    assert [(r.method, str(r.url)) for r in transfer_http.requests] == [
+        ("POST", f"{STORAGE}/upload")
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["http", "json", "timeout", "storage_timeout"])
+async def test_created_upload_failures_never_repeat_storage_post(
+    transfer_http: Any, tmp_path: Any, failure: str
+) -> None:
+    upload = tmp_path / "upload.txt"
+    upload.write_bytes(b"upload content")
+    transfer_http.routes[f"{STORAGE}/upload"] = (
+        httpx.ReadTimeout("synthetic timeout")
+        if failure == "storage_timeout"
+        else httpx.Response(201, headers={"Location": f"{CANVAS}/confirm"})
+    )
+    transfer_http.routes[f"{CANVAS}/confirm"] = {
+        "http": httpx.Response(500),
+        "json": httpx.Response(200, content=b"not json"),
+        "timeout": httpx.ReadTimeout("synthetic timeout"),
+        "storage_timeout": httpx.Response(200, json={"id": 7}),
+    }[failure]
+    result = await client_module.upload_file_to_storage(
+        f"{STORAGE}/upload", {}, str(upload), "upload.txt", "text/plain"
+    )
+    assert "error" in result
+    expected = [("POST", f"{STORAGE}/upload")]
+    if failure != "storage_timeout":
+        expected.append(("GET", f"{CANVAS}/confirm"))
+    assert [(r.method, str(r.url)) for r in transfer_http.requests] == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [201, 303])
 @pytest.mark.parametrize("target", [f"{STORAGE}/collect", f"{CANVAS}/other"])
 async def test_upload_confirmation_does_not_follow_another_redirect(
     transfer_http: Any,
     tmp_path: Any,
     target: str,
+    status: int,
 ) -> None:
     upload = tmp_path / "upload.txt"
     upload.write_bytes(b"upload content")
     transfer_http.routes[f"{STORAGE}/upload"] = httpx.Response(
-        303, headers={"Location": f"{CANVAS}/confirm"}
+        status, headers={"Location": f"{CANVAS}/confirm"}
     )
     transfer_http.routes[f"{CANVAS}/confirm"] = httpx.Response(
         302, headers={"Location": target}
@@ -452,11 +532,12 @@ async def test_download_redirect_loop_stops_without_sending_token(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("operation", ["upload", "download"])
+@pytest.mark.parametrize("operation, status", [("download", 303), ("upload", 201), ("upload", 303)])
 async def test_hosted_file_transfer_uses_callers_token_and_origin(
     transfer_http: Any,
     tmp_path: Any,
     operation: str,
+    status: int,
 ) -> None:
     from canvas_mcp.core.credentials import (
         RequestCredentials,
@@ -485,7 +566,7 @@ async def test_hosted_file_transfer_uses_callers_token_and_origin(
         upload = tmp_path / "upload.txt"
         upload.write_bytes(b"upload content")
         transfer_http.routes[f"{STORAGE}/upload"] = httpx.Response(
-            303, headers={"Location": "https://tenant.example.edu/confirm"}
+            status, headers={"Location": "https://tenant.example.edu/confirm"}
         )
         transfer_http.routes["https://tenant.example.edu/confirm"] = httpx.Response(
             201, json={"id": 7}
@@ -516,6 +597,7 @@ async def test_hosted_download_without_token_refuses_before_dispatch(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("status", [201, 303])
 @pytest.mark.parametrize(
     "target", ["https://[invalid/confirm", "https://canvas.example.com:bad/confirm"]
 )
@@ -523,11 +605,12 @@ async def test_invalid_upload_confirmation_is_not_requested(
     transfer_http: Any,
     tmp_path: Any,
     target: str,
+    status: int,
 ) -> None:
     upload = tmp_path / "upload.txt"
     upload.write_bytes(b"upload content")
     transfer_http.routes[f"{STORAGE}/upload"] = httpx.Response(
-        303, headers={"Location": target}
+        status, headers={"Location": target}
     )
     result = await client_module.upload_file_to_storage(
         f"{STORAGE}/upload", {}, str(upload), "upload.txt", "text/plain"
@@ -539,11 +622,13 @@ async def test_invalid_upload_confirmation_is_not_requested(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("status", [201, 303])
 @pytest.mark.parametrize("hosted_token", [None, "synthetic-caller-token"])
 async def test_upload_confirmation_never_uses_server_token_for_hosted_caller(
     transfer_http: Any,
     tmp_path: Any,
     hosted_token: str | None,
+    status: int,
 ) -> None:
     from canvas_mcp.core.credentials import (
         RequestCredentials,
@@ -559,7 +644,7 @@ async def test_upload_confirmation_never_uses_server_token_for_hosted_caller(
     upload = tmp_path / "upload.txt"
     upload.write_bytes(b"upload content")
     transfer_http.routes[f"{STORAGE}/upload"] = httpx.Response(
-        303, headers={"Location": f"{CANVAS}/confirm"}
+        status, headers={"Location": f"{CANVAS}/confirm"}
     )
     result = await client_module.upload_file_to_storage(
         f"{STORAGE}/upload", {}, str(upload), "upload.txt", "text/plain"
