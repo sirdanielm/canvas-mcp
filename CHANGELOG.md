@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve Planner's excused and graded states in upcoming-assignment status
+  lines instead of reporting those items as unsubmitted work.
+
 - Retrieve uploaded file metadata when storage returns an empty `201 Created`
   with a `Location` header. Confirmation uses the existing authenticated Canvas
   origin check and a single GET with redirects disabled. Upload POSTs are never
@@ -57,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implemented behavior. Historical release notes and dated audit records remain
   snapshots. Fork-main updates are not a new upstream package release, website
   upload or production deployment.
+
+## [1.18.0] — 2026-11-12
+
+A minor release with one breaking change, in the TypeScript sandbox. It applies to local mode and to container mode. The sandbox's JavaScript network guard now refuses every connection that does not name a host on the allowlist.
+
+### Changed
+
+- **The TypeScript sandbox's network guard fails closed.** A connection from `execute_typescript` code must name a host on the sandbox allowlist. A connection that names no host or a local socket path is now refused, and so is UDP. A DNS lookup function supplied by the caller is replaced by Node's own. The check runs at the socket level, so `net`, `tls`, `http`, `https`, `http2` and `fetch` all go through it, and every worker thread loads the guard. Code that relied on any of these connections now fails with `SANDBOX_NETWORK_BLOCKED`. The guard remains a JavaScript-level control: child processes, native bindings and DNS answers are outside it (#157).
 
 ## [1.17.0] — 2026-11-09
 

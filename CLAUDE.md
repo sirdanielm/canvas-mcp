@@ -28,6 +28,12 @@ Codex starts with `AGENTS.md`; its task router points here for repository develo
 - Privacy: student IDs preserved, names anonymized at the client layer (`_should_anonymize_endpoint()`); a new endpoint must be checked against the tier rules.
 - Show course codes, not IDs, in user-facing output; handle published and unpublished states.
 
+The optional TypeScript sandbox guard requires an allowlisted host at each
+socket connection and refuses missing hosts, local sockets and UDP. It remains
+a JavaScript-level control: child processes, native bindings and DNS answers
+need external isolation. Keep `execute_typescript` disabled unless explicitly
+enabled for an authorized operation; see upstream issue #157.
+
 ## Testing and behavioral evidence
 - New tools need meaningful automated coverage: success, failure, boundary and safety behavior.
 - A reproducible behavior bug gets a focused failing regression first when practical; observe the intended failure. Prose-only and reversible low-impact changes do not need artificial tests.
