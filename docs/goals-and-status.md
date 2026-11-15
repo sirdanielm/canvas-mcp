@@ -39,6 +39,26 @@ than inferring those rules from this page. Retain Edpuzzle exclusions and teache
 decisions. Numeric `0` and `EX` are meaningful states, not missing evidence.
 Keep **all published Canvas grades unchanged** unless the exact change is approved.
 
+### Proposed layered intake — retained November 14, 2026
+
+The retained November 4 design proposes reusing saved results and downloaded
+originals before new interpretation. For formative intake, authentic image
+creation metadata and an issued-page map could support an initial timing and
+page-count check, followed by local inspection and then eligible unresolved
+model review through a separately qualified Apps Script route. Record the exact
+timestamp field, value, timezone and provenance; filesystem download/copy times
+and Drive upload times do not establish original image creation. Bind the timing
+anchor, expected pages and applicable credit rule before any automatic award;
+missing or conflicting evidence remains unresolved for the next qualified layer.
+
+For tests, explore local MC mark detection separately from handwriting OCR,
+with issued-form/page alignment and ambiguous marks held for review. Save each
+layer's evidence, result, reason and dependencies in the existing cache/journal
+so continuation reuses completed work. These are design proposals: neither local
+mark-detection accuracy, a live split with selected FRQ OCR, nor a metadata-only
+participation policy is established. NO_MODEL inventory does not authorize new
+interpretation, model spending or grade publication.
+
 ## Grading flow
 
 Both intake lanes—Canvas and teacher-folder/paper evidence—retain original bytes
