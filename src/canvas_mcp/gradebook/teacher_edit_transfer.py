@@ -25,6 +25,7 @@ from .refresh import build_requests
 
 SourceCheck = Callable[[dict[str, Any], dict[str, Any], dict[str, Any]], Any]
 _PRIMARY_OBSERVED_FORMAT_SCOPE = object()
+_PRIMARY_CURRENT_ATTEMPT_SCOPE = object()
 CONTRACT = "CENTRAL_TEACHER_EDIT_TRANSFER_V1"
 HASH = re.compile(r"[a-f0-9]{64}")
 RECORD_FIELDS = (
@@ -435,6 +436,8 @@ def _prepare_native_transfer(
     contract: str,
     reviewed_current_attempt: bool = False,
     first_submission_review: bool = False,
+    _primary_current_attempt: Callable[[], dict[str, Any]] | None = None,
+    _current_attempt_scope: object | None = None,
     observed_format_sha256: str | None = None,
     observed_format_rule_sha256: str | None = None,
     observed_format_authority: Callable[..., Any] | None = None,
@@ -445,6 +448,18 @@ def _prepare_native_transfer(
     The accepted-decision and unapproved-proposal contracts are distinct. This
     helper supplies neither acceptance nor publication authority.
     """
+    _need(
+        (_primary_current_attempt is None and _current_attempt_scope is None)
+        or (
+            callable(_primary_current_attempt)
+            and reviewed_current_attempt is True
+            and first_submission_review is False
+            and preservation is None
+            and _current_attempt_scope is _PRIMARY_CURRENT_ATTEMPT_SCOPE
+            and contract == "CENTRAL_UNAPPROVED_EDIT_TRANSFER_V1"
+        ),
+        "CURRENT_ATTEMPT_SCOPE_HELD",
+    )
     _pins(pin_binding, record)
     _source(source_check, record, decision, pin_binding)
     # Only substantive fields bind a decision. Fetch/report timestamps do not
@@ -466,6 +481,10 @@ def _prepare_native_transfer(
         }
     )
     delivery_policy = _delivery_policy(selected, final)
+    _need(
+        _primary_current_attempt is None or delivery_policy == "SCORE_ONLY",
+        "CURRENT_ATTEMPT_DELIVERY_HELD",
+    )
     _need(
         (baseline["origin"], baseline["course_id"])
         == (current["origin"], current["course_id"])
@@ -491,7 +510,9 @@ def _prepare_native_transfer(
             and callable(observed_format_authority)
             and _observed_format_scope is _PRIMARY_OBSERVED_FORMAT_SCOPE
             and reviewed_current_attempt is True
-            and first_submission_review is True
+            and (
+                first_submission_review is True or _primary_current_attempt is not None
+            )
             and "working_layout" in baseline,
             "OBSERVED_FORMAT_AUTHORITY_REQUIRED",
         )
@@ -524,6 +545,16 @@ def _prepare_native_transfer(
             "FIRST_SUBMISSION_SCOPE_HELD",
         )
         comparison_baseline = _first_submission_projection(baseline, current, record)
+    if _primary_current_attempt is not None:
+        # The primary source owner reruns the exact evidence/protection/preimage
+        # verifier here, after the ORIGINAL native baseline/axes were verified.
+        projection = _primary_current_attempt()
+        _need(
+            projection["original_baseline_sha256"] == digest(baseline)
+            and projection["publication_allowed"] is False,
+            "CURRENT_ATTEMPT_PROJECTION_CHANGED",
+        )
+        comparison_baseline = projection["comparison_baseline"]
     prior_context = _basis(comparison_baseline, record)
     _need(
         context["course_workflow_state"] == "available"
@@ -665,7 +696,19 @@ def _prepare_native_transfer(
         else:
             if preservation is None:
                 _need(
-                    old_value in (grade_value(prior_context["cell"]["value"]), score),
+                    old_value
+                    in (
+                        grade_value(
+                            (
+                                baseline["cells"][
+                                    record["user_id"] + ":" + record["assignment_id"]
+                                ]
+                                if _primary_current_attempt is not None
+                                else prior_context["cell"]
+                            )["value"]
+                        ),
+                        score,
+                    ),
                     "EXISTING_TEACHER_EDIT_PRESERVED",
                 )
             replacement: dict[str, Any] = {"userEnteredValue": {"numberValue": score}}
@@ -736,6 +779,8 @@ def _prepare_native_transfer(
         "canvas_writes": 0,
         "sheets_writes": 0,
     }
+    if _primary_current_attempt is not None:
+        plan["current_attempt_comparison_sha256"] = digest(comparison_baseline)
     if first_submission_review:
         plan["first_submission_comparison_sha256"] = digest(comparison_baseline)
     if "delivery_policy" in selected:
