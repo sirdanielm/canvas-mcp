@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Retrieve uploaded file metadata when storage returns an empty `201 Created`
+  with a `Location` header. Confirmation uses the existing authenticated Canvas
+  origin check and a single GET with redirects disabled. Upload POSTs are never
+  retried; direct JSON and empty responses without Location retain their prior
+  behavior.
+
 ### Security
 
 - Raised the dependency floors and lock to `dnspython 2.9.2` for
