@@ -1057,22 +1057,19 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     return _local_sandbox_unavailable_error(node_problem)
 
             if block_outbound:
-                # Say plainly when the block is advisory. The guard patches
-                # net.connect, tls.connect, http/https.request and fetch inside
-                # the Node process; anything else that opens a socket (dgram,
-                # dns, a net.Socket built by hand) goes around it, and
-                # CANVAS_API_TOKEN is in that process's environment. In local
-                # mode the permission model closes the child-process and
-                # native-addon routes, not the network. Only the
-                # --network=none container case is actually enforced.
+                # The guard checks named TCP hosts at Socket.connect and
+                # refuses UDP/local sockets. It cannot constrain DNS answers,
+                # pre-opened sockets, native bindings or child processes.
+                # Local Node permissions close the child/native routes;
+                # container --network=none supplies kernel egress isolation.
+                # Executed code still receives CANVAS_API_TOKEN.
                 egress_message: str | None = None
                 if sandbox_mode == "local":
                     egress_message = (
                         "Outbound blocking is best-effort here: it is enforced by "
-                        "patching Node's connect, request and fetch functions "
-                        "in-process, and executed code can still reach the network "
-                        "through APIs the guard does not patch (dgram, dns, "
-                        "net.Socket). Node's permission model refuses child "
+                        "checking each named TCP host and refusing UDP/local "
+                        "sockets in-process. DNS answers and pre-opened sockets "
+                        "remain outside the guard. Node's permission model refuses child "
                         "processes, workers and native addons. Kernel-level "
                         "enforcement applies only to container mode with an empty "
                         "allowlist."
@@ -1080,8 +1077,9 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 elif allowlist_hosts:
                     egress_message = (
                         "Outbound blocking is best-effort here: it is enforced by "
-                        "patching Node APIs in-process, which executed code can "
-                        "bypass (child_process, dgram, bundled utilities). Kernel-"
+                        "checking named TCP hosts and refusing UDP/local sockets "
+                        "in-process. Child processes, native bindings and DNS "
+                        "answers remain outside the guard. Kernel-"
                         "level enforcement applies only to container mode with an "
                         "empty allowlist."
                     )
@@ -1248,9 +1246,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     # writable paths (and $HOME the only writable+exec one).
                     "--read-only",
                 ]
-                # Egress: the in-process JS guard only patches net/tls/http/https
-                # and fetch, so executed code can reach the network through
-                # child_process, dgram, or a shipped binary like wget. When the
+                # Egress: the in-process JS guard does not confine child
+                # processes, native bindings, inherited sockets or DNS answers. When the
                 # operator asked for no outbound access at all, enforce it in the
                 # kernel, where nothing running inside the guest can undo it.
                 if block_outbound and not allowlist_hosts:
