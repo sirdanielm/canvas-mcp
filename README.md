@@ -140,8 +140,10 @@ send.
 credentials and can bypass confirmation and content-fencing guarantees. Each run
 requires authorization for its intended effects; a dry run or local sandbox is
 not approval. The optional local sandbox now uses Node's permission model,
-which restricts filesystem access and child processes; network blocking remains
-best-effort. See the [code API guide](src/canvas_mcp/code_api/README.md).
+which restricts filesystem access and child processes. In local and container
+mode, the JavaScript network guard requires an allowlisted host for each
+connection and refuses missing hosts, local sockets and UDP. Child processes,
+native bindings and DNS answers remain outside that guard. See the [code API guide](src/canvas_mcp/code_api/README.md).
 
 <a id="hosted-server-retired"></a>
 
@@ -164,8 +166,9 @@ and verified delivery are distinct states. A documentation/source merge does not
 restart a service, deploy the menu, release a package or send classroom grades.
 Tags and deployment/paid-review actions require separate authorization.
 
-The refreshed source incorporates upstream v1.17.0, including strict course
-identifier matching, guarded rubric creation and accessibility source validation.
+The refreshed source incorporates upstream v1.18.0, including the stricter
+TypeScript sandbox network guard, alongside strict course identifiers, guarded
+rubric creation and accessibility source validation.
 Upstream package releases and this fork's source or installed runtimes have
 separate release histories. This update alone installs no runtime.
 Release notes remain in [CHANGELOG.md](CHANGELOG.md); dated audits and design
