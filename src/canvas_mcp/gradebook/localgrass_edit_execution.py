@@ -18,7 +18,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .client import GradebookError
 from .localgrass_draft_edit import CONTRACT as DRAFT_CONTRACT
@@ -102,7 +102,7 @@ def _load_prior_plan(files: Any, path: Path) -> dict[str, Any]:
                 and raw == files.encoded(prior),
                 "NATIVE_HISTORY_LEGACY_FORMAT_HOLD",
             )
-        return prior
+        return cast(dict[str, Any], prior)
     except (ValueError, UnicodeError, RecursionError) as error:
         raise GradebookError("INVALID_NATIVE_HISTORY_JSON") from error
 

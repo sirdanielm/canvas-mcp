@@ -218,7 +218,7 @@ def prepare_comparison(
             for k in ("course_id", "assignment_id", "user_id")
         )
         and type(record.get("pin")) is str
-        and re.fullmatch(r"[0-9]{4}", record["pin"])
+        and re.fullmatch(r"[0-9]{4}", record["pin"]) is not None
         and evidence.get("pin") == record["pin"]
         and pin_binding.get("by_pin", {}).get(record["pin"]) == record["user_id"],
         "STALE_ZERO_IDENTITY_HELD",

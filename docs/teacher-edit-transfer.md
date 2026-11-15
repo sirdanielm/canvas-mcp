@@ -86,6 +86,36 @@ already satisfied by its exact retained content produces zero writable requests.
 Completed native drafts remain terminal local evidence; final Canvas approval
 and publication are separate.
 
+## Canvas-primary advisory source
+
+`CanvasPrimaryEditConnection` composes a source-bound Canvas advisory with the
+existing `LocalGrAssEditOwner` and one-shot local executor. Each preflight obtains
+fresh submission evidence, checks the exact identity/section/assignment/attempt
+join and private protected-target registry, and retains the native EDIT preimage.
+Plans and retained histories cannot supply their own source authority.
+
+The score-handoff helper preserves source-owner markers through fresh comparison
+and generic publisher routing. Its confirmation is mechanically disabled; a
+handoff preview creates no operation or publication token. The optional exclusive
+owner policy holds every other generic score route. Coexistence with another
+owner requires a separately reviewed multiplexer; do not replace an installed
+owner merely to load this source.
+
+The stale-zero current-attempt comparison is restricted to an **UNAPPROVED,
+score-only** draft. It retains the original baseline, current Canvas values,
+literal EDIT preimage and false grade-current flag. It creates no teacher
+acceptance and cannot authorize publication.
+
+`qualify_v2_note_destination` separately validates the predecessor-derived sparse
+EDIT layout, protections, conditional formatting and exact target. Its result is
+destination-only qualification: it authenticates no source, identity, academic
+policy or teacher decision, and grants no write permission. Observed-format
+exceptions require their independently supplied exact authority.
+
+These contracts have fictional source/transport coverage. Private owner bindings,
+native installation, exact-case admission and destination readback retain their
+own qualification; merging this source activates no grading route.
+
 ## Source and decision authority
 
 The authenticated route retains the exact evaluation, source/result and policy

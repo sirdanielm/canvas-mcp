@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypedDict, cast
 
 from . import native
 from .client import GradebookError
@@ -21,6 +21,11 @@ from .sparse_edit_axis_refresh import (
     verify_sparse_edit_axis_output,
 )
 from .teacher_edit_transfer import _location
+
+
+class _AxisVerificationKwargs(TypedDict, total=False):
+    _observed_format_authorities: dict[str, Callable[..., Any]] | None
+    _observed_format_scope: object
 
 
 def qualify_v2_note_destination(
@@ -66,9 +71,11 @@ def qualify_v2_note_destination(
     projected = native._state(before_raw)
     native._apply_requests(projected, plan["batch_update"]["requests"], binding)
     after = _raw(projected)
-    kwargs = (
+    kwargs: _AxisVerificationKwargs = (
         {
-            "_observed_format_authorities": {plan["course"]: observed_format_authority},
+            "_observed_format_authorities": {
+                plan["course"]: cast(Callable[..., Any], observed_format_authority)
+            },
             "_observed_format_scope": _AXIS_OBSERVED_FORMAT_SCOPE,
         }
         if observed

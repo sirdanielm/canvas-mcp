@@ -11,7 +11,7 @@ import copy
 import inspect
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypedDict, cast
 
 from . import native
 from .client import GradebookError
@@ -37,6 +37,15 @@ LAYOUT_KEYS = {
     "get_rows",
     "get_columns",
 }
+
+
+class _AxisRefreshKwargs(TypedDict, total=False):
+    _current_rows_only: bool
+    _growth_assignment_id: str | None
+    _observed_format_authority: Callable[..., Any] | None
+    _observed_format_rule_sha256: str | None
+    _observed_format_receipt_sha256: str | None
+    _observed_format_scope: object
 
 
 def _intervals(columns: dict[int, str]) -> list[tuple[int, int]]:
@@ -834,7 +843,7 @@ def plan_sparse_edit_axis_refresh(
             raise GradebookError(
                 "Sparse Edit append destination contains existing content."
             )
-    requests = []
+    requests: list[dict[str, Any]] = []
     if growth:
         requests.append(
             {
@@ -991,15 +1000,20 @@ def verify_sparse_edit_axis_output(
             or observed.get("growth_assignment_id") != scoped_id
         ):
             raise GradebookError("Sparse Edit observed format authority required.")
-        scoped_args = (
+        scoped_args: _AxisRefreshKwargs = (
             {"_current_rows_only": True, "_growth_assignment_id": scoped_id}
             if scoped_id is not None
             else {}
         )
         if observed is not None:
+            # The preceding guard establishes this mapping without changing
+            # which optional keywords are supplied to the canonical planner.
+            authorities = cast(
+                dict[str, Callable[..., Any]], _observed_format_authorities
+            )
             scoped_args.update(
                 {
-                    "_observed_format_authority": _observed_format_authorities[course],
+                    "_observed_format_authority": authorities[course],
                     "_observed_format_rule_sha256": observed["rule_sha256"],
                     "_observed_format_receipt_sha256": observed["receipt_sha256"],
                     "_observed_format_scope": _AXIS_OBSERVED_FORMAT_SCOPE,

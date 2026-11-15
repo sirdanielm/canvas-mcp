@@ -11,7 +11,7 @@ import copy
 import html
 import os
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 from .canvas_primary_owner import CanvasPrimaryEditConnection
@@ -188,7 +188,7 @@ class CanvasPrimaryScoreHandler:
         return True
 
     def _retained(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        conn = self.owner.connection
+        conn = cast(CanvasPrimaryEditConnection, self.owner.connection)
         plan = conn.store.load("review", self.stage_plan_id)
         conn.validate_plan(plan, expected_plan_sha256=self.stage_plan_id)
         directory = self.owner.output_root / self.stage_plan_id
@@ -205,7 +205,7 @@ class CanvasPrimaryScoreHandler:
         self, plan: dict[str, Any], receipt: dict[str, Any], ctx: dict[str, Any]
     ) -> dict[str, Any]:
         return prepare_publication_intent(
-            connection=self.owner.connection,
+            connection=cast(CanvasPrimaryEditConnection, self.owner.connection),
             stage_plan=plan,
             expected_stage_plan_sha256=self.stage_plan_id,
             stage_receipt=receipt,
@@ -222,7 +222,8 @@ class CanvasPrimaryScoreHandler:
         _need(
             publisher is self.publisher
             and self.recognizes_review(review_id)
-            and course_id == self.owner.connection.record["course_id"],
+            and course_id
+            == cast(CanvasPrimaryEditConnection, self.owner.connection).record["course_id"],
             "PRIMARY_PUBLICATION_OWNER_REQUIRED",
         )
         with self.owner.journal.exclusive():
@@ -255,7 +256,10 @@ class CanvasPrimaryScoreHandler:
         try:
             marker = plan.get("owner_binding")
             _need(
-                course_id == self.owner.connection.record["course_id"]
+                course_id
+                == cast(CanvasPrimaryEditConnection, self.owner.connection).record[
+                    "course_id"
+                ]
                 and plan.get("course_id") == course_id
                 and type(marker) is dict
                 and set(marker)
@@ -270,10 +274,11 @@ class CanvasPrimaryScoreHandler:
                 and marker["stage_plan_sha256"] == self.stage_plan_id,
                 "PRIMARY_PUBLICATION_OWNER_REQUIRED",
             )
+            marker = cast(dict[str, Any], marker)
             review = self.publisher.store.load("review", marker["source_review_id"])
             intent = review["canvas_primary_publication_intent"]
             stage = self.owner.connection.store.load("review", self.stage_plan_id)
-            conn = self.owner.connection
+            conn = cast(CanvasPrimaryEditConnection, self.owner.connection)
             target_expected = {
                 k: conn.record[k] for k in ("course_id", "user_id", "assignment_id")
             }
@@ -328,13 +333,15 @@ class CanvasPrimaryScoreHandler:
     ) -> dict[str, Any]:
         _need(
             publisher is self.publisher
-            and course_id == self.owner.connection.record["course_id"],
+            and course_id
+            == cast(CanvasPrimaryEditConnection, self.owner.connection).record["course_id"],
             "PRIMARY_PUBLICATION_OWNER_REQUIRED",
         )
         operation = publisher.ledger.operation(operation_id)
         plan = publisher.store.load("push", operation["plan_id"])
         _need(self.matches_plan(course_id, plan), "PRIMARY_PUBLICATION_OWNER_REQUIRED")
-        return await publisher.reconcile(course_id, operation_id)
+        result: dict[str, Any] = await publisher.reconcile(course_id, operation_id)
+        return result
 
 
 def make_exclusive_primary_owner_policy(

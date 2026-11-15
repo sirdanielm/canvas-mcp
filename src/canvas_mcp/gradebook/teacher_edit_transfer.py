@@ -14,7 +14,7 @@ import json
 import math
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from . import native
 from .channel_policy import lane_delivery
@@ -516,7 +516,11 @@ def _prepare_native_transfer(
             and "working_layout" in baseline,
             "OBSERVED_FORMAT_AUTHORITY_REQUIRED",
         )
-        result = observed_format_authority(
+        # _need above retains the runtime error path; expose its validated
+        # callback and rule types to the static checker.
+        observed_authority = cast(Callable[..., Any], observed_format_authority)
+        observed_rule_sha256 = cast(str, observed_format_rule_sha256)
+        result = observed_authority(
             copy.deepcopy(raw),
             copy.deepcopy(binding),
             copy.deepcopy(baseline),
@@ -530,7 +534,7 @@ def _prepare_native_transfer(
             extract_sparse_edits,
         )
 
-        assert_observed_raw_rule(raw, binding, observed_format_rule_sha256)
+        assert_observed_raw_rule(raw, binding, observed_rule_sha256)
         extract_sparse_edits(raw, binding, baseline, _observed_green=True)
     before = native._state(raw)
     _need(

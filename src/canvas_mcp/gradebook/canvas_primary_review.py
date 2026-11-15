@@ -15,7 +15,7 @@ import re
 import stat
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 from .canvas_primary_protection import assert_target_unprotected
@@ -87,6 +87,7 @@ def _verified(evidence: dict[str, Any], authority: Callable[..., Any]) -> None:
     )
     files = evidence.get("originals")
     _need(type(files) is list and bool(files), "PRIMARY_ORIGINALS_REQUIRED")
+    files = cast(list[Any], files)
     seen = set()
     for item in files:
         _need(
@@ -163,8 +164,9 @@ def _assignment(binding: dict[str, Any], evidence: dict[str, Any]) -> None:
         and HASH.fullmatch(evidence["provider_review_sha256"]),
         "PRIMARY_PROVIDER_REVIEW_REQUIRED",
     )
-    tag = metadata.get("external_tool_tag_attributes")
+    metadata = cast(dict[str, Any], metadata)
     try:
+        tag = metadata["external_tool_tag_attributes"]
         url = urlsplit(tag["url"])
         valid_url = (
             url.scheme == "https"

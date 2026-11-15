@@ -16,7 +16,7 @@ import re
 import stat
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .client import GradebookError
 from .model import grade_value
@@ -81,7 +81,7 @@ def read_protection_registry(path: Path, expected_sha256: str) -> dict[str, Any]
     except (OSError, ValueError, TypeError):
         raise GradebookError("PROTECTION_REGISTRY_HELD") from None
     _validate_registry(registry)
-    return registry
+    return cast(dict[str, Any], registry)
 
 
 def _validate_registry(registry: Any) -> None:

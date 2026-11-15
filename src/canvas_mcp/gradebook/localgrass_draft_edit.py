@@ -241,7 +241,8 @@ class LocalGrAssDraftEditConnection:
             assignment_bindings_path,
             expected_assignment_bindings_sha256,
         )
-        self.registry_path, self.preservation = registry_path, None
+        self.registry_path = registry_path
+        self.preservation: dict[str, Any] | None = None
         self.selected_record_refs = selected_record_refs
         self._stage_pin()
         self.owner = self.stage.canvas_owner(canvas_repo)

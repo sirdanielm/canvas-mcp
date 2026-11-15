@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### SDM fork maintenance
 
+- Added source-owned Canvas-primary advisory/EDIT composition, exact
+  current-attempt stale-zero comparison, protected-target and handoff markers,
+  bounded legacy-history reads, and predecessor-bound sparse/U3 destination
+  checks. Primary confirmation remains disabled; unapproved drafts and
+  destination qualification grant no teacher acceptance or Canvas publication.
+  Private owner adoption and live receiving remain separate.
+
 - Added immutable private GET capture receipts and a canonical permanent-PIN case port for LocalGrAss. Academic IDs remain separate from Canvas targets; original-byte admission and teacher/release authority remain separate local-core responsibilities. No grading/write permission or background service is enabled.
 
 - Promoted the reviewed SDM authoring/gradebook implementation, GET refresh

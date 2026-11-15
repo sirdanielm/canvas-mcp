@@ -11,7 +11,7 @@ import copy
 import inspect
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 
 from . import native
 from .canvas_primary_protection import (
@@ -365,6 +365,8 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
             and HASH.fullmatch(primary["protection_registry_sha256"]),
             "PRIMARY_OWNER_PLAN_CHANGED",
         )
+        primary = cast(dict[str, Any], primary)
+        transfer = cast(dict[str, Any], transfer)
         expected_fields = {
             "contract",
             "evidence",
@@ -419,7 +421,7 @@ class CanvasPrimaryEditConnection(LocalGrAssDraftEditConnection):
 
     @staticmethod
     def _expanded_primary(plan: dict[str, Any]) -> dict[str, Any]:
-        primary = copy.deepcopy(plan["primary_plan"])
+        primary: dict[str, Any] = copy.deepcopy(plan["primary_plan"])
         if plan.get("plan_layout") == "SINGLE_TRANSFER_V1":
             primary.pop("transfer_sha256")
             primary["transfer"] = copy.deepcopy(plan["transfer"])
