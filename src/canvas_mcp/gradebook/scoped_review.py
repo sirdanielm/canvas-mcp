@@ -16,7 +16,7 @@ def validated_review(
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Validate a review against its immutable evidence; do not clear owner holds."""
     parent = store.load("review", review_id)
-    if "unit1_pair_score_intent" in parent:
+    if any(k in parent for k in ("unit1_pair_score_intent", "canvas_primary_publication_intent", "canvas_primary_source_review")):
         raise GradebookError(
             "Source-owned intents already have their exact approved batch."
         )

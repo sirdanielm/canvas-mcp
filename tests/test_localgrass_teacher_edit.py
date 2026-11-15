@@ -393,7 +393,9 @@ async def test_existing_receipts_guard_one_native_batch_and_exact_replay(
 
     def write(book, requests):
         receipts = sorted((output / digest(plan)).glob("receipt-*.json"))
-        assert json.loads(receipts[-1].read_text(encoding="utf-8"))["status"] == "SENDING"
+        assert (
+            json.loads(receipts[-1].read_text(encoding="utf-8"))["status"] == "SENDING"
+        )
         assert book == "fictional-book" and len(requests) == 1
         update = requests[0]["updateCells"]
         assert update["start"] == {"sheetId": 2, "rowIndex": 5, "columnIndex": 2}
@@ -690,3 +692,58 @@ async def test_timeout_after_send_intent_retains_uncertainty_without_resend(
     )
     assert result["status"] == "UNCERTAIN_RECONCILIATION_REQUIRED"
     assert calls == [True]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("phase", "bad_digest", "expected"),
+    [
+        ("UNKNOWN_HISTORICAL_PHASE", False, "UNRESOLVED_NATIVE_TARGET_HISTORY"),
+        ("PLANNED_OUTPUT_OBSERVED", True, "PRIOR_NATIVE_PLAN_UNVERIFIED"),
+        ("PLANNED_OUTPUT_OBSERVED", False, "HISTORY_ACCEPTED"),
+        (None, False, "HISTORY_ACCEPTED"),
+    ],
+)
+async def test_oversized_pretty_legacy_history_keeps_scope_receipt_and_digest_guards(
+    integrated, tmp_path, monkeypatch, phase, bad_digest, expected
+):
+    connection, context, _, _, _, _, _ = integrated
+    plan = connection.prepare(**context)
+
+    def canonical(v):
+        return json.dumps(v, sort_keys=True, separators=(",", ":")).encode()
+
+    maximum = max(16384, len(canonical(plan)) + 1024)
+    monkeypatch.setattr(connection.files, "MAX_JSON", maximum)
+    prior_plan = {
+        "contract": "LOCALGRASS_TEACHER_EDIT_V1",
+        "binding": plan["binding"],
+        "items": plan["items"],
+        "fixture_padding": [],
+    }
+    while len(connection.files.encoded(prior_plan)) <= maximum:
+        prior_plan["fixture_padding"].extend([{"a": {"b": 1}}] * 100)
+    raw = connection.files.encoded(prior_plan)
+    assert len(canonical(prior_plan)) <= maximum < len(raw) <= 2 * maximum
+    root = connection.files.private_directory(tmp_path / "stage")
+    folder = "a" * 64 if bad_digest else digest(prior_plan)
+    prior = connection.files.private_directory(root / folder)
+    connection.files.write(prior / "plan.json", raw)
+    if phase is not None:
+        connection.files.write(prior / "receipt-001.json", {"status": phase})
+    writes = []
+
+    def reached_context():
+        raise RuntimeError("HISTORY_ACCEPTED")
+
+    with pytest.raises((GradebookError, RuntimeError), match=expected):
+        await execute_local_edit_once(
+            connection,
+            plan,
+            expected_plan_sha256=digest(plan),
+            output_root=root,
+            read_context=reached_context,
+            write_requests=lambda *args: writes.append(args),
+            enabled=True,
+        )
+    assert writes == []

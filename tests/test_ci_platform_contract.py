@@ -81,3 +81,38 @@ def test_platform_collector_reports_the_skip_and_never_imports_unsupported_modul
     with pytest.raises(pytest.skip.Exception, match="Windows local capability unavailable:.*POSIX flock"):
         module.collect()
     assert conftest._module_for_platform(ROOT / "tests/tools/test_courses.py", request.session, "win32") is None
+
+
+def test_private_primary_registry_declares_its_actual_platform_requirement(request) -> None:
+    import conftest
+
+    path = ROOT / "tests/test_canvas_primary_protection.py"
+    requirements = windows_test_requirements()
+    assert requirements[path.resolve()]
+    module = conftest._module_for_platform(path, request.session, "win32")
+    assert isinstance(module, conftest.UnsupportedWindowsLocalModule)
+    with pytest.raises(pytest.skip.Exception, match="Windows local capability unavailable:.*O_NOFOLLOW"):
+        module.collect()
+    # The portable missing-capability checks in this module must still execute.
+    assert requirements[Path(__file__).resolve()] == ()
+
+
+@pytest.mark.parametrize("missing", ["O_NOFOLLOW", "O_NONBLOCK", "getuid"])
+def test_primary_registry_missing_primitive_holds_before_open(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, missing: str
+) -> None:
+    from types import SimpleNamespace
+
+    from canvas_mcp.gradebook import canvas_primary_protection as protection
+    from canvas_mcp.gradebook.client import GradebookError
+
+    def forbidden_open(*args, **kwargs):
+        raise AssertionError("Private registry opened without its platform protection")
+
+    capabilities = SimpleNamespace(
+        O_RDONLY=0, O_NOFOLLOW=1, O_NONBLOCK=2, getuid=lambda: 1, open=forbidden_open
+    )
+    delattr(capabilities, missing)
+    monkeypatch.setattr(protection, "os", capabilities)
+    with pytest.raises(GradebookError, match="^PROTECTION_REGISTRY_HELD$"):
+        protection.read_protection_registry(tmp_path / "unopened.json", "a" * 64)

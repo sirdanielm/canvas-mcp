@@ -18,11 +18,13 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from .canvas_primary_owner import CanvasPrimaryEditConnection
 from .client import GradebookError
 from .localgrass_draft_edit import CONTRACT as DRAFT_CONTRACT
 from .localgrass_draft_edit import LocalGrAssDraftEditConnection
+from .localgrass_teacher_edit import CONTRACT as TEACHER_CONTRACT
 from .localgrass_teacher_edit import LocalGrAssEditConnection
 from .model import digest
 
@@ -64,8 +66,52 @@ def _targets(plan: dict[str, Any]) -> tuple[str, str, set[str]]:
     )
 
 
+def _load_prior_plan(files: Any, path: Path) -> dict[str, Any]:
+    """Read old pretty-printed history without raising its logical size limit.
+
+    Older native files were written by ``files.encoded`` and can be larger on
+    disk than their canonical content. Only that exact legacy representation
+    receives a separate, bounded raw-byte allowance. No history is rewritten.
+    """
+    maximum = min(getattr(files, "MAX_JSON", 64 * 1024 * 1024), 64 * 1024 * 1024)
+    raw = files.read_bytes(path, maximum=2 * maximum)
+
+    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in items:
+            _need(key not in result, "DUPLICATE_JSON_KEY")
+            result[key] = value
+        return result
+
+    def invalid_constant(_: str) -> None:
+        raise GradebookError("NONFINITE_JSON")
+
+    try:
+        prior = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=pairs,
+            parse_constant=invalid_constant,
+        )
+        _need(type(prior) is dict, "PRIOR_NATIVE_PLAN_UNVERIFIED")
+        canonical = json.dumps(
+            prior, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+        _need(len(canonical) <= maximum, "NATIVE_HISTORY_CONTENT_SIZE_HOLD")
+        if len(raw) > maximum:
+            _need(
+                prior.get("contract") == TEACHER_CONTRACT
+                and raw == files.encoded(prior),
+                "NATIVE_HISTORY_LEGACY_FORMAT_HOLD",
+            )
+        return cast(dict[str, Any], prior)
+    except (ValueError, UnicodeError, RecursionError) as error:
+        raise GradebookError("INVALID_NATIVE_HISTORY_JSON") from error
+
+
 async def _execute_local_edit_once(
-    connection: LocalGrAssEditConnection | LocalGrAssDraftEditConnection,
+    connection: LocalGrAssEditConnection
+    | LocalGrAssDraftEditConnection
+    | CanvasPrimaryEditConnection,
     plan: dict[str, Any],
     *,
     expected_plan_sha256: str,
@@ -84,7 +130,12 @@ async def _execute_local_edit_once(
     """
     _need(
         isinstance(
-            connection, (LocalGrAssEditConnection, LocalGrAssDraftEditConnection)
+            connection,
+            (
+                LocalGrAssEditConnection,
+                LocalGrAssDraftEditConnection,
+                CanvasPrimaryEditConnection,
+            ),
         ),
         "AUTHENTICATED_CONNECTION_REQUIRED",
     )
@@ -160,7 +211,7 @@ async def _execute_local_edit_once(
         for prior_path in priors:
             if prior_path.parent == session:
                 continue
-            prior = files.load(prior_path)
+            prior = _load_prior_plan(files, prior_path)
             folder_id = prior_path.parent.name
             _need(
                 digest(prior) == folder_id
@@ -304,7 +355,9 @@ async def _execute_local_edit_once(
 
 
 async def execute_local_edit_once(
-    connection: LocalGrAssEditConnection | LocalGrAssDraftEditConnection,
+    connection: LocalGrAssEditConnection
+    | LocalGrAssDraftEditConnection
+    | CanvasPrimaryEditConnection,
     plan: dict[str, Any],
     *,
     expected_plan_sha256: str,
