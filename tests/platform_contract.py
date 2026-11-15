@@ -19,6 +19,7 @@ SOURCE_REQUIREMENTS = {
     "canvas_mcp.gradebook.diagnostics": "POSIX flock for private operation telemetry",
     "canvas_mcp.gradebook.google_authorize": "POSIX O_NOFOLLOW/getuid/fchmod credential protection",
     "canvas_mcp.gradebook.unit2_private_proposed_owner": "POSIX flock and inode-bound private EDIT ownership",
+    "canvas_mcp.gradebook.canvas_primary_protection": "POSIX O_NOFOLLOW/O_NONBLOCK/getuid private target registry",
     "canvas_mcp.mirror.core": "POSIX owner-only private course mirror files",
     "canvas_mcp.mirror.export_materializer": "POSIX owner-only export files and directory fsync",
 }

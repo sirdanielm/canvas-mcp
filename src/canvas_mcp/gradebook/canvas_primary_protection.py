@@ -34,6 +34,12 @@ def _need(value: Any, code: str) -> None:
 def read_protection_registry(path: Path, expected_sha256: str) -> dict[str, Any]:
     """Load one owner-private pinned registry; malformed or changed bytes hold."""
     _need(
+        type(getattr(os, "O_NOFOLLOW", None)) is int
+        and type(getattr(os, "O_NONBLOCK", None)) is int
+        and callable(getattr(os, "getuid", None)),
+        "PROTECTION_REGISTRY_HELD",
+    )
+    _need(
         isinstance(path, Path)
         and path.is_absolute()
         and type(expected_sha256) is str
