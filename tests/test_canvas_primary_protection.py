@@ -41,7 +41,7 @@ def protection(tmp_path):
         ],
     }
     p = tmp_path / "policy.json"
-    p.write_text(json.dumps(data))
+    p.write_text(json.dumps(data), encoding="utf-8")
     p.chmod(0o600)
     return data, p, hashlib.sha256(p.read_bytes()).hexdigest()
 
@@ -100,7 +100,7 @@ def test_monitored_student_zero_requires_complete_scope(protection):
                 policy, target, {"value": 0, "grade": "0"}, authority(data)
             )
     data["coverage"][0]["state"] = "COMPLETE"
-    p.write_text(json.dumps(data))
+    p.write_text(json.dumps(data), encoding="utf-8")
     p.chmod(0o600)
     policy = read_protection_registry(p, hashlib.sha256(p.read_bytes()).hexdigest())
     assert_target_unprotected(
@@ -131,7 +131,7 @@ def test_registry_and_authority_fail_closed(protection, change):
     if change == "missing":
         p.unlink()
     elif change == "tampered":
-        p.write_text("{}")
+        p.write_text("{}", encoding="utf-8")
     elif change == "public_mode":
         p.chmod(0o644)
     else:
@@ -153,7 +153,7 @@ def test_registry_and_authority_fail_closed(protection, change):
         elif change == "invalid_id":
             data["protected_students"][0]["user_id"] = "00101"
         if change != "missing_authority":
-            p.write_text(json.dumps(data))
+            p.write_text(json.dumps(data), encoding="utf-8")
             p.chmod(0o600)
             pin = hashlib.sha256(p.read_bytes()).hexdigest()
     with pytest.raises(GradebookError):
@@ -185,7 +185,8 @@ def test_authority_cannot_mutate_registry_during_check(protection):
 def test_duplicate_json_keys_are_invalid(protection):
     _, p, _ = protection
     p.write_text(
-        '{"contract":"CANVAS_PRIMARY_TARGET_PROTECTION_V1","contract":"CANVAS_PRIMARY_TARGET_PROTECTION_V1"}'
+        '{"contract":"CANVAS_PRIMARY_TARGET_PROTECTION_V1","contract":"CANVAS_PRIMARY_TARGET_PROTECTION_V1"}',
+        encoding="utf-8",
     )
     p.chmod(0o600)
     with pytest.raises(GradebookError, match="PROTECTION_REGISTRY_HELD"):
@@ -197,7 +198,7 @@ def test_duplicate_target_key_in_otherwise_complete_document_holds(protection):
     raw = json.dumps(data)
     # Add a later duplicate that would erase known protected cells under last-wins.
     raw = raw[:-1] + ', "protected_targets": []}'
-    p.write_text(raw)
+    p.write_text(raw, encoding="utf-8")
     p.chmod(0o600)
     with pytest.raises(GradebookError, match="PROTECTION_REGISTRY_HELD"):
         read_protection_registry(p, hashlib.sha256(p.read_bytes()).hexdigest())

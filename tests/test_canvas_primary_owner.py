@@ -72,7 +72,7 @@ def connection(case, tmp_path):
 
     files = ModuleType("fictional_files")
     files.file_sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
-    files.load = lambda p: json.loads(p.read_text())
+    files.load = lambda p: json.loads(p.read_text(encoding="utf-8"))
     files.local_path = lambda p: p
     files.private_directory = lambda p: p.mkdir(parents=True, exist_ok=True) or p
 
@@ -92,7 +92,7 @@ def connection(case, tmp_path):
         if k not in ("assignment_metadata", "assignment_metadata_sha256")
     }
     path = tmp_path / "bindings.json"
-    path.write_text(json.dumps([target]))
+    path.write_text(json.dumps([target]), encoding="utf-8")
     policy = {
         "contract": "CANVAS_PRIMARY_TARGET_PROTECTION_V1",
         "population_state": "COMPLETE",
@@ -105,7 +105,7 @@ def connection(case, tmp_path):
         "protected_targets": [],
     }
     policy_path = tmp_path / "private-protection.json"
-    policy_path.write_text(json.dumps(policy))
+    policy_path.write_text(json.dumps(policy), encoding="utf-8")
     policy_path.chmod(0o600)
     auth = Authority()
     auth.expected_registry = copy.deepcopy(policy)
@@ -189,7 +189,7 @@ async def test_changed_assignment_binding_and_source_hold(connection, case):
             current=changed,
             pin_binding=case["pin_binding"],
         )
-    connection.assignment_path.write_text("[]")
+    connection.assignment_path.write_text("[]", encoding="utf-8")
     with pytest.raises(GradebookError, match="ASSIGNMENT_BINDINGS_CHANGED"):
         connection.revalidate(
             plan,
@@ -415,7 +415,7 @@ async def test_registry_change_blocks_existing_plan_before_send(connection, case
         **{k: case[k] for k in ("raw", "binding", "baseline", "current", "pin_binding")}
     )
     # A newer registry means the pinned authority/config must be reviewed anew.
-    connection.protection_registry_path.write_text("{}")
+    connection.protection_registry_path.write_text("{}", encoding="utf-8")
     with pytest.raises(GradebookError, match="PROTECTION_REGISTRY_HELD"):
         connection.revalidate(
             plan,

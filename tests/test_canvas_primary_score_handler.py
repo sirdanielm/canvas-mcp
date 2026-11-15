@@ -27,7 +27,7 @@ async def handler_fixture(connection, case, tmp_path):
     stage_id, _ = connection.store.save("review", stage)
     directory = tmp_path / "history" / stage_id
     directory.mkdir(parents=True)
-    (directory / "plan.json").write_text(json.dumps(stage))
+    (directory / "plan.json").write_text(json.dumps(stage), encoding="utf-8")
     receipt = {
         "contract": connection.contract,
         "plan_id": stage_id,
@@ -35,7 +35,7 @@ async def handler_fixture(connection, case, tmp_path):
         "canvas_writes": 0,
         "publication_allowed": False,
     }
-    (directory / "receipt-001.json").write_text(json.dumps(receipt))
+    (directory / "receipt-001.json").write_text(json.dumps(receipt), encoding="utf-8")
     state = native._state(case["raw"])
     update = stage["transfer"]["requests"][0]["updateCells"]
     start = update["start"]
@@ -124,7 +124,7 @@ async def test_owned_prepare_routes_exact_intent_but_confirm_is_disabled(
     assert result["publication_confirm_enabled"] is False
     assert "confirmation_token" not in result and publisher.prepare_calls == 0
     assert result["canvas_writes"] == 0
-    preview = Path(result["review_file"]).read_text()
+    preview = Path(result["review_file"]).read_text(encoding="utf-8")
     assert (
         "Unapproved source-based advisory" in preview
         and "No Canvas grade or comment was sent" in preview
@@ -200,7 +200,7 @@ def test_handoff_preview_escapes_untrusted_names_and_shows_attempt(tmp_path):
             {"user_id": "101", "assignment_id": "21", "current": None, "proposed": 20}
         ],
     }
-    page = Path(_write_handoff_preview(store, review)).read_text()
+    page = Path(_write_handoff_preview(store, review)).read_text(encoding="utf-8")
     assert (
         "<script>" not in page
         and "<img src=x>" not in page
@@ -247,5 +247,5 @@ def test_handoff_link_requires_exact_canvas_origin_and_assignment(
             {"user_id": "101", "assignment_id": "21", "current": None, "proposed": 20}
         ],
     }
-    page = Path(_write_handoff_preview(store, review)).read_text()
+    page = Path(_write_handoff_preview(store, review)).read_text(encoding="utf-8")
     assert ("Open the Canvas assignment" in page) is expected
