@@ -331,13 +331,16 @@ def test_staging_does_not_touch_environment_files_or_processes(
         def get(self, *args: object) -> object:
             forbidden()
 
-    monkeypatch.setattr(builtins, "open", forbidden)
-    monkeypatch.setattr(Path, "read_bytes", forbidden)
-    monkeypatch.setattr(Path, "write_bytes", forbidden)
-    monkeypatch.setattr(os, "replace", forbidden)
-    monkeypatch.setattr(os, "environ", NoEnvironment())
-    monkeypatch.setattr(subprocess, "Popen", forbidden)
-    result = staging.stage_comment_connection(original, metadata)
+    # Restore process-wide guards before pytest's reporting hooks read their
+    # own environment or terminal configuration.
+    with monkeypatch.context() as guarded:
+        guarded.setattr(builtins, "open", forbidden)
+        guarded.setattr(Path, "read_bytes", forbidden)
+        guarded.setattr(Path, "write_bytes", forbidden)
+        guarded.setattr(os, "replace", forbidden)
+        guarded.setattr(os, "environ", NoEnvironment())
+        guarded.setattr(subprocess, "Popen", forbidden)
+        result = staging.stage_comment_connection(original, metadata)
     assert result["status"] == "OFFLINE_OWNER_ADOPTION_REQUIRED"
 
 
