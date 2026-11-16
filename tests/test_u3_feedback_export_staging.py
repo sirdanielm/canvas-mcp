@@ -152,12 +152,14 @@ def test_cli_private_full_readback_safe_stdout_and_immutable_reuse(
 @private_store_required
 def test_nonprivate_or_symlinked_output_refuses_without_chmod(stage_inputs, tmp_path):
     output = tmp_path / "not-private"
-    output.mkdir(mode=0o755)
-    os.chmod(output, 0o755)
+    # A single non-owner traversal bit is sufficient to violate private-root
+    # policy; the empty negative fixture need not be world-readable.
+    output.mkdir(mode=0o710)
+    os.chmod(output, 0o710)
     raw = export_bytes([stage_inputs])
     denied = run_cli(raw, output)
     assert denied.returncode == 1
-    assert output.stat().st_mode & 0o777 == 0o755 and not list(output.iterdir())
+    assert output.stat().st_mode & 0o777 == 0o710 and not list(output.iterdir())
     link = tmp_path / "link"
     link.symlink_to(output, target_is_directory=True)
     assert run_cli(raw, link).returncode == 1

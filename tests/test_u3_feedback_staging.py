@@ -262,11 +262,12 @@ def test_guessed_attempt_and_naive_time_reject(stage_inputs, attempt, time):
 
 def test_read_only_module_imports_no_publisher_store_or_transport():
     import ast
+    import inspect
     from pathlib import Path
 
-    import canvas_mcp.gradebook.u3_feedback_staging as source
-
-    tree = ast.parse(Path(source.__file__).read_text(encoding="utf-8"))
+    tree = ast.parse(
+        Path(inspect.getfile(stage_u3_feedback)).read_text(encoding="utf-8")
+    )
     assert not any(
         isinstance(n, ast.ImportFrom)
         and n.module in {"publish", "store", "server", "ledger"}
