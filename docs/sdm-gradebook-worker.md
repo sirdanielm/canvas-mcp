@@ -83,9 +83,12 @@ Queue one request, then inspect that same operation:
 .venv/bin/python scripts/sdm_gradebook_worker.py --get-only status
 ```
 
-A request acknowledgement is not completion. The configured gradebook MCP
-also exposes `request_gradebook_get_refresh` and
+A request acknowledgement is not completion. A controller-enabled gradebook
+server can expose `request_gradebook_get_refresh` and
 `get_gradebook_get_refresh_status` when its local controller is available.
+The fixed [three-tool read-only profile](gradebook-read-only-profile.md) omits
+refresh coordination and does not load that controller. Use the installed
+worker CLI above or the separately qualified Sheet menu for that profile.
 Require the exact request's complete native VERIFIED receipt with
 `finalized: true`. Local journal status does not establish current worker
 liveness, and an unknown response never permits a blind repeat.
