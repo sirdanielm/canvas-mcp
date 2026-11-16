@@ -183,3 +183,97 @@ def test_invalid_token_does_not_make_a_request(monkeypatch):
     with pytest.raises(launcher.ConnectionCheckError):
         launcher.verify_credentials("https://school.example", "")
     request.assert_not_called()
+
+
+class _CapturedExec(BaseException):
+    pass
+
+
+@pytest.mark.parametrize('raw,expected', [
+    (None, set()), ('', set()), ('none', set()), ('all', set()),
+    ('create_module', set()), ('create_module,add_module_item', {'create_module', 'add_module_item'}),
+    ('none,create_module', 'invalid'), ('create_modul', 'invalid'),
+    ('create_module,add_module_item,update_module', set()),
+])
+def test_draft_launcher_to_actual_startup_preserves_operator_policy(monkeypatch, raw, expected):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from fastmcp import FastMCP
+
+    import canvas_mcp.core.audit as audit
+    import canvas_mcp.server as server
+    from canvas_mcp.core.tool_policy import TOOL_EFFECTS, Effect
+
+    if raw is None:
+        monkeypatch.delenv('ALLOWED_WRITE_TOOLS', raising=False)
+    else:
+        monkeypatch.setenv('ALLOWED_WRITE_TOOLS', raw)
+    monkeypatch.setattr('sys.argv', ['launcher', '--draft-modules-only'])
+    monkeypatch.setattr(launcher, 'read_connection', lambda: 'https://school.example')
+    monkeypatch.setattr(launcher, 'keychain', lambda: SimpleNamespace(get_password=lambda *_: 'synthetic-token'))
+    monkeypatch.setattr(launcher.os, 'chdir', lambda *_: None)
+    captured = {}
+
+    def fake_exec(executable, argv, environment):
+        captured.update(argv=argv, env=environment)
+        raise _CapturedExec()
+
+    monkeypatch.setattr(launcher.os, 'execve', fake_exec)
+    with pytest.raises(_CapturedExec):
+        launcher.main()
+    assert captured['argv'][-1] == '--draft-modules-only'
+    assert captured['env'].get('ALLOWED_WRITE_TOOLS') == raw
+    config = SimpleNamespace(canvas_api_url='https://school.example/api/v1', institution_name='',
+                             canvas_role='educator', allowed_write_tools=captured['env'].get('ALLOWED_WRITE_TOOLS'), mcp_server_name='mock')
+    monkeypatch.setattr('sys.argv', captured['argv'])
+    monkeypatch.setattr(server, 'get_config', lambda: config)
+    monkeypatch.setattr(server, 'validate_config', lambda: True)
+    fake_verify = AsyncMock(return_value=(True, 'synthetic'))
+    monkeypatch.setattr(server, '_validate_token', fake_verify)
+    monkeypatch.setattr(audit, 'init_audit_logging', lambda: None)
+    observed = set()
+
+    def capture_run(mcp):
+        async def names():
+            return {t.name for t in await mcp.list_tools(run_middleware=False)}
+        observed.update(asyncio.run(names()))
+
+    monkeypatch.setattr(FastMCP, 'run', capture_run)
+    if expected == 'invalid':
+        with pytest.raises(SystemExit):
+            server.main()
+        fake_verify.assert_not_awaited()
+    else:
+        server.main()
+        assert {n for n in observed if TOOL_EFFECTS[n] != Effect.READ} == expected
+        assert {'list_modules', 'list_module_items'} <= observed
+
+
+@pytest.mark.parametrize('flag', ['--setup', '--check', '--verify'])
+def test_draft_launcher_does_not_combine_with_setup(monkeypatch, flag):
+    monkeypatch.setattr('sys.argv', ['launcher', flag, '--draft-modules-only'])
+    with pytest.raises(SystemExit):
+        launcher.main()
+
+
+def test_normal_launcher_keeps_normal_arguments_and_operator_policy(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr('sys.argv', ['launcher'])
+    monkeypatch.setenv('ALLOWED_WRITE_TOOLS', 'none')
+    monkeypatch.setattr(launcher, 'read_connection', lambda: 'https://school.example')
+    monkeypatch.setattr(launcher, 'keychain', lambda: SimpleNamespace(get_password=lambda *_: 'synthetic-token'))
+    monkeypatch.setattr(launcher.os, 'chdir', lambda *_: None)
+    captured = {}
+
+    def fake_exec(executable, argv, environment):
+        captured.update(argv=argv, env=environment)
+        raise _CapturedExec()
+
+    monkeypatch.setattr(launcher.os, 'execve', fake_exec)
+    with pytest.raises(_CapturedExec):
+        launcher.main()
+    assert captured['argv'][1:] == ['--role', 'educator']
+    assert captured['env']['ALLOWED_WRITE_TOOLS'] == 'none'

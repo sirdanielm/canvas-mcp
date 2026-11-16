@@ -34,7 +34,11 @@ from .core.credentials import (
 )
 from .core.logging import log_error, log_info, log_warning
 from .core.tool_policy import (
+    TOOL_EFFECTS,
+    Effect,
+    ToolPolicy,
     ToolPolicyError,
+    Transport,
     apply_tool_policy,
     policy_notice,
     resolve_tool_policy,
@@ -77,6 +81,7 @@ from .tools import (
     register_student_tools,
     register_student_write_tools,
 )
+from .tools.modules import register_draft_module_tools
 
 
 async def _send_json_error(send: Any, status: int, message: str) -> None:
@@ -528,7 +533,9 @@ def create_server() -> FastMCP:
     return FastMCP(name=config.mcp_server_name)
 
 
-def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
+def register_all_tools(
+    mcp: FastMCP, role: str = "all", *, draft_modules_only: bool = False
+) -> None:
     """Register MCP tools based on the selected role profile.
 
     Args:
@@ -537,6 +544,15 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     """
     log_info(f"Registering Canvas MCP tools (role: {role})...")
     install_tool_result_contract(mcp)
+
+    if draft_modules_only:
+        # This profile is an independent registry, not an educator allowlist.
+        register_course_tools(mcp)
+        register_shared_content_tools(mcp)
+        register_shared_module_tools(mcp)
+        register_self_identity_tools(mcp)
+        register_draft_module_tools(mcp)
+        return
 
     # Shared tools — always registered for all roles
     register_course_tools(mcp)
@@ -596,6 +612,26 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     register_resources_and_prompts(mcp)
 
     log_info("All Canvas MCP tools registered successfully!")
+
+
+def _resolve_draft_policy(raw: str | None, transport: Transport) -> ToolPolicy:
+    """Admit draft writers only for an explicit exact two-tool policy."""
+    policy = resolve_tool_policy(raw, transport)
+    expected = frozenset({"create_module", "add_module_item"})
+    if not policy.enforced or policy.allowed != expected:
+        return resolve_tool_policy("none", transport)
+    return policy
+
+
+async def _assert_draft_registry(mcp: FastMCP) -> None:
+    """Refuse startup for unclassified or non-draft side-effect tools."""
+    permitted = {"create_module", "add_module_item"}
+    names = {tool.name for tool in await mcp.list_tools(run_middleware=False)}
+    forbidden = {name for name in names if name not in TOOL_EFFECTS or (
+        TOOL_EFFECTS[name] != Effect.READ and name not in permitted
+    )}
+    if forbidden:
+        raise RuntimeError("Unsafe draft module registry: " + ", ".join(sorted(forbidden)))
 
 
 async def _validate_token() -> tuple[bool, str]:
@@ -705,6 +741,11 @@ def main() -> None:
         help="Tool profile: student (~52 tools), educator (~97 tools), all (default: all)"
     )
     parser.add_argument(
+        "--draft-modules-only",
+        action="store_true",
+        help="Serve the guarded draft module profile (operator write policy still applies)",
+    )
+    parser.add_argument(
         "--list-grants",
         action="store_true",
         help="List self-service access grants (hosted; needs az login) and exit"
@@ -719,6 +760,15 @@ def main() -> None:
     is_http = args.transport == "streamable-http"
 
     config = get_config()
+    if args.draft_modules_only and (args.role or config.canvas_role) != "educator":
+        raise RuntimeError("Draft module profile requires educator role")
+    draft_policy = None
+    if args.draft_modules_only:
+        try:
+            draft_policy = _resolve_draft_policy(config.allowed_write_tools, "http" if is_http else "stdio")
+        except ToolPolicyError as exc:
+            log_error(str(exc))
+            sys.exit(1)
 
     # Admin access-approval commands talk only to the overlay store (Azure, via
     # az login) — not Canvas — so dispatch them before the Canvas-credential /
@@ -919,8 +969,12 @@ def main() -> None:
     # Resolve role: CLI flag > env var > default
     role = args.role or config.canvas_role
     if role not in ("student", "educator", "all"):
+        if args.draft_modules_only:
+            raise RuntimeError("Invalid role for draft module profile")
         log_warning(f"Unknown role '{role}', defaulting to 'all'")
         role = "all"
+    if args.draft_modules_only and role != "educator":
+        raise RuntimeError("Draft module profile requires educator role")
     # Make the resolved role authoritative so runtime tool behavior (e.g.
     # list_courses reading get_config().canvas_role) matches the registered
     # profile even when the CLI --role flag overrides the CANVAS_ROLE env var.
@@ -930,14 +984,17 @@ def main() -> None:
     # Which side-effect tools may exist at all (GHSA-hmr8). Resolved before
     # registering so a bad value stops startup instead of serving a guess.
     try:
-        tool_policy = resolve_tool_policy(
+        tool_policy = draft_policy if args.draft_modules_only else resolve_tool_policy(
             config.allowed_write_tools, "http" if is_http else "stdio"
         )
+        assert tool_policy is not None
     except ToolPolicyError as exc:
         log_error(str(exc))
         sys.exit(1)
 
-    register_all_tools(mcp, role=role)
+    register_all_tools(mcp, role=role, draft_modules_only=args.draft_modules_only)
+    if args.draft_modules_only:
+        asyncio.run(_assert_draft_registry(mcp))
 
     removed_tools = asyncio.run(apply_tool_policy(mcp, tool_policy))
     served = [tool.name for tool in asyncio.run(mcp.list_tools(run_middleware=False))]

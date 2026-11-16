@@ -5,10 +5,14 @@ and module items. Modules are the primary content organization system in Canvas.
 """
 
 
-from typing import Any
+import functools
+import inspect
+from collections.abc import Callable
+from typing import Annotated, Any, TypeVar, cast
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Strict
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
@@ -24,6 +28,35 @@ from ..core.write_confirmation import (
     preview_with_token,
     redeem_confirmation,
 )
+
+_ToolFunc = TypeVar("_ToolFunc", bound=Callable[..., Any])
+
+
+def _identity(func: _ToolFunc) -> _ToolFunc:
+    return func
+
+
+def _draft_only_input(func: _ToolFunc) -> _ToolFunc:
+    """Reject non-literal false before the legacy parameter coercion runs."""
+    signature = inspect.signature(func)
+
+    @functools.wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        bound = signature.bind(*args, **kwargs)
+        bound.apply_defaults()
+        if bound.arguments["published"] is not False:
+            return "Error: only unpublished drafts are permitted."
+        return await func(*args, **kwargs)
+
+    params = [
+        param.replace(annotation=Annotated[bool, Strict()]) if param.name == "published" else param
+        for param in signature.parameters.values()
+    ]
+    wrapper.__annotations__ = dict(func.__annotations__)
+    wrapper.__annotations__["published"] = Annotated[bool, Strict()]
+    wrapper.__signature__ = signature.replace(parameters=params)  # type: ignore[attr-defined]
+    return cast(_ToolFunc, wrapper)
+
 
 _DELETE_MODULE_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 _DELETE_MODULE_ITEM_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
@@ -214,10 +247,11 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
         return json.dumps(result)
 
 
-def register_educator_module_tools(mcp: FastMCP) -> None:
+def register_educator_module_tools(mcp: FastMCP, *, draft_only: bool = False) -> None:
     """Register educator-only module management tools."""
 
     @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
+    @_draft_only_input if draft_only else _identity
     @validate_params
     async def create_module(
         course_identifier: str | int,
@@ -230,10 +264,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Create a module in a course.
 
-        Modules are unpublished by default. Pass published=True only when
-        publication is authorized; student visibility also depends on unlock_at,
-        prerequisites, and the publication state of linked content. Read back
-        the module and linked items after any publication change.
+        In the draft-only profile, publication is rejected. The normal profile
+        requires separate teacher authorization for publication.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -244,6 +276,9 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             prerequisite_module_ids: Comma-separated module IDs that must be completed first
             published: Whether the module is published (default: False)
         """
+        if draft_only and published is not False:
+            return "Error: only unpublished drafts are permitted."
+
         # Backstop for issue 239: never publish our provenance markers.
         if contains_fence_markers(name):
             return FENCE_LEAK_ERROR
@@ -253,7 +288,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         # Build module parameters
         module_params: dict[str, Any] = {
             "module[name]": name,
-            "module[published]": str(published).lower()
+            "module[published]": "false" if draft_only else str(published).lower()
         }
 
         if position is not None:
@@ -281,8 +316,19 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             "post",
             f"/courses/{course_id}/modules",
             data=form_data,
-            use_form_data=True
+            use_form_data=True,
+            retry_rate_limits=not draft_only,
         )
+
+        if draft_only:
+            if not isinstance(response, dict) or "error" in response:
+                return "Error: UNKNOWN: write outcome uncertain; reconcile by GET before retry."
+            if not response.get("id") or response.get("published") is not False:
+                return "Error: UNVERIFIED: reconcile by GET before retry."
+            return (
+                f"Error: UNVERIFIED: draft response ID {response['id']}; "
+                "independent GET is required before retry or reporting completion."
+            )
 
         if "error" in response:
             return f"Error creating module: {response['error']}"
@@ -467,6 +513,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         return result
 
     @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
+    @_draft_only_input if draft_only else _identity
     @validate_params
     async def add_module_item(
         course_identifier: str | int,
@@ -485,9 +532,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Add an item to a module.
 
-        Required fields depend on item_type: content_id for File, Discussion,
-        Assignment, Quiz, and ExternalTool; page_url for Page; title for
-        SubHeader and ExternalUrl.
+        The draft-only profile accepts only unpublished ExternalUrl items.
+        The normal profile supports the item types listed below.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -504,6 +550,11 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             completion_requirement_type: One of: must_view, must_submit, must_contribute, min_score, must_mark_done
             completion_requirement_min_score: Minimum score (only for min_score type)
         """
+        if draft_only and published is not False:
+            return "Error: only unpublished drafts are permitted."
+        if draft_only and item_type != "ExternalUrl":
+            return "Error: draft item creation supports ExternalUrl only."
+
         if id_error := numeric_id_error(module_id=module_id):
             return id_error
         # Backstop for issue 239: never publish our provenance markers.
@@ -564,7 +615,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         if new_tab:
             item_params["module_item[new_tab]"] = "true"
 
-        item_params["module_item[published]"] = str(published).lower()
+        item_params["module_item[published]"] = "false" if draft_only else str(published).lower()
 
         # Completion requirements
         if completion_requirement_type:
@@ -584,8 +635,19 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             "post",
             f"/courses/{course_id}/modules/{module_id}/items",
             data=item_params,
-            use_form_data=True
+            use_form_data=True,
+            retry_rate_limits=not draft_only,
         )
+
+        if draft_only:
+            if not isinstance(response, dict) or "error" in response:
+                return "Error: UNKNOWN: write outcome uncertain; reconcile by GET before retry."
+            if not response.get("id") or response.get("published") is not False:
+                return "Error: UNVERIFIED: reconcile by GET before retry."
+            return (
+                f"Error: UNVERIFIED: draft response ID {response['id']}; "
+                "independent GET is required before retry or reporting completion."
+            )
 
         if "error" in response:
             return f"Error adding module item: {response['error']}"
@@ -806,3 +868,17 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         result += f"  Item ID: {item_id}\n"
         result += "\n  Note: The underlying content was NOT deleted, only unlinked from this module.\n"
         return result
+
+
+def register_draft_module_tools(mcp: FastMCP) -> None:
+    """Register only the two guarded draft tools; never register other writers."""
+    class _DraftToolFilter:
+        def tool(self, *args: Any, **kwargs: Any) -> Any:
+            def decorate(func: Callable[..., Any]) -> Any:
+                if func.__name__ in {"create_module", "add_module_item"}:
+                    return mcp.tool(*args, **kwargs)(func)
+                return func
+            return decorate
+
+    # The filtered adapter implements the tool decorator used by registration.
+    register_educator_module_tools(_DraftToolFilter(), draft_only=True)  # type: ignore[arg-type]
