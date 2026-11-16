@@ -111,7 +111,7 @@ route requires its own actual qualification.
 | Ordinary participation receiver | Reusable receiver and owner/executor integration are maintained source from [PR52](https://github.com/sirdanielm/canvas-mcp/pull/52). Native reader pins, private owner/provider bindings, installation qualification and exact-case admission remain separate. |
 | Canvas score/comment publishers | Distinct approval, durable-intent and readback gates; local EDIT is not Canvas publication. |
 | Unit 3 feedback export staging | Offline validators and the explicit stdin CLI retain exact source order, native seals and held cases in private unapproved receipts. Missing source authentication, producer closure, QC, teacher acceptance, current target/attempt and supported comment-profile adoption remain separate holds. No publisher envelope or confirmation token is constructed by staging. |
-| Runtime identity and read-only access | Both configured read-only profiles passed November 11 protocol qualification. Native client adoption is partial; older active clients retain their prior qualified runtime. Exact bindings and dated receipts stay private; neither source nor a past health check proves current service readiness. The general-server diagnostic excludes the dedicated gradebook server, whose [read-only profile](gradebook-read-only-profile.md) exposes only three tools. |
+| Runtime identity and read-only access | The latest retained November 15 protocol qualification passed with 52 authoring tools and three gradebook tools, all read-only. Native client adoption is partial; older active clients retain their prior qualified runtime. Exact bindings and dated receipts stay private; neither source nor a past health check proves current service readiness. The general-server diagnostic excludes the dedicated gradebook server, whose [read-only profile](gradebook-read-only-profile.md) omits refresh coordination. |
 | Older accepted-pair RELEASE prototype | Offline and unconnected; separate from the native EDIT routes. |
 
 ### November 11 source alignment
@@ -139,6 +139,27 @@ readiness before an operation.
 Earlier dated source milestones and their qualifications remain in the
 [November 3 snapshot](https://github.com/sirdanielm/canvas-mcp/blob/3a57c661fceab33f587e10f17e7161e4dad2bc70/docs/goals-and-status.md).
 Use current source and private receipts for present status.
+
+### November 15 source and runtime alignment
+
+Maintained source includes upstream 1.18 promotion
+([PR72](https://github.com/sirdanielm/canvas-mcp/pull/72)), subsequent upstream
+improvements and bounded latest-startup diagnostics
+([PR74](https://github.com/sirdanielm/canvas-mcp/pull/74)), and offline held Unit 3
+feedback export staging
+([PR75](https://github.com/sirdanielm/canvas-mcp/pull/75)). The local intake and
+shared-owner priorities above were aligned in
+[PR73](https://github.com/sirdanielm/canvas-mcp/pull/73).
+
+The separately qualified November 15 installation retained the fixed 52/3
+read-only profiles. Its GET-only worker cutover verified the actual startup
+digest, an advancing READY heartbeat, a clear queue and zero unresolved
+operations. These are dated installation observations, not a current health
+check. Native clients can retain older qualified runtimes until supported
+reconnection. Keep exact pins, current process/queue observations and recovery
+receipts in the private operator record. Source staging still establishes no
+producer closure, academic admission, teacher acceptance or comment/publication
+authority.
 
 ## Next work and ownership
 
