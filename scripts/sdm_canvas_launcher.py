@@ -179,6 +179,8 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--setup", action="store_true")
     mode.add_argument("--check", action="store_true")
+    mode.add_argument("--draft-modules-only", action="store_true",
+                      help="Start the guarded draft-only module profile; operator policy still applies")
     mode.add_argument(
         "--verify",
         action="store_true",
@@ -207,9 +209,12 @@ def main() -> int:
             return 0
         executable = ROOT / ".venv" / "bin" / "canvas-mcp-server"
         os.chdir(ROOT)
+        server_args = [str(executable), "--role", "educator"]
+        if args.draft_modules_only:
+            server_args.append("--draft-modules-only")
         os.execve(
             str(executable),
-            [str(executable), "--role", "educator"],
+            server_args,
             launch_environment(origin, token),
         )
     except ConnectionCheckError as exc:
