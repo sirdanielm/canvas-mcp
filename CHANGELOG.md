@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Handle nullable assignment submission types in student status without losing
+  neighboring results. Excused work is excluded from the missing bucket even
+  when Canvas retains a missing flag; non-excused manual missing overrides and
+  external-tool state limits remain intact.
+
 - Resolve the latest worker startup pin from the complete bounded private log,
   including restarts between its old header and recent tail. Incomplete,
   changing or oversized logs provide no startup proof; rotation retains the
