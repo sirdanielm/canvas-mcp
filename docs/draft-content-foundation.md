@@ -157,3 +157,12 @@ specific due dates are required, do not substitute a common date: hold that
 assignment pending a separately designed section-bound preview/write/readback
 contract. Existing-object edits still accept name/description only and preserve
 points/groups/dates. No live qualification has occurred.
+
+## Platform boundary
+
+This prepared-content profile requires POSIX ownership, exact private mode bits
+and durable directory fsync. Windows is deliberately unsupported until a separate
+ACL and durability contract is implemented. Profile initialization rejects it
+explicitly before reading a manifest or registering tools; direct service calls
+return HELD without creating journals or making requests. Existing read-only and
+module-only profiles are not subject to this new platform restriction.

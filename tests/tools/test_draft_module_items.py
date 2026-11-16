@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from canvas_mcp.tools import draft_module_items as draft
+from canvas_mcp.tools.draft_assignments import private_storage_supported
 
 
 @pytest.fixture
@@ -40,6 +41,7 @@ async def test_invalid_before_network(case, changes):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_header_with_parent_and_position_readback(case):
     service, request, _ = case
     parent = {"id": 2, "published": False}
@@ -52,6 +54,7 @@ async def test_header_with_parent_and_position_readback(case):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("assignment", [{"id": 4, "course_id": 9, "published": False},
     {"id": 4, "course_id": 1, "published": True}, {"id": 5, "course_id": 1, "published": False}])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_wrong_or_published_assignment_held(case, assignment):
     service, request, listing = case
     request.side_effect = [{"id": 2, "published": False}, assignment]
@@ -61,6 +64,7 @@ async def test_wrong_or_published_assignment_held(case, assignment):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_assignment_independent_link_parent_content_readback(case):
     service, request, _ = case
     parent = {"id": 2, "published": False}
@@ -73,6 +77,7 @@ async def test_assignment_independent_link_parent_content_readback(case):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("readback", [item(position=2), item(published=True), item(module_id=9), item(type="Page")])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_readback_mismatch_held(case, readback):
     service, request, _ = case
     parent = {"id": 2, "published": False}
@@ -81,6 +86,7 @@ async def test_readback_mismatch_held(case, readback):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_uncertain_post_no_retry(case):
     service, request, _ = case
     request.side_effect = [{"id": 2, "published": False}, {"error": "timeout"}]
@@ -90,6 +96,7 @@ async def test_uncertain_post_no_retry(case):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_published_parent_no_write(case):
     service, request, listing = case
     request.return_value = {"id": 2, "published": True}
@@ -101,6 +108,7 @@ async def test_published_parent_no_write(case):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("inventory", [{"error": "failed"}, [{}], [{"id": 9, "module_id": 2}],
     [{"id": 9, "module_id": 2}, {"id": 9, "module_id": 2}]])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_bad_inventory_never_posts(case, inventory):
     service, request, listing = case
     request.return_value = {"id": 2, "published": False}
@@ -111,6 +119,7 @@ async def test_bad_inventory_never_posts(case, inventory):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("changed", ["parent", "assignment"])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_visibility_changes_during_readback_unverified(case, changed):
     service, request, _ = case
     parent = {"id": 2, "published": False}

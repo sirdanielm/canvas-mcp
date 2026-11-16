@@ -11,6 +11,7 @@ import math
 import os
 import re
 import stat
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,14 @@ PROTECTED = ("published", "submission_types", "points_possible", "grading_type",
              "due_at", "unlock_at", "lock_at", "assignment_group_id", "peer_reviews",
              "automatic_peer_reviews")
 SAFE_TYPES = {"on_paper", "none", "online_text_entry", "online_url", "online_upload"}
+
+
+PLATFORM_HOLD = "Prepared draft content requires POSIX ownership, permissions and directory fsync; Windows is unsupported"
+
+
+def private_storage_supported() -> bool:
+    """Do not substitute Windows mode bits for an independently verified ACL."""
+    return sys.platform != "win32" and os.name == "posix" and callable(getattr(os, "getuid", None))
 
 
 def digest(value: Any) -> str:
@@ -86,6 +95,8 @@ class DraftAssignmentService:
         self.journal = journal
 
     def _claim(self, operation: str, binding: dict[str, Any]) -> Path | None:
+        if not private_storage_supported():
+            raise ValueError(PLATFORM_HOLD)
         if re.fullmatch(r"[A-Za-z0-9_-]{1,100}", operation) is None:
             return None
         self.journal.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -141,6 +152,8 @@ class DraftAssignmentService:
         are rejected before any request. An intent claim precedes every request.
         Existing intent IDs require reconciliation, never another write.
         """
+        if not private_storage_supported():
+            return _result("HELD", PLATFORM_HOLD)
         allowed = {"name", "description"} if assignment_id is not None else {
             "name", "description", "submission_type", "points_possible", "assignment_group_id", "due_at"}
         if (published is not False or not _id(course_id)

@@ -9,6 +9,7 @@ from fastmcp.exceptions import ToolError
 
 from canvas_mcp.core.tool_policy import apply_tool_policy, resolve_tool_policy
 from canvas_mcp.tools import draft_content as draft
+from canvas_mcp.tools.draft_assignments import private_storage_supported
 
 
 @pytest.fixture
@@ -26,6 +27,7 @@ def prepared(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_inspection_is_nonmutating(prepared):
     obj, _ = prepared
     assert (await obj.inspect("lesson"))["status"] == "REVIEW"
@@ -37,6 +39,7 @@ async def test_inspection_is_nonmutating(prepared):
 @pytest.mark.parametrize("items", [{"error": "pagination failed"}, [{"id": 2, "course_id": 3}],
     [{"id": 2, "course_id": 1, "name": "New"}], [],
     [{"id": 2, "course_id": 1}, {"id": 3, "course_id": 1}]])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_reconciliation_holds(prepared, items):
     obj, listing = prepared
     listing.return_value = items
@@ -45,6 +48,7 @@ async def test_reconciliation_holds(prepared, items):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_apply_only_pinned_entry(prepared):
     obj, _ = prepared
     assert (await obj.apply("lesson"))["status"] == "VERIFIED_DRAFT"
@@ -56,6 +60,7 @@ async def test_apply_only_pinned_entry(prepared):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_registry_and_denied_policy(prepared):
     obj, _ = prepared
     mcp = FastMCP("synthetic")
@@ -70,6 +75,7 @@ async def test_registry_and_denied_policy(prepared):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_unknown_input_cannot_replace_manifest(prepared):
     obj, _ = prepared
     mcp = FastMCP("synthetic")
@@ -83,6 +89,7 @@ async def test_unknown_input_cannot_replace_manifest(prepared):
 @pytest.mark.parametrize("policy,writers", [(None, set()), ("none", set()), ("all", set()),
     ("create_module,add_module_item", set()), (draft.WRITER, {draft.WRITER}), (draft.MODULE_WRITER, {draft.MODULE_WRITER}),
     (draft.WRITER + "," + draft.MODULE_WRITER, {draft.WRITER, draft.MODULE_WRITER})])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 def test_cli_exact_policy_and_isolated_registry(prepared, monkeypatch, policy, writers):
     import asyncio
     import sys
@@ -114,6 +121,7 @@ def test_cli_exact_policy_and_isolated_registry(prepared, monkeypatch, policy, w
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_module_only_manifest_needs_no_dummy_assignment(tmp_path):
     path = tmp_path / "modules.json"
     value = {"schema_version": 1, "assignments": {}, "module_items": {"test": {

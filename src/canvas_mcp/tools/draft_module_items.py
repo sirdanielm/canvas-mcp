@@ -6,7 +6,14 @@ from typing import Any
 
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.untrusted_content import contains_fence_markers
-from .draft_assignments import DraftAssignmentService, _bound, _id, _result
+from .draft_assignments import (
+    PLATFORM_HOLD,
+    DraftAssignmentService,
+    _bound,
+    _id,
+    _result,
+    private_storage_supported,
+)
 
 
 def _parent(value: Any, course: str, module: str) -> bool:
@@ -26,6 +33,8 @@ class DraftModuleItems:
                       item_type: str, position: int, existing_item_ids: list[str],
                       published: bool = False, title: str | None = None,
                       assignment_id: str | None = None) -> dict[str, Any]:
+        if not private_storage_supported():
+            return _result("HELD", PLATFORM_HOLD)
         if (published is not False or not _id(course_id) or not _id(module_id)
                 or type(position) is not int or position < 1
                 or not isinstance(existing_item_ids, list) or not all(_id(i) for i in existing_item_ids)

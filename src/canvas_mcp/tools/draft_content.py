@@ -14,12 +14,14 @@ from mcp.types import ToolAnnotations
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.validation import validate_params
 from .draft_assignments import (
+    PLATFORM_HOLD,
     DraftAssignmentService,
     _bound,
     _creation_fields,
     _id,
     _result,
     digest,
+    private_storage_supported,
 )
 from .draft_module_items import DraftModuleItems
 
@@ -39,6 +41,8 @@ class PreparedAssignments:
         self.entries()  # Refuse invalid source before registering any tool.
 
     def entries(self) -> dict[str, Any]:
+        if not private_storage_supported():
+            raise ValueError(PLATFORM_HOLD)
         path = self.manifest
         info = path.stat()
         if (path.resolve() != path.absolute() or not stat.S_ISREG(info.st_mode)

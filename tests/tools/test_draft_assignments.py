@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from canvas_mcp.tools import draft_assignments as draft
+from canvas_mcp.tools.draft_assignments import private_storage_supported
 
 
 def creation(**changes):
@@ -52,6 +53,7 @@ async def test_side_effect_fields_rejected(setup, field, value):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_create_independent_readback_and_restart_replay(setup):
     service, request = setup
     request.side_effect = [assignment(), assignment()]
@@ -67,6 +69,7 @@ async def test_create_independent_readback_and_restart_replay(setup):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("response", [{"error": "timeout"}, {}, assignment(course_id=2), assignment(published=True)])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_uncertain_post_never_retried(setup, response):
     service, request = setup
     request.return_value = response
@@ -79,6 +82,7 @@ async def test_uncertain_post_never_retried(setup, response):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("changes", [{"published": True}, {"course_id": 2}, {"id": 8},
     {"is_quiz_assignment": True}, {"submission_types": ["external_tool"]}, {"published": None}])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_update_preflight_refuses_unsafe_target(setup, changes):
     service, request = setup
     before = assignment(**changes)
@@ -90,6 +94,7 @@ async def test_update_preflight_refuses_unsafe_target(setup, changes):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_update_exact_preimage_and_protected_metadata(setup):
     service, request = setup
     before = assignment()
@@ -104,6 +109,7 @@ async def test_update_exact_preimage_and_protected_metadata(setup):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("changes", [{"published": True}, {"points_possible": 9}, {"course_id": 2}, {"description": "Teacher change"}])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_changed_readback_never_verified(setup, changes):
     service, request = setup
     before = assignment()
@@ -116,6 +122,7 @@ async def test_changed_readback_never_verified(setup, changes):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_stale_preimage_stops_before_put(setup):
     service, request = setup
     request.return_value = assignment(description="Teacher change")
@@ -126,6 +133,7 @@ async def test_stale_preimage_stops_before_put(setup):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_unknown_create_blocks_same_binding_with_new_operation(setup):
     service, request = setup
     request.return_value = {"error": "timeout"}
@@ -136,6 +144,7 @@ async def test_unknown_create_blocks_same_binding_with_new_operation(setup):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_failed_readback_retains_confirmed_identity(setup):
     import json
     service, request = setup
@@ -147,6 +156,7 @@ async def test_failed_readback_retains_confirmed_identity(setup):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_insecure_journal_cannot_dispatch(setup):
     service, request = setup
     service.journal.mkdir(mode=0o755)
@@ -183,6 +193,7 @@ async def test_ambiguous_or_invalid_due_holds(setup, due):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_canonical_create_metadata_and_due_readback(setup):
     service, request = setup
     due = "2026-11-20T17:00:00Z"
@@ -198,6 +209,7 @@ async def test_canonical_create_metadata_and_due_readback(setup):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("groups", [[], {"error": "unavailable"}, [{"id": 2, "course_id": 9}], [{"id": 2}, {"id": 2}]])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_wrong_missing_ambiguous_group_no_post(setup, monkeypatch, groups):
     service, request = setup
     monkeypatch.setattr(draft, "fetch_all_paginated_results", AsyncMock(return_value=groups))
@@ -209,6 +221,7 @@ async def test_wrong_missing_ambiguous_group_no_post(setup, monkeypatch, groups)
 @pytest.mark.parametrize("changes", [{"points_possible": 20}, {"assignment_group_id": 3},
     {"due_at": "2026-11-20T12:00:00Z"}, {"has_overrides": True}, {"post_to_sis": True},
     {"unlock_at": "2026-11-20T12:00:00Z"}])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_metadata_readback_mismatch_unverified(setup, changes):
     service, request = setup
     request.side_effect = [assignment(), assignment(**changes)]
@@ -227,6 +240,7 @@ async def test_updates_cannot_alter_grade_metadata_dates_or_side_effects(setup, 
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_absent_null_due_readback_is_not_verified(setup):
     service, request = setup
     readback = assignment()
@@ -237,6 +251,7 @@ async def test_absent_null_due_readback_is_not_verified(setup):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("points", [True, False, float("nan"), float("inf")])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_readback_points_require_actual_finite_number(setup, points):
     service, request = setup
     content = creation(points_possible=int(points) if type(points) is bool else 10)
