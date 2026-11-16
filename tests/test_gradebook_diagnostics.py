@@ -355,6 +355,102 @@ def test_fresh_http_activity_and_header_startup_survive_large_log_tail(tmp_path)
     assert result["ready"] is False
 
 
+def test_inspection_uses_latest_startup_in_middle_of_log(tmp_path):
+    root = tmp_path / "refresh-worker"
+    root.mkdir(mode=0o700)
+    path = root / "diagnostics.jsonl"
+    diagnostics = Diagnostics(path)
+    diagnostics.emit("startup", source_digest="a" * 64)
+    old_line = b'{"v":1,"event":"loop","at":"2000-01-01T00:00:00Z","state":"IDLE"}\n'
+    with path.open("ab") as stream:
+        stream.write(old_line * 1200)
+    diagnostics.emit("startup", source_digest="b" * 64)
+    with path.open("ab") as stream:
+        stream.write(old_line * 1200)
+    diagnostics.emit("loop", state="IDLE")
+    before = path.read_bytes()
+
+    result = inspect_journal(tmp_path, "fictional-book")
+
+    assert result["startup_pin"]["source_digest"] == "b" * 64
+    assert result["recent_local_activity"] is True
+    assert result["worker_running"] == "unverified"
+    assert result["ready"] is False
+    assert path.read_bytes() == before
+
+
+def test_inspection_does_not_reuse_old_pin_from_truncated_startup(tmp_path):
+    root = tmp_path / "refresh-worker"
+    root.mkdir(mode=0o700)
+    path = root / "diagnostics.jsonl"
+    diagnostics = Diagnostics(path)
+    diagnostics.emit("startup", source_digest="a" * 64)
+    with path.open("ab") as stream:
+        stream.write(b'{"v":1,"event":"startup","at":"2026-11-15T00:00:00Z"')
+
+    result = inspect_journal(tmp_path, "fictional-book")
+
+    assert "startup_pin" not in result
+    assert result["ready"] is False
+
+
+def test_later_successful_append_does_not_hide_interrupted_startup(tmp_path):
+    root = tmp_path / "refresh-worker"
+    root.mkdir(mode=0o700)
+    path = root / "diagnostics.jsonl"
+    diagnostics = Diagnostics(path)
+    diagnostics.emit("startup", source_digest="a" * 64)
+    with path.open("ab") as stream:
+        stream.write(b'{"v":1,"event":"startup","at":"2026-11-15T00:00:00Z"')
+    diagnostics.emit("startup", source_digest="b" * 64)
+    before = path.read_bytes()
+    assert before.endswith(b"\n")
+    assert diagnostics.dropped == 0
+
+    result = inspect_journal(tmp_path, "fictional-book")
+
+    assert "startup_pin" not in result
+    assert result["ready"] is False
+    assert path.read_bytes() == before
+
+
+def test_inspection_omits_pin_when_whole_log_exceeds_scan_bound(tmp_path, monkeypatch):
+    root = tmp_path / "refresh-worker"
+    root.mkdir(mode=0o700)
+    path = root / "diagnostics.jsonl"
+    diagnostics = Diagnostics(path)
+    diagnostics.emit("startup", source_digest="a" * 64)
+    monkeypatch.setattr(module, "MAX_LOG_BYTES", path.stat().st_size - 1)
+
+    result = inspect_journal(tmp_path, "fictional-book")
+
+    assert "startup_pin" not in result
+    assert result["ready"] is False
+
+
+def test_rotation_recovers_latest_middle_startup_for_new_diagnostics_object(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "refresh-worker"
+    root.mkdir(mode=0o700)
+    path = root / "diagnostics.jsonl"
+    diagnostics = Diagnostics(path)
+    diagnostics.emit("startup", source_digest="a" * 64)
+    old_line = b'{"v":1,"event":"loop","at":"2000-01-01T00:00:00Z","state":"IDLE"}\n'
+    with path.open("ab") as stream:
+        stream.write(old_line * 1200)
+    diagnostics.emit("startup", source_digest="b" * 64)
+    with path.open("ab") as stream:
+        stream.write(old_line * 1200)
+    before = path.read_bytes()
+    monkeypatch.setattr(module, "MAX_LOG_BYTES", len(before) + 10)
+
+    Diagnostics(path).emit("stage_start", stage="readback")
+
+    assert json.loads(path.read_bytes().splitlines()[0])["source_digest"] == "b" * 64
+    assert [p.read_bytes() for p in root.glob("diagnostics.archive-*.jsonl")] == [before]
+
+
 def test_repeated_rotation_is_private_bounded_and_retains_each_startup_header(
     tmp_path, monkeypatch
 ):
@@ -498,7 +594,7 @@ def test_failed_rotation_preserves_active_history_and_later_emit_recovers(
         assert (root / name).read_bytes() == contents
 
 
-def test_inspection_reads_only_bounded_private_samples_and_changes_no_files(tmp_path):
+def test_inspection_reads_only_bounded_private_log_and_changes_no_files(tmp_path):
     root = tmp_path / "refresh-worker"
     root.mkdir(mode=0o700)
     path = root / "diagnostics.jsonl"

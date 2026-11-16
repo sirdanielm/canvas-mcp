@@ -9,8 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Preserve Planner's excused and graded states in upcoming-assignment status
-  lines instead of reporting those items as unsubmitted work.
+- Resolve the latest worker startup pin from the complete bounded private log,
+  including restarts between its old header and recent tail. Incomplete,
+  changing or oversized logs provide no startup proof; rotation retains the
+  latest complete startup. Diagnostics still do not establish worker liveness.
+
+- Preserve Planner's submitted, excused, missing and graded states in upcoming-
+  assignment status lines. An explicit missing flag takes precedence over a
+  graded flag, including work with a recorded zero. This uses the existing
+  Planner response and makes no additional request.
 
 - Retrieve uploaded file metadata when storage returns an empty `201 Created`
   with a `Location` header. Confirmation uses the existing authenticated Canvas

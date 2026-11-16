@@ -268,11 +268,7 @@ class Diagnostics:
         if (before.st_dev, before.st_ino) != (current.st_dev, current.st_ino):
             raise OSError("Telemetry path changed while rotating.")
         if self._startup_record is None:
-            for line in _log_head(self.path):
-                record = _saved_record(line)
-                if record and record["event"] == "startup":
-                    self._startup_record = record
-                    break
+            self._startup_record = _latest_startup(self.path)
         name = (
             f"{self.path.stem}.archive-"
             f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}-{uuid.uuid4().hex}"
@@ -476,6 +472,60 @@ def _log_head(path: Path) -> list[bytes]:
     return _log_sample(path, tail=False)
 
 
+def _latest_startup(path: Path) -> dict[str, Any] | None:
+    """Find the last startup in a complete, bounded, stable private log.
+
+    A restart can append its startup between the old header and recent tail.
+    Sampling either end cannot establish the latest source pin. Oversized,
+    changing or partially written logs provide no startup proof.
+    """
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        before = Diagnostics._private_file(descriptor)
+        if before.st_size > MAX_LOG_BYTES:
+            return None
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = None
+            data = stream.read(MAX_LOG_BYTES + 1)
+            after = os.fstat(stream.fileno())
+        current = path.lstat()
+
+        def identity(info: os.stat_result) -> tuple[int, int, int, int, int]:
+            return (
+                info.st_dev,
+                info.st_ino,
+                info.st_size,
+                info.st_mtime_ns,
+                info.st_ctime_ns,
+            )
+
+        if (
+            len(data) != before.st_size
+            or len(data) > MAX_LOG_BYTES
+            or (data and not data.endswith(b"\n"))
+            or identity(before) != identity(after)
+            or identity(before) != identity(current)
+        ):
+            return None
+        for line in reversed(data.splitlines()):
+            if not line.strip():
+                continue
+            record = _saved_record(line)
+            # A later append can terminate a previously partial startup line.
+            # Skipping that now-invalid line could resurrect an older pin.
+            if record is None:
+                return None
+            if record["event"] == "startup":
+                return record
+    except OSError:
+        return None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    return None
+
+
 def _saved_record(line: bytes) -> dict[str, Any] | None:
     try:
         value = json.loads(line)
@@ -621,26 +671,26 @@ def inspect_journal(
     )
     log = root / "diagnostics.jsonl"
     if log.exists() and not log.is_symlink():
-        lines = _log_head(log) + _log_tail(log)
+        startup = _latest_startup(log)
+        if startup is not None:
+            allowed = safe_record("startup", startup)
+            result["startup_pin"] = {
+                key: item
+                for key, item in allowed.items()
+                if key
+                in {
+                    "source_revision",
+                    "source_digest",
+                    "python_digest",
+                    "python_version",
+                }
+            }
+            result["startup_age_seconds"] = _age(startup.get("at"))
         found_activity = False
-        for line in reversed(lines):
+        for line in reversed(_log_tail(log)):
             value = _saved_record(line)
             if value is None:
                 continue
-            if value.get("event") == "startup" and "startup_pin" not in result:
-                allowed = safe_record("startup", value)
-                result["startup_pin"] = {
-                    key: item
-                    for key, item in allowed.items()
-                    if key
-                    in {
-                        "source_revision",
-                        "source_digest",
-                        "python_digest",
-                        "python_version",
-                    }
-                }
-                result["startup_age_seconds"] = _age(value.get("at"))
             if (
                 value.get("event")
                 in {"loop", "http", "stage_start", "stage_end", "startup"}
