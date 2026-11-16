@@ -75,8 +75,8 @@ async def test_unknown_publication_key_rejected(server):
             try:
                 result = await client.call_tool('create_module', {'course_identifier': '1', 'name': 'Bonding', 'publish': True})
                 assert result.is_error or 'Error' in str(result.content)
-            except ToolError:
-                pass
+            except ToolError as exc:
+                assert "unexpected_keyword_argument" in str(exc)
         lookup.assert_not_awaited()
         request.assert_not_awaited()
 

@@ -5,6 +5,7 @@ import pytest
 from fastmcp import Client, FastMCP
 from fastmcp.exceptions import ToolError
 
+import canvas_mcp.server as server
 from canvas_mcp.core.tool_policy import (
     TOOL_EFFECTS,
     Effect,
@@ -12,20 +13,15 @@ from canvas_mcp.core.tool_policy import (
     apply_tool_policy,
     resolve_tool_policy,
 )
-from canvas_mcp.server import (
-    _assert_draft_registry,
-    _resolve_draft_policy,
-    register_all_tools,
-)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('policy', ['create_module,add_module_item'])
 async def test_draft_startup_has_hard_writer_ceiling(policy):
     mcp = FastMCP('synthetic-startup')
-    register_all_tools(mcp, role='all', draft_modules_only=True)
-    await _assert_draft_registry(mcp)
-    await apply_tool_policy(mcp, _resolve_draft_policy(policy, 'stdio'))
+    server.register_all_tools(mcp, role='all', draft_modules_only=True)
+    await server._assert_draft_registry(mcp)
+    await apply_tool_policy(mcp, server._resolve_draft_policy(policy, 'stdio'))
     async with Client(mcp) as client:
         names = {x.name for x in await client.list_tools()}
     assert {'list_modules', 'list_module_items', 'create_module', 'add_module_item'} <= names
@@ -35,8 +31,8 @@ async def test_draft_startup_has_hard_writer_ceiling(policy):
 @pytest.mark.asyncio
 async def test_read_only_policy_removes_and_denies_writers():
     mcp = FastMCP('synthetic-readonly')
-    register_all_tools(mcp, role='educator', draft_modules_only=True)
-    await _assert_draft_registry(mcp)
+    server.register_all_tools(mcp, role='educator', draft_modules_only=True)
+    await server._assert_draft_registry(mcp)
     await apply_tool_policy(mcp, resolve_tool_policy('none', 'stdio'))
     async with Client(mcp) as client:
         assert 'create_module' not in {x.name for x in await client.list_tools()}
@@ -50,14 +46,14 @@ async def test_read_only_policy_removes_and_denies_writers():
 @pytest.mark.parametrize('name', ['unknown_new_tool', 'update_assignment'])
 async def test_unexpected_writer_or_unknown_aborts_registry(name):
     mcp = FastMCP('synthetic-extra')
-    register_all_tools(mcp, draft_modules_only=True)
+    server.register_all_tools(mcp, draft_modules_only=True)
 
     async def extra():
         return 'never called'
 
     mcp.tool(name=name)(extra)
     with pytest.raises(RuntimeError, match='Unsafe draft module registry'):
-        await _assert_draft_registry(mcp)
+        await server._assert_draft_registry(mcp)
 
 
 def test_malformed_allowlist_remains_denied():
@@ -73,7 +69,6 @@ def test_actual_main_cli_wires_guarded_registry_without_live_io(monkeypatch, pol
     from unittest.mock import AsyncMock
 
     import canvas_mcp.core.audit as audit
-    import canvas_mcp.server as server
 
     config = SimpleNamespace(canvas_api_url='https://example.invalid/api/v1', institution_name='',
                              canvas_role='educator', allowed_write_tools=policy, mcp_server_name='mock')
@@ -97,8 +92,6 @@ def test_actual_main_cli_wires_guarded_registry_without_live_io(monkeypatch, pol
 def test_typoed_draft_cli_flag_never_falls_back(monkeypatch):
     import sys
 
-    import canvas_mcp.server as server
-
     monkeypatch.setattr(sys, 'argv', ['canvas-mcp-server', '--draft-modules-onli'])
     with pytest.raises(SystemExit):
         server.main()
@@ -111,7 +104,6 @@ def test_draft_main_rejects_wrong_or_invalid_role(monkeypatch, role):
     from unittest.mock import AsyncMock
 
     import canvas_mcp.core.audit as audit
-    import canvas_mcp.server as server
 
     config = SimpleNamespace(canvas_api_url='https://example.invalid/api/v1', institution_name='',
                              canvas_role=role, allowed_write_tools='all', mcp_server_name='mock')
@@ -132,8 +124,8 @@ def test_draft_main_rejects_wrong_or_invalid_role(monkeypatch, role):
 @pytest.mark.parametrize('response,label', [({'error': 'timeout'}, 'UNKNOWN'), ({'id': 3, 'published': False}, 'UNVERIFIED')])
 async def test_startup_wire_marks_uncertain_writes_as_errors(tool, args, response, label):
     mcp = FastMCP('synthetic-startup-wire')
-    register_all_tools(mcp, role='educator', draft_modules_only=True)
-    await _assert_draft_registry(mcp)
+    server.register_all_tools(mcp, role='educator', draft_modules_only=True)
+    await server._assert_draft_registry(mcp)
     with patch('canvas_mcp.tools.modules.get_course_id', new_callable=AsyncMock, return_value='1'), patch('canvas_mcp.tools.modules.make_canvas_request', new_callable=AsyncMock, return_value=response):
         async with Client(mcp) as client:
             result = await client.call_tool(tool, args, raise_on_error=False)
