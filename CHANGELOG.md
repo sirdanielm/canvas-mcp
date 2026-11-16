@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### SDM fork maintenance
 
+- Added offline, source-bound Unit 3 feedback staging and disabled comment-
+  connection proposals. Closed exports retain malformed cases beside valid
+  neighbors. Private receipt writing requires POSIX ownership support; pure
+  validation remains portable. The existing comment publisher recognizes the
+  Unit 3 category without enabling a profile, creating an approval or sending.
+
 - Added source-owned Canvas-primary advisory/EDIT composition, exact
   current-attempt stale-zero comparison, protected-target and handoff markers,
   bounded legacy-history reads, and predecessor-bound sparse/U3 destination

@@ -365,6 +365,52 @@ replace the legacy inbox-envelope route above. See the
 
 ## Private artifacts and recovery
 
+### U3 feedback prepared for later comment delivery
+
+`UNIT3_FEEDBACK` uses the existing comment-only publisher and its exact preview,
+approval, one-use operation, protected-state comparison and independent readback.
+It does not use a score push or the Unit 2 compact-feedback formatter. Preserve
+the canonical U3 feedback text; never generate it from a summary or a numeric
+total. Commenting can affect visibility under Canvas's existing posting policy,
+so the final current-state review must check that policy too.
+
+For offline preparation, `stage_u3_feedback_export.py` consumes only an explicit
+closed JSON export on stdin, with the export owner's exact byte hash:
+
+```sh
+python scripts/stage_u3_feedback_export.py \
+  --expected-sha256 <exact-private-export-sha256> \
+  --output-dir <new-private-output-directory> < <private-export.json>
+```
+
+The input contract is `CANVAS_U3_FEEDBACK_STAGING_INPUT_V1`, with a `cases` array.
+Every case supplies the genuine `U3_EXACT_RETENTION_V1` envelope, matching Review
+findings, original producer file reference, and final exact-store/projection
+source references. Optional `feedback` retains exact full text, the decision
+digest, criterion/observation JSON pointers and full-response file references.
+An optional `target` retains exact origin/course/assignment/student/attempt and
+submitted time. Missing feedback or target stays held; do not infer a join from
+packet labels or copy an unrelated legacy feedback grid.
+
+The tool writes only an immutable private receipt and prints aggregate metadata.
+It preserves case order, incomplete cases and original text, creates no publisher
+inbox proposal/token and performs no Canvas/Sheet/network action. All results
+remain `HELD_UNAPPROVED`. Private receipt writing requires POSIX ownership and
+directory-fsync support; unsupported platforms hold before creating output.
+Pure closed-export validation remains portable. The native owner's final pinned source/commit and
+response verification, actual identity/attempt, distinct QC, teacher comment
+acceptance and fresh Canvas posting-state checks are separate prerequisites.
+Python's staging digest is not the Apps Script producer's record hash. Candidate
+source pins or a saved approval flag do not authenticate a native result.
+
+`stage_comment_connection.py` separately prepares a **disabled** comment-only
+connection proposal from explicit injected configuration and source/runtime/
+state/owner metadata. It neither reads ambient settings nor installs, reconnects
+or starts a server. Default proposals omit confirmation; even explicit
+confirmation review leaves the proposal disabled. Actual operator adoption must
+preserve the original durable state/history and current reader/runtime bindings;
+never replace an unknown wrapper default with a guessed state directory.
+
 Keep `local_gradebooks/` ignored: directories 0700, files 0600. Preserve snapshots,
 reviews, exports, receipts and the FULL-synchronous ledger. Never clear uncertain
 rows or locks to permit another send. Report aggregates only. Bootstrap scripts
