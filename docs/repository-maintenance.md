@@ -47,6 +47,31 @@ Attribute a failure to a limit only when the exact operation supports it.
 Changing a client timeout does not renew an approval, cancel a remote write or
 clear uncertainty. Documentation reconciliation changes no setting.
 
+### MCP process ownership and adoption
+
+Count configured profiles, running MCP server processes and the background
+gradebook worker separately. Multiple host-owned stdio connections can retain
+copies of the same authoring or gradebook profile across chat/agent sessions;
+their count is not an assignment count or evidence that each copy is busy.
+Changing startup paths does not prove that retained connections reloaded them.
+
+Before cleanup, match exact process/start identity, parent, working directory,
+transport pipe peers and startup attestation. A sleeping process, an old runtime
+path or `/dev/null` on descriptor zero alone does not prove it is orphaned; the
+actual transport may use other descriptors. Preserve the separate worker and
+its journal. Use a supported host reload at an agreed idle checkpoint; if that
+control is unavailable, record the affected host-reset hold. Do not replace it
+with broad process-name kills or hidden host control. Project-scoped MCP
+configuration can reduce unrelated startup copies, but first qualify all
+intended teaching-project routes rather than globally disabling needed access.
+
+Local worker diagnostics scan at most the existing five-megabyte private log
+bound for its latest unambiguous startup. This costs a bounded local file read
+instead of trusting a potentially stale header sample. Incomplete, malformed,
+changing or oversized logs provide no startup pin. Neither that pin nor recent
+telemetry proves liveness: verify the actual service PID/arguments and a fresh,
+advancing operation-specific heartbeat independently.
+
 ## Reviewed promotion
 
 1. Read current branches, worktrees, upstream containment and actual dirty

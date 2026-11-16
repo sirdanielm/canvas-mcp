@@ -143,6 +143,7 @@ def comment_envelope(value: dict[str, Any], origin: str, course_id: str) -> None
         "FORMATIVE_CORRECTION",
         "UNIT1_FEEDBACK",
         "UNIT2_FEEDBACK",
+        "UNIT3_FEEDBACK",
     }:
         raise GradebookError("Comment category is outside the reviewed scope.")
     if value["attempt"] is not None and (
