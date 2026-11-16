@@ -306,11 +306,15 @@ def register_student_tools(mcp: FastMCP) -> None:
         for assignment in assignments:
             submission = assignment.get("submission")
             is_submitted = submission and submission.get("submitted_at") is not None
-            is_external_tool = "external_tool" in assignment.get("submission_types", [])
+            submission_types = assignment.get("submission_types") or []
+            is_external_tool = "external_tool" in submission_types
 
-            if submission and submission.get("missing") and not is_external_tool:
+            if (
+                submission and submission.get("missing")
+                and not submission.get("excused") and not is_external_tool
+            ):
                 # Trust Canvas's explicit status, including manual missing
-                # overrides on graded/submitted work or work not yet due.
+                # overrides on non-excused graded/submitted work or work not yet due.
                 missing.append((assignment, "MISSING"))
             elif is_submitted:
                 submitted.append(assignment)
@@ -322,7 +326,7 @@ def register_student_tools(mcp: FastMCP) -> None:
                     status = "EXCUSED"
                 elif submission and submission.get("workflow_state") == "graded":
                     status = "GRADED"
-                elif assignment.get("submission_types") in (["on_paper"], ["none"]):
+                elif submission_types in (["on_paper"], ["none"]):
                     status = "NO ONLINE SUBMISSION REQUIRED"
                 else:
                     status = "NOT SUBMITTED"

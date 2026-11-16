@@ -344,6 +344,16 @@ class TestStudentToolsDatetimeComparison:
     @pytest.mark.parametrize(
         ("submission_types", "submission", "due_at", "section", "status"),
         [
+            (None, {"workflow_state": "unsubmitted", "missing": False},
+             None, "No Canvas Submission Recorded", "NOT SUBMITTED"),
+            (None, {"workflow_state": "unsubmitted", "missing": True},
+             None, "Missing Submissions", "MISSING"),
+            (None, {"workflow_state": "graded", "score": 0.0, "missing": False},
+             None, "No Canvas Submission Recorded", "GRADED"),
+            (["online_upload"], {"workflow_state": "unsubmitted", "excused": True, "missing": True},
+             None, "No Canvas Submission Recorded", "EXCUSED"),
+            (None, {"workflow_state": "unsubmitted", "excused": True, "missing": True},
+             None, "No Canvas Submission Recorded", "EXCUSED"),
             (["on_paper"], {"workflow_state": "graded", "score": 0.0, "missing": False},
              "2020-01-01T00:00:00Z", "No Canvas Submission Recorded", "GRADED"),
             (["online_upload"], {"workflow_state": "graded", "score": 0.0, "missing": False},
@@ -398,6 +408,37 @@ class TestStudentToolsDatetimeComparison:
             if other != section:
                 assert other not in result
         assert "OVERDUE" not in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("course_identifier", ["TEST-101", None])
+    @pytest.mark.parametrize("type_state", ["null", "absent", "empty"])
+    async def test_submission_status_unknown_types_preserve_neighbor_results(
+        self, course_identifier, type_state,
+    ):
+        """Unknown type metadata does not abort either course query or imply no upload is needed."""
+        assignments = [
+            {"id": 1, "name": "Unknown type example", "submission": {"missing": False}},
+            {"id": 2, "name": "Submitted neighbor", "submission_types": ["online_upload"],
+             "submission": {"submitted_at": "2020-01-01T00:00:00Z", "missing": False}},
+        ]
+        if type_state != "absent":
+            assignments[0]["submission_types"] = None if type_state == "null" else []
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_id', new_callable=AsyncMock, return_value="12345"), \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock, return_value="TEST-101"):
+            if course_identifier is None:
+                fetch.side_effect = [[{"id": 12345, "course_code": "TEST-101"}], assignments]
+            else:
+                fetch.return_value = assignments
+            tool = get_student_tool_function('get_my_submission_status')
+            result = await tool(course_identifier=course_identifier)
+        assert result.count("Unknown type example") == 1
+        assert result.count("Submitted neighbor") == 1
+        assert "No Canvas Submission Recorded (1):" in result
+        assert "Status: NOT SUBMITTED" in result
+        assert "Submitted (1):" in result
+        assert "NO ONLINE SUBMISSION REQUIRED" not in result
+        assert "Missing Submissions" not in result
 
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_no_due_date(self):
