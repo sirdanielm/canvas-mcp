@@ -675,3 +675,16 @@ student in another is not anonymous in the second.
 - **Student Guide:** https://canvas-mcp.illinihunt.org/student-guide.html
 - **Educator Guide:** https://canvas-mcp.illinihunt.org/educator-guide.html
 - **Development Guide:** [CLAUDE.md](../CLAUDE.md)
+
+
+## Prepared draft-content profile
+
+Use the separate `--draft-content-only` profile only after normal operator
+qualification. Its three entry-key-only tools inspect/apply prepared assignments
+and apply unpublished SubHeader or Assignment module items; they are not general
+Canvas writers. Missing canonical values, changed inventories, reused intent,
+uncertain sends and failed independent readback hold rather than retry. Existing
+assignment edits preserve points/groups/dates and accept name/description only.
+Section-specific due settings and module completion requirements are unsupported.
+Keep exact grade pushes and any Published-status changes behind their separate
+user gates. See [the full contract](draft-content-foundation.md).

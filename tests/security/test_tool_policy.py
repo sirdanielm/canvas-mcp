@@ -50,6 +50,14 @@ def all_flags_on(monkeypatch):
 def _registry() -> FastMCP:
     mcp = FastMCP(name="test-policy")
     register_all_tools(mcp, role="all")
+    # Classification covers tools exclusive to the prepared-content profile too.
+    from unittest.mock import Mock
+
+    from canvas_mcp.tools.draft_content import (
+        PreparedAssignments,
+        register_draft_content_tools,
+    )
+    register_draft_content_tools(mcp, Mock(spec=PreparedAssignments))
     return mcp
 
 

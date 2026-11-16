@@ -3165,3 +3165,15 @@ Some Canvas API endpoints have bugs or design issues that prevent certain operat
 ## Canvas OAuth scopes
 
 For scoped Developer Key pilots, see the [endpoint scope inventory and validation matrix](oauth/README.md). This documents current API calls; it does not add OAuth infrastructure or replace personal API-token authentication.
+
+
+## Separate prepared draft-content profile
+
+The opt-in educator/stdio `--draft-content-only` profile is separate from the
+default tool catalog and existing `--draft-modules-only` mode. It registers only
+`inspect_prepared_draft_assignment` (read), `apply_prepared_draft_assignment`
+(write), and `apply_prepared_draft_module_item` (write). Each accepts only an
+`key` into an operator-owned, SHA-256-pinned prepared manifest. An explicit
+subset of the two writers must be allowlisted. No default tool is added or enabled.
+See [the foundation contract](../docs/draft-content-foundation.md) for required
+creation metadata, replay holds, independent readback and unsupported operations.
