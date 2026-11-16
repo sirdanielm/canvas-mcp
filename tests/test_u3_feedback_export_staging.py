@@ -2,6 +2,7 @@
 
 import copy
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -13,7 +14,7 @@ from test_u3_feedback_staging import stage_inputs as stage_inputs
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from stage_u3_feedback_export import stage_export
+from stage_u3_feedback_export import main, stage_export
 
 from canvas_mcp.gradebook.client import GradebookError
 
@@ -150,19 +151,53 @@ def test_cli_private_full_readback_safe_stdout_and_immutable_reuse(
 
 
 @private_store_required
-def test_nonprivate_or_symlinked_output_refuses_without_chmod(stage_inputs, tmp_path):
+@pytest.mark.parametrize("reported_mode", [0o710, 0o740, 0o704])
+def test_nonprivate_output_refuses_without_chmod(
+    stage_inputs, tmp_path, monkeypatch, capsys, reported_mode
+):
     output = tmp_path / "not-private"
-    # A single non-owner traversal bit is sufficient to violate private-root
-    # policy; the empty negative fixture need not be world-readable.
-    output.mkdir(mode=0o710)
-    os.chmod(output, 0o710)
+    output.mkdir(mode=0o700)
+    # Model unsafe stat evidence without making a real directory accessible to
+    # another principal. The complete CLI must reject it before reading stdin.
+    original_lstat = Path.lstat
+    info = original_lstat(output)
+
+    def reported_lstat(path, *args, **kwargs):
+        if path == output:
+            fields = list(info)
+            fields[0] = (info.st_mode & ~0o777) | reported_mode
+            return os.stat_result(fields)
+        return original_lstat(path, *args, **kwargs)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("unsafe output must not be repaired or consumed")
+
+    class UnreadInput(io.BytesIO):
+        def read(self, *args, **kwargs):
+            forbidden()
+
     raw = export_bytes([stage_inputs])
-    denied = run_cli(raw, output)
-    assert denied.returncode == 1
-    assert output.stat().st_mode & 0o777 == 0o710 and not list(output.iterdir())
+    monkeypatch.setattr(sys, "argv", [
+        "stage_u3_feedback_export.py", "--expected-sha256",
+        hashlib.sha256(raw).hexdigest(), "--output-dir", str(output),
+    ])
+    with monkeypatch.context() as guarded:
+        guarded.setattr(Path, "lstat", reported_lstat)
+        guarded.setattr(os, "chmod", forbidden)
+        guarded.setattr(sys, "stdin", io.TextIOWrapper(UnreadInput(raw)))
+        assert main() == 1
+    assert json.loads(capsys.readouterr().out)["publication_allowed"] is False
+    assert output.stat().st_mode == info.st_mode and not list(output.iterdir())
+
+
+@private_store_required
+def test_cli_rejects_real_symlinked_output(stage_inputs, tmp_path):
+    output = tmp_path / "private"
+    output.mkdir(mode=0o700)
     link = tmp_path / "link"
     link.symlink_to(output, target_is_directory=True)
-    assert run_cli(raw, link).returncode == 1
+    assert run_cli(export_bytes([stage_inputs]), link).returncode == 1
+    assert not list(output.iterdir())
 
 
 def test_untrusted_input_cannot_supply_an_authority_callback(stage_inputs):
