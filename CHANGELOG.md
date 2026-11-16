@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Preserve Planner's excused and graded states in upcoming-assignment status
-  lines instead of reporting those items as unsubmitted work.
+- Preserve Planner's submitted, excused, missing and graded states in upcoming-
+  assignment status lines. An explicit missing flag takes precedence over a
+  graded flag, including work with a recorded zero. This uses the existing
+  Planner response and makes no additional request.
 
 - Retrieve uploaded file metadata when storage returns an empty `201 Created`
   with a `Location` header. Confirmation uses the existing authenticated Canvas
