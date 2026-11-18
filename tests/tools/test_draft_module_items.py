@@ -43,12 +43,13 @@ async def test_invalid_before_network(case, changes):
 @pytest.mark.asyncio
 @pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_header_with_parent_and_position_readback(case):
-    service, request, _ = case
+    service, request, listing = case
     parent = {"id": 2, "published": False}
-    request.side_effect = [parent, item(), item(), parent]
+    listing.side_effect = [[], [], [item()]]
+    request.side_effect = [parent, parent, item(), item(), parent]
     assert (await service.execute(**args()))["status"] == "VERIFIED_DRAFT"
-    assert [c.args[0] for c in request.call_args_list] == ["get", "post", "get", "get"]
-    assert request.call_args_list[1].kwargs["retry_rate_limits"] is False
+    assert [c.args[0] for c in request.call_args_list] == ["get", "get", "post", "get", "get"]
+    assert request.call_args_list[2].kwargs["retry_rate_limits"] is False
 
 
 @pytest.mark.asyncio
@@ -66,13 +67,14 @@ async def test_wrong_or_published_assignment_held(case, assignment):
 @pytest.mark.asyncio
 @pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_assignment_independent_link_parent_content_readback(case):
-    service, request, _ = case
+    service, request, listing = case
     parent = {"id": 2, "published": False}
-    assignment = {"id": 4, "course_id": 1, "published": False}
+    assignment = {"id": 4, "course_id": 1, "published": False, "is_quiz_assignment": False, "submission_types": ["on_paper"]}
     link = item(type="Assignment", content_id=4)
-    request.side_effect = [parent, assignment, link, link, parent, assignment]
+    listing.side_effect = [[], [], [link]]
+    request.side_effect = [parent, assignment, assignment, parent, link, link, parent, assignment]
     assert (await service.execute(**args(item_type="Assignment", assignment_id="4", title=None)))["status"] == "VERIFIED_DRAFT"
-    assert [c.args[0] for c in request.call_args_list] == ["get", "get", "post", "get", "get", "get"]
+    assert [c.args[0] for c in request.call_args_list] == ["get", "get", "get", "get", "post", "get", "get", "get"]
 
 
 @pytest.mark.asyncio
@@ -81,7 +83,7 @@ async def test_assignment_independent_link_parent_content_readback(case):
 async def test_readback_mismatch_held(case, readback):
     service, request, _ = case
     parent = {"id": 2, "published": False}
-    request.side_effect = [parent, item(), readback, parent]
+    request.side_effect = [parent, parent, item(), readback, parent]
     assert (await service.execute(**args()))["status"] == "UNVERIFIED"
 
 
@@ -89,10 +91,10 @@ async def test_readback_mismatch_held(case, readback):
 @pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
 async def test_uncertain_post_no_retry(case):
     service, request, _ = case
-    request.side_effect = [{"id": 2, "published": False}, {"error": "timeout"}]
+    request.side_effect = [{"id": 2, "published": False}, {"id": 2, "published": False}, {"error": "timeout"}]
     assert (await service.execute(**args()))["status"] == "UNKNOWN"
     assert (await service.execute(**args()))["status"] == "HELD"
-    assert request.call_count == 2
+    assert request.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -123,10 +125,10 @@ async def test_bad_inventory_never_posts(case, inventory):
 async def test_visibility_changes_during_readback_unverified(case, changed):
     service, request, _ = case
     parent = {"id": 2, "published": False}
-    assignment = {"id": 4, "course_id": 1, "published": False}
+    assignment = {"id": 4, "course_id": 1, "published": False, "is_quiz_assignment": False, "submission_types": ["on_paper"]}
     link = item(type="Assignment", content_id=4)
     after_parent = dict(parent, published=changed == "parent")
     after_assignment = dict(assignment, published=changed == "assignment")
-    request.side_effect = [parent, assignment, link, link, after_parent, after_assignment]
+    request.side_effect = [parent, assignment, assignment, parent, link, link, after_parent, after_assignment]
     result = await service.execute(**args(item_type="Assignment", assignment_id="4", title=None))
     assert result["status"] == "UNVERIFIED"

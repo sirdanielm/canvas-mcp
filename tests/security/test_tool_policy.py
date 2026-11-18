@@ -58,6 +58,14 @@ def _registry() -> FastMCP:
         register_draft_content_tools,
     )
     register_draft_content_tools(mcp, Mock(spec=PreparedAssignments))
+    from canvas_mcp.tools.module_authoring import (
+        ModuleAuthoring,
+        register_module_authoring_tools,
+    )
+
+    module_service = Mock(spec=ModuleAuthoring)
+    module_service.publication_enabled = True
+    register_module_authoring_tools(mcp, module_service)
     return mcp
 
 

@@ -4754,6 +4754,39 @@
           }
         }
       ]
+    },
+    "module_authoring": {
+      "startup_flag": "--module-authoring-only",
+      "role": "educator",
+      "transport": "stdio",
+      "default_catalog": false,
+      "documentation": "docs/module-authoring-profile.md",
+      "tools": [
+        {
+          "name": "module_authoring_status",
+          "effect": "READ"
+        },
+        {
+          "name": "inspect_module_authoring",
+          "effect": "READ"
+        },
+        {
+          "name": "add_draft_module_item",
+          "effect": "CANVAS_WRITE"
+        },
+        {
+          "name": "edit_draft_module_item",
+          "effect": "CANVAS_WRITE"
+        },
+        {
+          "name": "prepare_module_publication",
+          "effect": "READ"
+        },
+        {
+          "name": "confirm_module_publication",
+          "effect": "CANVAS_WRITE"
+        }
+      ]
     }
   }
 }

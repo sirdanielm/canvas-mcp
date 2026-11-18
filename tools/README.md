@@ -3177,3 +3177,13 @@ default tool catalog and existing `--draft-modules-only` mode. It registers only
 subset of the two writers must be allowlisted. No default tool is added or enabled.
 See [the foundation contract](../docs/draft-content-foundation.md) for required
 creation metadata, replay holds, independent readback and unsupported operations.
+
+
+## Separate scoped module authoring profile
+
+`--module-authoring-only` registers local `module_authoring_status`, exact
+`inspect_module_authoring`, and operator-admitted `add_draft_module_item` /
+`edit_draft_module_item`. Optional `prepare_module_publication` and
+`confirm_module_publication` support only container publication with no draft
+children, behind a distinct client approval prompt and operator allowlist.
+No generic writer is exposed. See [the profile contract](../docs/module-authoring-profile.md).

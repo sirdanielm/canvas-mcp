@@ -688,3 +688,12 @@ assignment edits preserve points/groups/dates and accept name/description only.
 Section-specific due settings and module completion requirements are unsupported.
 Keep exact grade pushes and any Published-status changes behind their separate
 user gates. See [the full contract](draft-content-foundation.md).
+
+
+## Scoped module authoring
+
+The separate `--module-authoring-only` profile supports exact draft item inserts
+and narrow unpublished item edits inside either parent publication state.
+Publishing requires a separate preview, exact client approval and explicit
+operator admission; draft-containing module publication is unsupported.
+See [the profile contract](module-authoring-profile.md).
