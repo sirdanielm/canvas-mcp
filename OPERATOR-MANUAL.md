@@ -108,6 +108,10 @@ The second form also returns a capture receipt. Results identify private artifac
 
 `scripts/install_gradebook_connection.py --upgrade` updates recognized Codex configuration and makes a private backup. It requires an existing supported configuration and refuses unknown customizations. It is unnecessary for direct `--call` use. Its separate `--add-get-controls` and `--add-batch-controls` options install corresponding client entries; they do not activate a writer. [Gradebook launcher](https://github.com/sirdanielm/canvas-mcp/blob/2e9370466f687868b983c6d6035643edf860dff5/scripts/sdm_gradebook_launcher.py).
 
+Local tool discovery, handshake and mock checks establish the installed interface, not current remote Canvas health.
+A profile request that fails DNS is connectivity evidence, not a conclusion about credentials.
+A verified uploaded-attempt comment does not by itself test or qualify the paper NULL-attempt path.
+
 ## 4. Identify courses, assignments and students correctly
 
 Course titles and assignment names are useful labels, but exact IDs establish the destination. General course readers help inspect accessible courses; confirm the intended institution, course code and exact course before editing. The SDM CLI accepts `core` or `advanced` aliases that resolve to fixed source bindings. Workbook, sheet and protection IDs come from `config/sdm-gradebook-workbooks.json`; a tab with the right name alone is insufficient.
