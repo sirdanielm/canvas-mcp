@@ -4723,5 +4723,37 @@
       "Access data outside user permissions",
       "Bypass Canvas API rate limits"
     ]
+  },
+  "separate_profiles": {
+    "draft_content": {
+      "startup_flag": "--draft-content-only",
+      "role": "educator",
+      "transport": "stdio",
+      "default_catalog": false,
+      "documentation": "docs/draft-content-foundation.md",
+      "tools": [
+        {
+          "name": "inspect_prepared_draft_assignment",
+          "effect": "READ",
+          "parameters": {
+            "key": "string"
+          }
+        },
+        {
+          "name": "apply_prepared_draft_assignment",
+          "effect": "CANVAS_WRITE",
+          "parameters": {
+            "key": "string"
+          }
+        },
+        {
+          "name": "apply_prepared_draft_module_item",
+          "effect": "CANVAS_WRITE",
+          "parameters": {
+            "key": "string"
+          }
+        }
+      ]
+    }
   }
 }

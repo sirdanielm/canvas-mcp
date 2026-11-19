@@ -81,6 +81,7 @@ from .tools import (
     register_student_tools,
     register_student_write_tools,
 )
+from .tools.draft_content import PreparedAssignments, register_draft_content_tools
 from .tools.modules import register_draft_module_tools
 
 
@@ -534,7 +535,8 @@ def create_server() -> FastMCP:
 
 
 def register_all_tools(
-    mcp: FastMCP, role: str = "all", *, draft_modules_only: bool = False
+    mcp: FastMCP, role: str = "all", *, draft_modules_only: bool = False,
+    draft_content: PreparedAssignments | None = None
 ) -> None:
     """Register MCP tools based on the selected role profile.
 
@@ -544,6 +546,12 @@ def register_all_tools(
     """
     log_info(f"Registering Canvas MCP tools (role: {role})...")
     install_tool_result_contract(mcp)
+
+    if draft_content is not None:
+        if draft_modules_only:
+            raise RuntimeError("Draft profiles cannot be combined")
+        register_draft_content_tools(mcp, draft_content)
+        return
 
     if draft_modules_only:
         # This profile is an independent registry, not an educator allowlist.
@@ -612,6 +620,14 @@ def register_all_tools(
     register_resources_and_prompts(mcp)
 
     log_info("All Canvas MCP tools registered successfully!")
+
+
+def _resolve_content_policy(raw: str | None) -> ToolPolicy:
+    policy = resolve_tool_policy(raw, "stdio")
+    supported = frozenset({"apply_prepared_draft_assignment", "apply_prepared_draft_module_item"})
+    if not policy.enforced or not policy.allowed or not policy.allowed <= supported:
+        return resolve_tool_policy("none", "stdio")
+    return policy
 
 
 def _resolve_draft_policy(raw: str | None, transport: Transport) -> ToolPolicy:
@@ -745,6 +761,10 @@ def main() -> None:
         action="store_true",
         help="Serve the guarded draft module profile (operator write policy still applies)",
     )
+    parser.add_argument("--draft-content-only", action="store_true")
+    parser.add_argument("--draft-content-manifest")
+    parser.add_argument("--draft-content-sha256")
+    parser.add_argument("--draft-content-journal")
     parser.add_argument(
         "--list-grants",
         action="store_true",
@@ -760,6 +780,16 @@ def main() -> None:
     is_http = args.transport == "streamable-http"
 
     config = get_config()
+    draft_content = None
+    if args.draft_content_only:
+        if (args.draft_modules_only or is_http or (args.role or config.canvas_role) != "educator"
+                or not all((args.draft_content_manifest, args.draft_content_sha256, args.draft_content_journal))):
+            raise RuntimeError("Draft content requires separate educator stdio profile and pinned manifest/journal")
+        from pathlib import Path
+        draft_content = PreparedAssignments(Path(args.draft_content_manifest), args.draft_content_sha256,
+                                           Path(args.draft_content_journal))
+    elif any((args.draft_content_manifest, args.draft_content_sha256, args.draft_content_journal)):
+        raise RuntimeError("Draft content arguments require the draft-content-only profile")
     if args.draft_modules_only and (args.role or config.canvas_role) != "educator":
         raise RuntimeError("Draft module profile requires educator role")
     draft_policy = None
@@ -769,6 +799,9 @@ def main() -> None:
         except ToolPolicyError as exc:
             log_error(str(exc))
             sys.exit(1)
+
+    if args.draft_content_only:
+        draft_policy = _resolve_content_policy(config.allowed_write_tools)
 
     # Admin access-approval commands talk only to the overlay store (Azure, via
     # az login) — not Canvas — so dispatch them before the Canvas-credential /
@@ -984,7 +1017,7 @@ def main() -> None:
     # Which side-effect tools may exist at all (GHSA-hmr8). Resolved before
     # registering so a bad value stops startup instead of serving a guess.
     try:
-        tool_policy = draft_policy if args.draft_modules_only else resolve_tool_policy(
+        tool_policy = draft_policy if (args.draft_modules_only or args.draft_content_only) else resolve_tool_policy(
             config.allowed_write_tools, "http" if is_http else "stdio"
         )
         assert tool_policy is not None
@@ -992,7 +1025,11 @@ def main() -> None:
         log_error(str(exc))
         sys.exit(1)
 
-    register_all_tools(mcp, role=role, draft_modules_only=args.draft_modules_only)
+    register_all_tools(mcp, role=role, draft_modules_only=args.draft_modules_only, draft_content=draft_content)
+    if draft_content is not None:
+        names = {tool.name for tool in asyncio.run(mcp.list_tools(run_middleware=False))}
+        if names != {"inspect_prepared_draft_assignment", "apply_prepared_draft_assignment", "apply_prepared_draft_module_item"}:
+            raise RuntimeError("Unexpected draft content registry")
     if args.draft_modules_only:
         asyncio.run(_assert_draft_registry(mcp))
 

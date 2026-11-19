@@ -596,7 +596,7 @@ class IntegrationTests(unittest.TestCase):
     def test_classification_only_delta_and_side_effect_membership_preserved(self):
         after = {name: effect.name for name, effect in policy.TOOL_EFFECTS.items()}
         self.assertEqual(after, {**self.baseline_effects, "get_runtime_identity": "READ"})
-        self.assertEqual(sum(effect == "READ" for effect in after.values()), 73)
+        self.assertEqual(sum(effect == "READ" for effect in after.values()), 74)
         self.assertEqual(policy.SIDE_EFFECT_TOOLS,
                          {name for name, effect in self.baseline_effects.items() if effect != "READ"})
         self.assertEqual(policy._ALL_KEYWORD_TOOLS,
