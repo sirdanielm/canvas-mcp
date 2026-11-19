@@ -1,6 +1,8 @@
 """Isolated prepared-profile contract; no live connections."""
 import hashlib
 import json
+import os
+import stat
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,6 +11,7 @@ from fastmcp.exceptions import ToolError
 
 from canvas_mcp.core.tool_policy import apply_tool_policy, resolve_tool_policy
 from canvas_mcp.tools import draft_content as draft
+from canvas_mcp.tools import draft_module_items
 from canvas_mcp.tools.draft_assignments import private_storage_supported
 
 
@@ -138,3 +141,50 @@ async def test_module_only_manifest_needs_no_dummy_assignment(tmp_path):
         assert {x.name for x in await client.list_tools()} == {draft.READER, draft.MODULE_WRITER}
         assert not (await client.call_tool(draft.MODULE_WRITER, {"key": "test"})).is_error
     obj.module_items.execute.assert_awaited_once_with(**value["module_items"]["test"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("existing_nonprivate_root", [False, True])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
+async def test_prepared_module_first_uses_private_shared_root(tmp_path, monkeypatch, existing_nonprivate_root):
+    home = tmp_path.resolve() / "ordinary-home"
+    home.mkdir()
+    home.chmod(0o755)
+    journal = home / "journal"
+    if existing_nonprivate_root:
+        journal.mkdir()
+        journal.chmod(0o755)
+    manifest = home / "manifest.json"
+    value = {"schema_version": 1, "assignments": {}, "module_items": {"header": {
+        "operation_id": "header", "course_id": "1", "module_id": "2", "item_type": "SubHeader",
+        "title": "Fixture", "position": 1, "existing_item_ids": [], "published": False}}}
+    manifest.write_text(json.dumps(value), encoding="utf-8")
+    manifest.chmod(0o600)
+    obj = draft.PreparedAssignments(manifest, hashlib.sha256(manifest.read_bytes()).hexdigest(), journal)
+    assert not (journal / "module-items").exists()
+    assert journal.exists() is existing_nonprivate_root
+    parent = {"id": 2, "published": False}
+    item = {"id": 3, "module_id": 2, "type": "SubHeader", "title": "Fixture", "position": 1, "published": False}
+    request = AsyncMock(side_effect=[parent, item, item, parent])
+    monkeypatch.setattr(draft_module_items, "make_canvas_request", request)
+    monkeypatch.setattr(draft_module_items, "fetch_all_paginated_results", AsyncMock(return_value=[]))
+    mcp = FastMCP("synthetic-module-first")
+    draft.register_draft_content_tools(mcp, obj)
+    await apply_tool_policy(mcp, resolve_tool_policy(draft.MODULE_WRITER, "stdio"))
+    previous = os.umask(0o022)
+    try:
+        async with Client(mcp) as client:
+            result = await client.call_tool(draft.MODULE_WRITER, {"key": "header"})
+        if existing_nonprivate_root:
+            assert result.data["status"] == "HELD"
+            request.assert_not_called()
+            assert stat.S_IMODE(journal.stat().st_mode) == 0o755
+            assert not list(journal.iterdir())
+        else:
+            assert result.data["status"] == "VERIFIED_DRAFT"
+            assert [call.args[0] for call in request.call_args_list] == ["get", "post", "get", "get"]
+            assert obj.service._claim("assignment", {"kind": "assignment"})
+            assert all(stat.S_IMODE(path.stat().st_mode) == 0o700 for path in (journal, journal / "module-items"))
+    finally:
+        os.umask(previous)
+    assert stat.S_IMODE(home.stat().st_mode) == 0o755

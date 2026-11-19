@@ -136,7 +136,9 @@ def register_draft_content_tools(mcp: FastMCP, prepared: PreparedAssignments) ->
         """Add a prepared unpublished test header or exact unpublished assignment link."""
         try:
             prepared.entries()
-            return await prepared.module_items.execute(**prepared.prepared_modules[key])
+            entry = prepared.prepared_modules[key]
+            prepared.service.initialize_journal()
+            return await prepared.module_items.execute(**entry)
         except Exception:
             return _result("HELD", "Prepared module entry unavailable; reconcile any saved intent")
 
