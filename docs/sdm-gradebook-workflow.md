@@ -15,6 +15,12 @@ operations remains unimplemented.
 
 ## Everyday use
 
+“Update the gradebook” means refresh **Core GET** and **Adv GET** in the central
+FDHS Chemistry workbook. The worker reads both courses from Canvas. The private
+Canvas library retains a dated copy for file intake, audit and recovery. An
+archive capture alone does not update the Sheet. When both are requested, verify
+the workbook receipt and the library capture separately.
+
 | Surface | What is available |
 | --- | --- |
 | This source tree | Protected GET-only worker, native EDIT review, Desktop/menu controls, private Canvas snapshots, export-based full sync, exact score preview/push, and a separately enabled comment lane. |
