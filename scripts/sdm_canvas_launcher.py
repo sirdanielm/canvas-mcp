@@ -6,6 +6,7 @@ import argparse
 import getpass
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -16,6 +17,13 @@ from keyring.backend import KeyringBackend
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = Path.home() / ".config" / "canvas-authoring" / "connection.json"
 SERVICE = "sdm.canvas-authoring"
+MODULE_AUTHORING_WRITES = frozenset(
+    {
+        "add_draft_module_item",
+        "edit_draft_module_item",
+        "confirm_module_publication",
+    }
+)
 
 
 def canvas_origin(value: str) -> str:
@@ -174,6 +182,20 @@ def launch_environment(origin: str, token: str) -> dict[str, str]:
     return result
 
 
+def module_authoring_write_policy(raw: str | None, publication_enabled: bool) -> str:
+    """Keep this opt-in profile denied unless the operator names an exact subset."""
+    if raw is None or not raw.strip():
+        return "none"
+    if raw.strip() == "none":
+        return raw
+    selected = set(filter(None, re.split(r"[,\s]+", raw.strip())))
+    if not selected or not selected <= MODULE_AUTHORING_WRITES:
+        return "none"
+    if not publication_enabled:
+        selected.discard("confirm_module_publication")
+    return ",".join(sorted(selected)) if selected else "none"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
@@ -182,11 +204,35 @@ def main() -> int:
     mode.add_argument("--draft-modules-only", action="store_true",
                       help="Start the guarded draft-only module profile; operator policy still applies")
     mode.add_argument(
+        "--module-authoring-only",
+        action="store_true",
+        help="Start only the explicitly scoped module-authoring profile",
+    )
+    parser.add_argument("--module-authoring-courses")
+    parser.add_argument("--module-authoring-journal")
+    parser.add_argument("--enable-module-publication", action="store_true")
+    mode.add_argument(
         "--verify",
         action="store_true",
         help="Check Canvas authentication using one GET",
     )
     args = parser.parse_args()
+    if args.module_authoring_only:
+        if not args.module_authoring_courses or not args.module_authoring_journal:
+            parser.error("Module authoring requires explicit courses and an absolute journal")
+        courses = args.module_authoring_courses.split(",")
+        if (
+            any(not re.fullmatch(r"[1-9][0-9]*", course) for course in courses)
+            or len(courses) != len(set(courses))
+            or not Path(args.module_authoring_journal).is_absolute()
+        ):
+            parser.error("Module authoring requires distinct numeric courses and an absolute journal")
+    elif (
+        args.module_authoring_courses is not None
+        or args.module_authoring_journal is not None
+        or args.enable_module_publication
+    ):
+        parser.error("Module authoring options require --module-authoring-only")
     try:
         if args.setup:
             return setup_connection()
@@ -210,12 +256,28 @@ def main() -> int:
         executable = ROOT / ".venv" / "bin" / "canvas-mcp-server"
         os.chdir(ROOT)
         server_args = [str(executable), "--role", "educator"]
+        environment = launch_environment(origin, token)
         if args.draft_modules_only:
             server_args.append("--draft-modules-only")
+        if args.module_authoring_only:
+            server_args.extend(
+                [
+                    "--module-authoring-only",
+                    "--module-authoring-courses",
+                    args.module_authoring_courses,
+                    "--module-authoring-journal",
+                    args.module_authoring_journal,
+                ]
+            )
+            if args.enable_module_publication:
+                server_args.append("--enable-module-publication")
+            environment["ALLOWED_WRITE_TOOLS"] = module_authoring_write_policy(
+                environment.get("ALLOWED_WRITE_TOOLS"), args.enable_module_publication
+            )
         os.execve(
             str(executable),
             server_args,
-            launch_environment(origin, token),
+            environment,
         )
     except ConnectionCheckError as exc:
         print(str(exc), file=sys.stderr)

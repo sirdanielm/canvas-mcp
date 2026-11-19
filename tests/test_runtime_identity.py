@@ -596,7 +596,10 @@ class IntegrationTests(unittest.TestCase):
     def test_classification_only_delta_and_side_effect_membership_preserved(self):
         after = {name: effect.name for name, effect in policy.TOOL_EFFECTS.items()}
         self.assertEqual(after, {**self.baseline_effects, "get_runtime_identity": "READ"})
-        self.assertEqual(sum(effect == "READ" for effect in after.values()), 74)
+        # Separate opt-in profiles may add classified readers without changing
+        # this feature's one-reader delta or any existing side-effect class.
+        self.assertEqual(sum(effect == "READ" for effect in after.values()),
+                         sum(effect == "READ" for effect in self.baseline_effects.values()) + 1)
         self.assertEqual(policy.SIDE_EFFECT_TOOLS,
                          {name for name, effect in self.baseline_effects.items() if effect != "READ"})
         self.assertEqual(policy._ALL_KEYWORD_TOOLS,

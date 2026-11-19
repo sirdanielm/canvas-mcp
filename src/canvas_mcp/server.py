@@ -82,6 +82,9 @@ from .tools import (
     register_student_write_tools,
 )
 from .tools.draft_content import PreparedAssignments, register_draft_content_tools
+from .tools.module_authoring import READERS as MODULE_READERS
+from .tools.module_authoring import WRITERS as MODULE_WRITERS
+from .tools.module_authoring import ModuleAuthoring, register_module_authoring_tools
 from .tools.modules import register_draft_module_tools
 
 
@@ -536,7 +539,8 @@ def create_server() -> FastMCP:
 
 def register_all_tools(
     mcp: FastMCP, role: str = "all", *, draft_modules_only: bool = False,
-    draft_content: PreparedAssignments | None = None
+    draft_content: PreparedAssignments | None = None,
+    module_authoring: ModuleAuthoring | None = None
 ) -> None:
     """Register MCP tools based on the selected role profile.
 
@@ -546,6 +550,12 @@ def register_all_tools(
     """
     log_info(f"Registering Canvas MCP tools (role: {role})...")
     install_tool_result_contract(mcp)
+
+    if module_authoring is not None:
+        if draft_content is not None or draft_modules_only or role != "educator":
+            raise RuntimeError("Module authoring requires a separate educator profile")
+        register_module_authoring_tools(mcp, module_authoring)
+        return
 
     if draft_content is not None:
         if draft_modules_only:
@@ -626,6 +636,15 @@ def _resolve_content_policy(raw: str | None) -> ToolPolicy:
     policy = resolve_tool_policy(raw, "stdio")
     supported = frozenset({"apply_prepared_draft_assignment", "apply_prepared_draft_module_item"})
     if not policy.enforced or not policy.allowed or not policy.allowed <= supported:
+        return resolve_tool_policy("none", "stdio")
+    return policy
+
+
+def _resolve_module_policy(raw: str | None, *, publication_enabled: bool = False) -> ToolPolicy:
+    """Require explicit narrow operator admission; unset/all never grants writers."""
+    policy = resolve_tool_policy(raw, "stdio")
+    supported = MODULE_WRITERS if publication_enabled else MODULE_WRITERS - {"confirm_module_publication"}
+    if not policy.enforced or not policy.allowed <= supported:
         return resolve_tool_policy("none", "stdio")
     return policy
 
@@ -761,6 +780,10 @@ def main() -> None:
         action="store_true",
         help="Serve the guarded draft module profile (operator write policy still applies)",
     )
+    parser.add_argument("--module-authoring-only", action="store_true")
+    parser.add_argument("--module-authoring-courses")
+    parser.add_argument("--module-authoring-journal")
+    parser.add_argument("--enable-module-publication", action="store_true")
     parser.add_argument("--draft-content-only", action="store_true")
     parser.add_argument("--draft-content-manifest")
     parser.add_argument("--draft-content-sha256")
@@ -781,6 +804,20 @@ def main() -> None:
 
     config = get_config()
     draft_content = None
+    module_authoring = None
+    if args.module_authoring_only:
+        if (args.draft_content_only or args.draft_modules_only or is_http
+                or (args.role or config.canvas_role) != "educator"
+                or not args.module_authoring_courses or not args.module_authoring_journal):
+            raise RuntimeError("Module authoring requires separate educator stdio, course scope and journal")
+        from pathlib import Path
+        courses = args.module_authoring_courses.split(",")
+        if len(courses) != len(set(courses)):
+            raise RuntimeError("Repeated module authoring course")
+        module_authoring = ModuleAuthoring(courses=frozenset(courses),
+            journal=Path(args.module_authoring_journal), publication_enabled=args.enable_module_publication)
+    elif args.module_authoring_courses or args.module_authoring_journal or args.enable_module_publication:
+        raise RuntimeError("Module authoring arguments require its dedicated profile")
     if args.draft_content_only:
         if (args.draft_modules_only or is_http or (args.role or config.canvas_role) != "educator"
                 or not all((args.draft_content_manifest, args.draft_content_sha256, args.draft_content_journal))):
@@ -802,6 +839,9 @@ def main() -> None:
 
     if args.draft_content_only:
         draft_policy = _resolve_content_policy(config.allowed_write_tools)
+    if module_authoring is not None:
+        draft_policy = _resolve_module_policy(config.allowed_write_tools,
+            publication_enabled=module_authoring.publication_enabled)
 
     # Admin access-approval commands talk only to the overlay store (Azure, via
     # az login) — not Canvas — so dispatch them before the Canvas-credential /
@@ -1017,7 +1057,7 @@ def main() -> None:
     # Which side-effect tools may exist at all (GHSA-hmr8). Resolved before
     # registering so a bad value stops startup instead of serving a guess.
     try:
-        tool_policy = draft_policy if (args.draft_modules_only or args.draft_content_only) else resolve_tool_policy(
+        tool_policy = draft_policy if (args.draft_modules_only or args.draft_content_only or args.module_authoring_only) else resolve_tool_policy(
             config.allowed_write_tools, "http" if is_http else "stdio"
         )
         assert tool_policy is not None
@@ -1025,7 +1065,14 @@ def main() -> None:
         log_error(str(exc))
         sys.exit(1)
 
-    register_all_tools(mcp, role=role, draft_modules_only=args.draft_modules_only, draft_content=draft_content)
+    register_all_tools(mcp, role=role, draft_modules_only=args.draft_modules_only,
+                       draft_content=draft_content, module_authoring=module_authoring)
+    if module_authoring is not None:
+        names = {tool.name for tool in asyncio.run(mcp.list_tools(run_middleware=False))}
+        expected = (MODULE_READERS | MODULE_WRITERS) if module_authoring.publication_enabled else (
+            MODULE_READERS | MODULE_WRITERS) - {"prepare_module_publication", "confirm_module_publication"}
+        if names != expected:
+            raise RuntimeError("Unexpected module authoring registry")
     if draft_content is not None:
         names = {tool.name for tool in asyncio.run(mcp.list_tools(run_middleware=False))}
         if names != {"inspect_prepared_draft_assignment", "apply_prepared_draft_assignment", "apply_prepared_draft_module_item"}:

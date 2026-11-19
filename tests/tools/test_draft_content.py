@@ -165,9 +165,10 @@ async def test_prepared_module_first_uses_private_shared_root(tmp_path, monkeypa
     assert journal.exists() is existing_nonprivate_root
     parent = {"id": 2, "published": False}
     item = {"id": 3, "module_id": 2, "type": "SubHeader", "title": "Fixture", "position": 1, "published": False}
-    request = AsyncMock(side_effect=[parent, item, item, parent])
+    request = AsyncMock(side_effect=[parent, parent, item, item, parent])
     monkeypatch.setattr(draft_module_items, "make_canvas_request", request)
-    monkeypatch.setattr(draft_module_items, "fetch_all_paginated_results", AsyncMock(return_value=[]))
+    listing = AsyncMock(side_effect=[[], [], [item]])
+    monkeypatch.setattr(draft_module_items, "fetch_all_paginated_results", listing)
     mcp = FastMCP("synthetic-module-first")
     draft.register_draft_content_tools(mcp, obj)
     await apply_tool_policy(mcp, resolve_tool_policy(draft.MODULE_WRITER, "stdio"))
@@ -178,11 +179,13 @@ async def test_prepared_module_first_uses_private_shared_root(tmp_path, monkeypa
         if existing_nonprivate_root:
             assert result.data["status"] == "HELD"
             request.assert_not_called()
+            listing.assert_not_called()
             assert stat.S_IMODE(journal.stat().st_mode) == 0o755
             assert not list(journal.iterdir())
         else:
             assert result.data["status"] == "VERIFIED_DRAFT"
-            assert [call.args[0] for call in request.call_args_list] == ["get", "post", "get", "get"]
+            assert [call.args[0] for call in request.call_args_list] == ["get", "get", "post", "get", "get"]
+            assert listing.await_count == 3
             assert obj.service._claim("assignment", {"kind": "assignment"})
             assert all(stat.S_IMODE(path.stat().st_mode) == 0o700 for path in (journal, journal / "module-items"))
     finally:
