@@ -364,12 +364,10 @@ def _new_column_blank_tail_styles(
     actual: dict[str, Any],
     bindings: dict[str, Any],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Narrow reviewed postcondition, NOT a universal Sheets inheritance rule.
+    """Check native blank-tail formatting against the preserved right edge.
 
-    One genuinely new column, or exactly two with all four tail observations,
-    first two rows beyond both old/new bodies, blank expected cells, and exact
-    preserved adjacent blank style are the only basis.
-    Never mutate original before/expected/actual or ignore unrelated formatting.
+    Keep the historical one- and two-column contracts. For wider growth, the
+    entire contiguous band must match by row across all new columns.
     """
     compared = copy.deepcopy(actual)
     admitted: list[dict[str, Any]] = []
@@ -379,17 +377,35 @@ def _new_column_blank_tail_styles(
         old_cols = prior["properties"]["gridProperties"]["columnCount"]
         new_cols = want["properties"]["gridProperties"]["columnCount"]
         growth = new_cols - old_cols
-        if growth not in (1, 2) or got["properties"] != want["properties"]:
+        if growth <= 0 or got["properties"] != want["properties"]:
             continue
         body_end = max(
             native._shape(native._literal_cells(prior))[0],
             native._shape(native._literal_cells(want))[0],
         )
+        grid_rows = want["properties"]["gridProperties"]["rowCount"]
+        tail_end = min(body_end + 2, grid_rows)
+        required_count = None
+        if growth == 1:
+            rule = "new-column-blank-tail-style-v1"
+        elif growth == 2:
+            rule = "two-new-columns-four-blank-tail-styles-v1"
+            required_count = 4
+        else:
+            # Select the entire candidate band from the preimage. The native
+            # comparison below still checks every cell outside this rectangle.
+            rule = "new-columns-complete-blank-tail-style-band-v1"
+            tail_end = body_end
+            while tail_end < grid_rows and prior["cells"].get(
+                f"{tail_end}:{old_cols - 1}", {}
+            ).get("userEnteredFormat", {}).get("textFormat"):
+                tail_end += 1
+            required_count = growth * (tail_end - body_end)
+            if required_count > len(got["cells"]):
+                continue
+
         pending: list[tuple[str, dict[str, Any]]] = []
-        for row in range(
-            body_end,
-            min(body_end + 2, want["properties"]["gridProperties"]["rowCount"]),
-        ):
+        for row in range(body_end, tail_end):
             for column in range(old_cols, new_cols):
                 address, anchor = f"{row}:{column}", f"{row}:{old_cols - 1}"
                 original = copy.deepcopy(prior["cells"].get(anchor, {}))
@@ -424,17 +440,11 @@ def _new_column_blank_tail_styles(
                             "expected": copy.deepcopy(want["cells"].get(address, {})),
                             "actual": copy.deepcopy(got["cells"][address]),
                             "anchor_before": copy.deepcopy(prior["cells"][anchor]),
-                            "rule": (
-                                "new-column-blank-tail-style-v1"
-                                if growth == 1
-                                else "two-new-columns-four-blank-tail-styles-v1"
-                            ),
+                            "rule": rule,
                         },
                     )
                 )
-        # The new two-column case is atomic: all four observed blank styles
-        # must independently match their preserved old-column row anchor.
-        if growth == 2 and len(pending) != 4:
+        if required_count is not None and len(pending) != required_count:
             continue
         for address, evidence in pending:
             compared["sheets"][sid]["cells"].pop(address, None)

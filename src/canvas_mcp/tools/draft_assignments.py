@@ -94,16 +94,26 @@ class DraftAssignmentService:
     def __init__(self, journal: Path):
         self.journal = journal
 
+    def initialize_journal(self) -> None:
+        """Initialize the exact operator-selected journal, never repair existing paths."""
+        if not private_storage_supported():
+            raise ValueError(PLATFORM_HOLD)
+        if self.journal.resolve() != self.journal.absolute():
+            raise ValueError("Journal must be an operator-owned real directory")
+        self.journal.mkdir(mode=0o700, parents=True, exist_ok=True)
+        info = self.journal.lstat()
+        if (self.journal.resolve() != self.journal.absolute()
+                or not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) != 0o700):
+            raise ValueError("Journal must be an operator-owned real directory")
+        _sync_directory(self.journal.parent)
+
     def _claim(self, operation: str, binding: dict[str, Any]) -> Path | None:
         if not private_storage_supported():
             raise ValueError(PLATFORM_HOLD)
         if re.fullmatch(r"[A-Za-z0-9_-]{1,100}", operation) is None:
             return None
-        self.journal.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if (self.journal.resolve() != self.journal.absolute()
-                or self.journal.stat().st_uid != os.getuid()
-                or stat.S_IMODE(self.journal.stat().st_mode) != 0o700):
-            raise ValueError("Journal must be an operator-owned real directory")
+        self.initialize_journal()
         path = self.journal / (operation + ".json")
         try:
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

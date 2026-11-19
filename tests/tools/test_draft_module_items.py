@@ -69,7 +69,7 @@ async def test_wrong_or_published_assignment_held(case, assignment):
 async def test_assignment_independent_link_parent_content_readback(case):
     service, request, listing = case
     parent = {"id": 2, "published": False}
-    assignment = {"id": 4, "course_id": 1, "published": False, "is_quiz_assignment": False, "submission_types": ["on_paper"]}
+    assignment = ordinary_assignment()
     link = item(type="Assignment", content_id=4)
     listing.side_effect = [[], [], [link]]
     request.side_effect = [parent, assignment, assignment, parent, link, link, parent, assignment]
@@ -125,10 +125,65 @@ async def test_bad_inventory_never_posts(case, inventory):
 async def test_visibility_changes_during_readback_unverified(case, changed):
     service, request, _ = case
     parent = {"id": 2, "published": False}
-    assignment = {"id": 4, "course_id": 1, "published": False, "is_quiz_assignment": False, "submission_types": ["on_paper"]}
+    assignment = ordinary_assignment()
     link = item(type="Assignment", content_id=4)
     after_parent = dict(parent, published=changed == "parent")
     after_assignment = dict(assignment, published=changed == "assignment")
     request.side_effect = [parent, assignment, assignment, parent, link, link, after_parent, after_assignment]
     result = await service.execute(**args(item_type="Assignment", assignment_id="4", title=None))
     assert result["status"] == "UNVERIFIED"
+
+
+def ordinary_assignment(**changes):
+    value = {"id": 4, "course_id": 1, "published": False, "is_quiz_assignment": False,
+             "discussion_topic": None, "submission_types": ["on_paper"]}
+    value.update(changes)
+    return value
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shape", [
+    {"is_quiz_assignment": True},
+    {"discussion_topic": {"id": 8}},
+    {"submission_types": ["external_tool"]},
+    {"submission_types": ["unsupported"]},
+    {"submission_types": None},
+    {"is_quiz_assignment": None},
+    {},
+])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
+async def test_assignment_proxy_or_unknown_shape_held_before_post(case, shape):
+    service, request, listing = case
+    parent = {"id": 2, "published": False}
+    linked = ordinary_assignment(**shape) if shape else {"id": 4, "course_id": 1, "published": False}
+    link = item(type="Assignment", content_id=4)
+    request.side_effect = [parent, linked, link, link, parent, linked]
+    result = await service.execute(**args(item_type="Assignment", assignment_id="4", title=None))
+    assert result["status"] == "HELD"
+    assert [c.args[0] for c in request.call_args_list] == ["get", "get"]
+    listing.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shape", [
+    {"is_quiz_assignment": True},
+    {"discussion_topic": {"id": 8}},
+    {"submission_types": ["external_tool"]},
+    {"submission_types": ["unsupported"]},
+    {"submission_types": None},
+    {"is_quiz_assignment": None},
+    {},
+])
+@pytest.mark.skipif(not private_storage_supported(), reason="Requires POSIX private storage")
+async def test_assignment_becoming_proxy_or_unknown_unverified(case, shape):
+    service, request, listing = case
+    parent = {"id": 2, "published": False}
+    linked = ordinary_assignment(**shape) if shape else {"id": 4, "course_id": 1, "published": False}
+    link = item(type="Assignment", content_id=4)
+    assignment = ordinary_assignment()
+    listing.side_effect = [[], [], [link]]
+    request.side_effect = [parent, assignment, assignment, parent, link, link, parent, linked]
+    result = await service.execute(**args(item_type="Assignment", assignment_id="4", title=None))
+    assert result["status"] == "UNVERIFIED"
+    assert [c.args[0] for c in request.call_args_list] == ["get", "get", "get", "get", "post", "get", "get", "get"]
+    assert listing.await_count == 3
