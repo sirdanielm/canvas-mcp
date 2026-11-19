@@ -8,6 +8,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.untrusted_content import contains_fence_markers
 from .draft_assignments import (
     PLATFORM_HOLD,
+    SAFE_TYPES,
     DraftAssignmentService,
     _bound,
     _id,
@@ -21,6 +22,16 @@ def _parent(value: Any, course: str, module: str) -> bool:
             and type(value.get("id")) in (str, int) and str(value["id"]) == module
             and ("course_id" not in value or str(value["course_id"]) == course)
             and value.get("published") is False)
+
+
+def _ordinary_assignment(value: Any, course: str, assignment: str) -> bool:
+    """Refuse Assignment proxies that Canvas converts to quizzes/discussions/LTI."""
+    return (_bound(value, course, assignment)
+            and value.get("is_quiz_assignment") is False
+            and value.get("discussion_topic") is None
+            and isinstance(value.get("submission_types"), list)
+            and bool(value["submission_types"])
+            and all(isinstance(kind, str) and kind in SAFE_TYPES for kind in value["submission_types"]))
 
 
 class DraftModuleItems:
@@ -58,8 +69,8 @@ class DraftModuleItems:
             assignment = None
             if assignment_id is not None:
                 assignment = await make_canvas_request("get", f"/courses/{course_id}/assignments/{assignment_id}")
-                if not _bound(assignment, course_id, assignment_id):
-                    return self.receipts._finish(intent, _result("HELD", "Linked assignment is not exact and unpublished"))
+                if not _ordinary_assignment(assignment, course_id, assignment_id):
+                    return self.receipts._finish(intent, _result("HELD", "Linked assignment is not exact, ordinary and unpublished"))
             items = await fetch_all_paginated_results(base + "/items")
             if (not isinstance(items, list) or any(not isinstance(i, dict) or not _id(str(i.get("id", "")))
                     or str(i.get("module_id")) != module_id for i in items)
@@ -98,7 +109,7 @@ class DraftModuleItems:
                          and item["position"] == position and _parent(after_parent, course_id, module_id))
                 if assignment_id is not None:
                     after = await make_canvas_request("get", f"/courses/{course_id}/assignments/{assignment_id}")
-                    valid = valid and str(item.get("content_id")) == assignment_id and _bound(after, course_id, assignment_id)
+                    valid = valid and str(item.get("content_id")) == assignment_id and _ordinary_assignment(after, course_id, assignment_id)
                 else:
                     valid = valid and item.get("title") == title
                 if valid:

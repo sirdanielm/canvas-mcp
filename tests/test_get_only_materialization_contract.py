@@ -28,14 +28,21 @@ STYLE = {
 }
 
 
-async def materialized(scenario: Any, *, growth: int = 1, malformed: bool = False) -> tuple[Any, ...]:
+async def materialized(
+    scenario: Any, *, growth: int = 1, malformed: bool = False,
+    tail_rows: tuple[int, ...] = (6, 7), observe_all_columns: bool = False,
+) -> tuple[Any, ...]:
     before, canvas, store, binding = scenario
     state = native._state(before)
     style = copy.deepcopy(STYLE)
     if malformed:
         style["textFormat"]["fontFamily"] = True
-    for row in (6, 7):
-        state["sheets"][1]["cells"][f"{row}:25"] = {"userEnteredFormat": copy.deepcopy(style)}
+    styles = {r: copy.deepcopy(style) for r in tail_rows}
+    if observe_all_columns:
+        for i, r in enumerate(tail_rows):
+            styles[r]["textFormat"]["fontSize"] = 11 + i
+    for row in tail_rows:
+        state["sheets"][1]["cells"][f"{row}:25"] = {"userEnteredFormat": copy.deepcopy(styles[row])}
     before = raw_from_state(state)
     original = canvas.current["assignments"][0]
     for aid in range(22, 45 + growth):
@@ -47,8 +54,11 @@ async def materialized(scenario: Any, *, growth: int = 1, malformed: bool = Fals
     # Independent observations: new Sheets dimensions and blank-tail formatting.
     for column in range(26, 26 + growth):
         after_state["sheets"][1]["columnMetadata"][str(column)] = {"pixelSize": 100}
-    for row in (6, 7):
-        after_state["sheets"][1]["cells"][f"{row}:26"] = {"userEnteredFormat": copy.deepcopy(style)}
+    for row in tail_rows:
+        for column in range(26, 26 + (growth if observe_all_columns else 1)):
+            after_state["sheets"][1]["cells"][f"{row}:{column}"] = {
+                "userEnteredFormat": copy.deepcopy(styles[row])
+            }
     return before, raw_from_state(after_state), plan, store, binding
 
 
@@ -113,6 +123,70 @@ async def test_unqualified_materialization_stays_held(scenario: Any, case: str) 
     )
     with pytest.raises(GradebookError):
         verify_get_only_output(before, after, [plan], store, {"core": binding})
+
+
+@pytest.mark.parametrize(("growth", "depth"), [(3, 5), (3, 1), (4, 3)])
+async def test_growth_materializes_complete_preimage_band(
+    scenario: Any, growth: int, depth: int,
+) -> None:
+    rows = tuple(range(6, 6 + depth))
+    before, after, plan, store, binding = await materialized(
+        scenario, growth=growth, tail_rows=rows, observe_all_columns=True,
+    )
+    originals = copy.deepcopy((before, after, plan))
+    report: dict[str, Any] = {}
+    verify_get_only_output(
+        before, after, [plan], store, {"core": binding}, postcondition_report=report,
+    )
+    assert (before, after, plan) == originals
+    differences = report["admitted_differences"]
+    assert len(differences) == growth * depth
+    assert all(d["expected"] == {} and d["actual"] == d["anchor_before"] for d in differences)
+    assert {d["rule"] for d in differences} == {"new-columns-complete-blank-tail-style-band-v1"}
+    assert report["replay_authorized"] is False
+
+
+@pytest.mark.parametrize(("growth", "depth"), [(2, 1), (1, 5)])
+async def test_wider_band_rule_cannot_reinterpret_historical_growth(scenario: Any, growth: int, depth: int) -> None:
+    before, after, plan, store, binding = await materialized(
+        scenario, growth=growth, tail_rows=tuple(range(6, 6 + depth)), observe_all_columns=True,
+    )
+    with pytest.raises(GradebookError):
+        verify_get_only_output(before, after, [plan], store, {"core": binding})
+
+
+@pytest.mark.parametrize("change", [
+    "missing_cell", "missing_row", "mismatched_anchor", "outside_tail",
+    "unplanned_value", "data_validation", "edit_format",
+])
+async def test_wider_growth_rejects_partial_bands_and_unrelated_changes(scenario: Any, change: str) -> None:
+    before, after, plan, store, binding = await materialized(
+        scenario, growth=3, tail_rows=tuple(range(6, 11)), observe_all_columns=True,
+    )
+    state = native._state(after)
+    cells = state["sheets"][1]["cells"]
+    if change == "missing_cell":
+        cells.pop("8:27")
+    elif change == "missing_row":
+        for col in (26, 27, 28):
+            cells.pop(f"10:{col}")
+    elif change == "mismatched_anchor":
+        cells["6:27"] = copy.deepcopy(cells["7:27"])
+    elif change == "outside_tail":
+        cells["11:26"] = copy.deepcopy(cells["10:26"])
+    elif change == "unplanned_value":
+        cells["10:27"]["userEnteredValue"] = {"formulaValue": "=1"}
+    elif change == "data_validation":
+        cells["7:27"]["dataValidation"] = {"strict": True}
+    elif change == "edit_format":
+        state["sheets"][2]["cells"]["5:2"]["userEnteredFormat"] = copy.deepcopy(STYLE)
+    report: dict[str, Any] = {}
+    with pytest.raises(GradebookError):
+        verify_get_only_output(
+            before, raw_from_state(state), [plan], store, {"core": binding},
+            postcondition_report=report,
+        )
+    assert report == {}
 
 
 async def test_worker_persists_exact_admitted_difference_report(worker_scenario: Any) -> None:
