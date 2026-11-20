@@ -45,6 +45,22 @@ For immutable local course-content snapshots and comparisons, use the separate
 [course mirror CLI](course-mirror.md). For gradebook refreshes, use the separate
 [gradebook workflow](sdm-gradebook-workflow.md).
 
+## Choose the authoring profile
+
+Check the loaded tool list and operator scope before choosing a route. These
+opt-in profiles are separate from the connection described above. Merged
+source does not establish that a profile is installed or enabled.
+
+- [Prepared draft content](draft-content-foundation.md) creates or updates
+  ordinary draft assignments and places supported draft items in an unpublished
+  module. It does not publish or set section-specific due dates. Do not replace
+  a required section date with a common date.
+- [Scoped module authoring](module-authoring-profile.md) can add or edit
+  supported unpublished items in either a published or an unpublished module
+  without changing the parent's visibility. Its optional container publisher
+  has separate operator admission and a required action-time confirmation. It
+  refuses draft children and unknown visibility.
+
 ## Assignment workflow
 
 ### New drafts
@@ -147,6 +163,11 @@ Current visual standard:
 ## Module workflow
 
 Canvas can propagate publication when a populated module is published. This was observed during the Unit 2 rollout. A successful API response is not proof that linked assignments kept their intended state.
+
+The sequence below does not expand the
+[scoped module publication contract](module-authoring-profile.md#publication-is-a-separate-effect).
+That route cannot publish a container holding a draft child. Do not switch
+profiles to bypass a hold.
 
 Use this sequence:
 
