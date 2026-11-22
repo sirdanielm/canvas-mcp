@@ -131,15 +131,24 @@ with a total. Ground item numbering and approved scoring in the current workshee
 and match the total to live assignment points. Preserve separate Core and
 Advanced requirements; never invent worksheet links or point allocations.
 
-Place submission guidance above the embedded rubric. For worksheets and simulations, use:
+Place submission guidance above the embedded rubric. Match the banner to the
+assignment's actual submission route. For worksheets and simulations launched
+through an External Tool, use:
 
 > **SUBMIT your work BELOW (scroll down → click "Load [Assignment] in a new window")**
 
-For video activities, use:
+For video activities launched through an External Tool, use:
 
 > **Open the video BELOW (scroll down → click "Load [Assignment] in a new window")**
 
-Always include the final closing parenthesis. Use the existing yellow highlight and underline styling from the live course.
+Keep the closing parenthesis in these External Tool examples. For native file
+uploads, text entry or paper hand-in, describe the corresponding submission
+action. Apply the yellow highlight and underline styling to the banner.
+
+Before publishing an item or replacing a published link, verify each student
+resource under the approved audience and school's sharing policy. Check the
+exact file and keep teacher keys, presenter notes, completed work and folders
+within their existing access boundaries.
 
 ## Embedded rubric policy
 
@@ -159,6 +168,10 @@ Current visual standard:
 | Cell borders | `1px solid #777` |
 | Cell padding | `8px` |
 | Total row | `#f2f2f2` |
+
+Use the [Chemistry assignment body and rubric template](authoring-templates/chemistry/README.md)
+for an editable starting layout. Keep the approved worksheet, criteria, scoring
+guidance, and actual Canvas maximum bound to each assignment.
 
 ## Module workflow
 
