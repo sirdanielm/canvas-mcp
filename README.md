@@ -18,17 +18,18 @@ flags. The main MCP server, local gradebook worker and course mirror are separat
 interfaces. The main-server source defines **up to 129 tools** and
 **8 agent skills**; operator and feature gates determine actual availability.
 
-## Current goals
+## Choose the workflow
 
-After repository maintenance, the next SDM priority is a functioning Unit 3 test
-grader pipeline with qualified real intake, saved-stage reuse and verified
-receiving readback. Continue proving the Unit 2 Sheet/menu and local routes,
-and advance Unit 1 and CER under their own source, form and policy contracts;
-independent eligible work follows the current work order. Formative work uses
-the existing NO_MODEL fleet and current
-Canvas/Sheet/cache joins, reusing applicable durable
-results before any eligible new model work. Canvas observation, local staging,
-teacher acceptance and Canvas publication remain separate.
+For a gradebook update, refresh Core GET and Adv GET in the central workbook
+and verify the finalized receipt. A private library capture does not update
+the Sheet. Private EDIT staging and live Canvas score/comment delivery are
+separate; use the exact authorized lane and read back the result.
+
+For grading support, use known original-source and attempt bindings, reuse
+compatible saved stages, and verify the receiving result. Paper-folder and
+native non-Canvas grading do not depend on a Canvas library capture. Formative
+work uses the admitted NO_MODEL run and a current Canvas/Sheet/cache join
+before any eligible new analysis.
 
 For new formative scans and test intake, use the registered private Canvas
 submission library to discover retained electronic sources by verified course
