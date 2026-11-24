@@ -106,6 +106,7 @@
 
                     <section id="installation">
                         <h2>Installation</h2>
+                        <p><strong>Version 1.19.0 defaults to read-only.</strong> Standard local and HTTP connections require an explicit write allowlist. If you edit pages, publish assignments, or enter grades through Canvas MCP, enable the specific tools you use before upgrading. The Claude Desktop bundle containing this change has an <strong>Allowed write tools</strong> setting. If your client launches Canvas MCP locally, configure <code>ALLOWED_WRITE_TOOLS</code> for its server process. For example, <code>edit_page_content</code> allows edits to existing pages. Reconnect only the affected connection at an idle checkpoint and inspect its loaded tools. Allowlisting does not replace authorization for an individual write. <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/README.md#enable-specific-write-tools">See the setup instructions for your client</a>.</p>
 
                         <p>The generic setup below installs upstream Canvas MCP. For the maintained SDM source and its separate authoring/gradebook connections, follow the <a href="https://github.com/sirdanielm/canvas-mcp/blob/main/docs/installation.md">SDM installation guide</a>; an upstream package does not install those integrations.</p>
 

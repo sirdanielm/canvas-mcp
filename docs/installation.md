@@ -79,7 +79,9 @@ another writer. The standard connection does not configure the separate
 Upstream [releases](https://github.com/vishalsachdev/canvas-mcp/releases) provide
 `canvas-mcp.mcpb` for Claude Desktop. Install it through that client's extension
 UI and enter the institution's `/api/v1` URL and your token when prompted.
-Packaged upstream code and this fork's unreleased source can differ; a successful
+The v1.19 extension exposes **Allowed write tools**, defaulting to `none`;
+enter only the approved tool names for authorized actions. Older bundles can
+predate that setting. Packaged upstream code and this fork's source can differ; a successful
 extension installation does not install SDM gradebook/workbook overlays.
 
 ## Verification
@@ -100,12 +102,15 @@ change the registered tool set.
 
 - `CANVAS_ROLE` selects student, educator or all tools; it does not increase
   Canvas permissions.
-- `ALLOWED_WRITE_TOOLS` controls main-server side effects. In the maintained
-  1.18 fork, HTTP is read-only when unset and standard stdio retains its legacy
-  default. Set `none` for a read-only connection or name only the approved
-  writers. Dedicated authoring profiles have their own
+- `ALLOWED_WRITE_TOOLS` controls main-server side effects. Maintained 1.19
+  source defaults standard stdio and HTTP connections to read-only when unset
+  or empty. Set `none` for an explicitly read-only connection or name only the
+  approved writers, such as `edit_page_content`. Configure each affected
+  process before switching its source, then inspect the loaded tools. Existing
+  installed services retain their own source and configuration. Dedicated
+  authoring profiles have their own
   [admission rules](sdm-canvas-authoring-workflow.md#choose-the-authoring-profile).
-  Review the upstream 1.19 default change before switching a connection's source.
+  Admission does not replace action-specific authorization and preview/readback.
 - `execute_typescript` is off by default and requires separate privileged-action
   authorization when enabled.
 - The public hosted endpoint is retired. Authenticated self-hosting uses

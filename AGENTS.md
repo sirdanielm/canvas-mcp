@@ -26,6 +26,11 @@
 
 These are task-specific references, not a mandatory reading list. Current work orders determine authorized effects; [goals/status](docs/goals-and-status.md) records capability/status evidence. Historical pauses do not override later authorization or establish current runtime state.
 
+The main server defaults to read-only on HTTP and stdio. Set
+`ALLOWED_WRITE_TOOLS` to the exact approved tool names for a write-capable
+main-server profile. Dedicated gradebook and ordinary writer services use their
+own operator configuration.
+
 ## Classroom correctness
 
 - Preserve exact course, assignment, student, form/policy and actual attempt bindings. Missing evidence or identity is a hold, never a zero. Keep score and full feedback together for summative results; participation publication remains score-only unless policy is explicitly changed.

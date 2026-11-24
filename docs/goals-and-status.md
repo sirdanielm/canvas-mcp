@@ -166,7 +166,7 @@ authority.
 
 ### November 24 source and runtime alignment
 
-The maintained fork remains at source version 1.18.0. It includes prepared
+The maintained fork incorporates upstream source version 1.19.0. It includes prepared
 draft assignments and module items ([PR #79](https://github.com/sirdanielm/canvas-mcp/pull/79)),
 scoped module edits and a separate publication gate
 ([PR #80](https://github.com/sirdanielm/canvas-mcp/pull/80)), and
@@ -182,9 +182,12 @@ A separate finalized operation on November 24 verified Core GET and Adv GET
 in the central workbook. Its receipt recorded a clear queue and zero Canvas
 writes. Check the current queue, heartbeat and the new operation's receipt
 when verifying a later refresh. Other MCP profiles and the classroom menu have their own qualification
-records. The upstream 1.19 release changes the default stdio write policy.
-Integrate it through a separate migration review covering explicit allowlists
-and the affected profiles.
+records. Maintained 1.19 source defaults standard stdio and HTTP connections to
+read-only when the write allowlist is unset or empty. Configure only the approved
+tools before updating an affected connection and verify its loaded registry.
+This source integration does not change the recorded worker, private writer,
+authoring profiles or classroom installations; each retains its own adoption
+and operational evidence.
 
 The November 24 formative worksheet policy also specifies visual review when
 the timing rule cannot establish full participation. Verify the assigned

@@ -21,8 +21,15 @@ audits/
 GRASS_TOOLBOX_CHECKPOINT_*.md
 grass-next-*/
 
+# Private operator-specific authoring templates.
+fdhs-chemistry/
+
 # Public-safe repository audit records are not website assets.
 overhaul/
 
 # Agent plans and specs (working documents in the repository, not site content)
 superpowers/
+
+# Impact stats source (holds PyPI download counts, which are never published).
+# Tracked in git, unlike the paths above: sync_site_facts.py reads it locally and in CI.
+data/

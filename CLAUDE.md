@@ -49,6 +49,7 @@ enabled for an authorized operation; see upstream issue #157.
 - `docs/` is the public Cloudflare Pages root and deploys manually with `scripts/deploy_site.sh` (a bare `wrangler pages deploy docs/` ignores `.assetsignore` and publishes `triage/`, `audits/`, `superpowers/`); nothing internal goes there.
 - The site's version, tool and skill counts and GitHub stats come from `scripts/sync_site_facts.py` (CI runs `--check`): change the source, then run it; never hand-edit those numbers.
 - `internal/` is deny-by-default in `.gitignore`; un-ignore only a file meant to be public. `internal/session-history.md` stays untracked.
+- The shared Claude configuration prompts for GitHub CLI and code-execution calls. It covers the Canvas MCP aliases listed in `.claude/settings.json`. A custom alias needs its corresponding client rule. The server also enforces its feature flag and write allowlist.
 - Triage briefs are tracked: never record a collaborator's affiliation, evaluation status, timeline or competing products. Name the person and the technical issue only.
 
 ## Hosted Deployment
