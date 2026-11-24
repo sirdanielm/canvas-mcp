@@ -433,6 +433,12 @@ Use fictional controlled transports; no real student write is needed to test:
 node --test tests/gradebook_menu_overlay.test.mjs
 ```
 
+On POSIX, run `python -m pytest -q tests/test_gradebook_stdio_command.py` to test
+the gradebook server over MCP stdio against an in-process mock Canvas transport.
+The test verifies one score write and one comment write at the fictional
+destination. It restarts the server to verify readback and checks that replaying
+consumed confirmations adds no writes.
+
 Tests, source synchronization and old activation receipts do not establish live
 READY, fresh source, teacher approval or delivery. Preserve the exact result of
 failed/incomplete verification rather than substituting an older clean receipt.
