@@ -202,6 +202,18 @@ only for an operation recorded in that mode. Recovery validates the persisted
 mode, rather than treating absent legacy fields as a GET-only receipt. Require
 verified receipt plus finalized cleanup; never change modes to force recovery.
 
+For `readback_differs`, retain the original UUID, batch, applied marker and
+workbook preimage. Inspect the request with read-only diagnostics and compare a
+fresh read of the bound workbook with the saved plan. Once the comparison is
+qualified on the installed revision, reconcile the original request. Its
+Canvas fetch timestamp remains the timestamp of the original GET.
+
+When Sheets adds a GET column, it can copy formatting into blank cells below
+the managed grade rows. The verified readback records a longer single-column
+band only when every row matches the contiguous right-edge formatting from
+the saved preimage. Unexpected cells, changes to grades or teacher fields,
+and changes to protections still hold the request.
+
 Only after inspecting and repairing an explicitly **pre-SENDING** hold may an
 authorized operator retire its exact queue records:
 

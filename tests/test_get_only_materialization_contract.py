@@ -125,7 +125,7 @@ async def test_unqualified_materialization_stays_held(scenario: Any, case: str) 
         verify_get_only_output(before, after, [plan], store, {"core": binding})
 
 
-@pytest.mark.parametrize(("growth", "depth"), [(3, 5), (3, 1), (4, 3)])
+@pytest.mark.parametrize(("growth", "depth"), [(1, 5), (3, 5), (3, 1), (4, 3)])
 async def test_growth_materializes_complete_preimage_band(
     scenario: Any, growth: int, depth: int,
 ) -> None:
@@ -146,13 +146,44 @@ async def test_growth_materializes_complete_preimage_band(
     assert report["replay_authorized"] is False
 
 
-@pytest.mark.parametrize(("growth", "depth"), [(2, 1), (1, 5)])
-async def test_wider_band_rule_cannot_reinterpret_historical_growth(scenario: Any, growth: int, depth: int) -> None:
+async def test_two_column_rule_still_requires_both_tail_rows(scenario: Any) -> None:
     before, after, plan, store, binding = await materialized(
-        scenario, growth=growth, tail_rows=tuple(range(6, 6 + depth)), observe_all_columns=True,
+        scenario, growth=2, tail_rows=(6,), observe_all_columns=True,
     )
     with pytest.raises(GradebookError):
         verify_get_only_output(before, after, [plan], store, {"core": binding})
+
+
+async def test_long_single_column_tail_rejects_missing_middle_cell(scenario: Any) -> None:
+    before, after, plan, store, binding = await materialized(
+        scenario, tail_rows=(6, 7, 8, 9, 10), observe_all_columns=True,
+    )
+    state = native._state(after)
+    state["sheets"][1]["cells"].pop("8:26")
+    with pytest.raises(GradebookError, match="native readback differs"):
+        verify_get_only_output(
+            before, raw_from_state(state), [plan], store, {"core": binding},
+        )
+
+
+async def test_long_anchor_preserves_the_historical_short_single_column_tail(
+    scenario: Any,
+) -> None:
+    before, after, plan, store, binding = await materialized(
+        scenario, tail_rows=(6, 7, 8, 9, 10), observe_all_columns=True,
+    )
+    state = native._state(after)
+    for row in range(8, 11):
+        state["sheets"][1]["cells"].pop(f"{row}:26")
+    report: dict[str, Any] = {}
+    verify_get_only_output(
+        before, raw_from_state(state), [plan], store, {"core": binding},
+        postcondition_report=report,
+    )
+    assert {d["cell"] for d in report["admitted_differences"]} == {"AA7", "AA8"}
+    assert {d["rule"] for d in report["admitted_differences"]} == {
+        "new-column-blank-tail-style-v1"
+    }
 
 
 @pytest.mark.parametrize("change", [
@@ -189,10 +220,14 @@ async def test_wider_growth_rejects_partial_bands_and_unrelated_changes(scenario
     assert report == {}
 
 
-async def test_worker_persists_exact_admitted_difference_report(worker_scenario: Any) -> None:
+@pytest.mark.parametrize("depth", [2, 5])
+async def test_worker_persists_exact_admitted_difference_report(
+    worker_scenario: Any, depth: int,
+) -> None:
     worker, google, source, request, _ = worker_scenario
     state = native._state(google.raw)
-    for row in (7, 8):
+    tail_rows = range(7, 7 + depth)
+    for row in tail_rows:
         state["sheets"][1]["cells"][f"{row}:25"] = {"userEnteredFormat": copy.deepcopy(STYLE)}
     updated = raw_from_state(state)
     updated["developerMetadata"] = google.raw["developerMetadata"]
@@ -207,7 +242,7 @@ async def test_worker_persists_exact_admitted_difference_report(worker_scenario:
         result = await original_send(requests)
         observed = native._state(google.raw)
         observed["sheets"][1]["columnMetadata"]["26"] = {"pixelSize": 100}
-        for row in (7, 8):
+        for row in tail_rows:
             observed["sheets"][1]["cells"][f"{row}:26"] = {"userEnteredFormat": copy.deepcopy(STYLE)}
         after = raw_from_state(observed)
         after["developerMetadata"] = google.raw["developerMetadata"]
@@ -222,7 +257,10 @@ async def test_worker_persists_exact_admitted_difference_report(worker_scenario:
     retained = Store(worker.store.root).load("receipt", receipt_id)
     report = retained["native_postcondition"]
     assert report["contract"] == "GET_ONLY_MATERIALIZATION_V1"
-    assert {item["cell"] for item in report["admitted_differences"]} == {"AA8", "AA9"}
+    assert {item["cell"] for item in report["admitted_differences"]} == {
+        f"AA{row + 1}" for row in tail_rows
+    }
+    assert operation["payload"]["finalized"] is True
     assert report["before_fingerprint"] == native.fingerprint(original_before)
     assert report["actual_after_fingerprint"] == native.fingerprint(google.raw)
     assert native._state(original_before)["sheets"][2] == native._state(google.raw)["sheets"][2]
