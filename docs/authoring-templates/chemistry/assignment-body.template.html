@@ -1,0 +1,45 @@
+<!-- Fill every {{TOKEN}} from the approved assignment package.
+     Escape text and URL substitutions. Use reviewed markup for *_HTML fields.
+     Omit inapplicable optional paragraphs and links.
+     Describe the actual submission route in the banner and final directions.
+     Keep approved evidence and scoring guidance inside the rubric cells. -->
+<p><strong><span style="background-color: #ffff00;"><u>{{SUBMISSION_BANNER}}</u></span><br><br>Learning intention {{LEARNING_INTENTION_CODE}}:</strong> {{LEARNING_INTENTION_TEXT}}</p>
+<p>{{ACTIVITY_OVERVIEW}}</p>
+<p><a href="{{STUDENT_WORKSHEET_URL}}">Open the student worksheet</a> · <a href="{{LESSON_SLIDES_URL}}">Lesson slides</a></p>
+<p>Materials: {{MATERIALS}}</p>
+<p><strong>Required: {{TRACK_REQUIREMENTS}}</strong></p>
+<p>{{SUPPORTS_AND_EXCLUSIONS}}</p>
+<h3>Your work</h3>
+<ul>
+{{TASK_ITEMS_HTML}}
+</ul>
+<p>{{FINAL_SUBMISSION_DIRECTIONS}}</p>
+<p>Before submitting: {{SUBMISSION_CHECKLIST}}</p>
+<table style="width: 100%; border-collapse: collapse; border: 2px solid #0b5d3b;" cellpadding="8">
+<caption>Assessment criteria and available points</caption>
+<thead>
+<tr style="background-color: #0b5d3b; color: #ffffff;">
+<th style="padding: 8px; text-align: left; border: 1px solid #777777;" colspan="3">{{TRACK_LABEL}} rubric — {{TOTAL_POINTS}} points</th>
+</tr>
+<tr style="background-color: #dfeee5;">
+<th style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;" scope="col">Criterion</th>
+<th style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;" scope="col">Evidence expected</th>
+<th style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;" scope="col">Points</th>
+</tr>
+</thead>
+<tbody>
+<!-- Replace RUBRIC_ROWS_HTML with one or more reviewed rows in this exact form:
+<tr>
+<th style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;" scope="row">{{CRITERION_TITLE}}</th>
+<td style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;">{{EVIDENCE_AND_SCORING_GUIDANCE}}</td>
+<td style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;">{{CRITERION_POINTS}}</td>
+</tr>
+-->
+{{RUBRIC_ROWS_HTML}}
+<tr style="background-color: #f2f2f2;">
+<th style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;" scope="row">Total</th>
+<td style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;">{{TOTAL_SUMMARY}}</td>
+<td style="padding: 8px; text-align: left; vertical-align: top; border: 1px solid #777777;">{{TOTAL_POINTS}}</td>
+</tr>
+</tbody>
+</table>
