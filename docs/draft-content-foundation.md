@@ -1,7 +1,10 @@
-# Draft-content foundation (source-only candidate)
+# Prepared draft content profile
 
-This work is separate from the installed Unit 4 module/link writer. The source adds a separate opt-in registry, but changes no launcher, operator
-configuration or deployed environment. No installed tool is enabled by this patch.
+[PR #79](https://github.com/sirdanielm/canvas-mcp/pull/79) merged the opt-in
+prepared-content registry into the maintained fork. Use the
+[authoring workflow](sdm-canvas-authoring-workflow.md#choose-the-authoring-profile)
+to choose the profile. Verify the loaded tool list, pinned manifest and journal
+through the operator before using the connection for a live task.
 
 ## User-facing authority contract
 
@@ -40,9 +43,9 @@ nor an operation ID confers authorization. Canvas has no universal compare-and-
 swap: concurrent publication between GET and PUT remains a race. Use single-owner
 coordination; a readback change is a hold, not rollback or automatic retry.
 
-## Remaining adoption blockers
+## Setup and qualification
 
-- Source now provides `--draft-content-only`, educator/stdio only, mutually
+- The main server provides `--draft-content-only`, educator/stdio only, mutually
   exclusive with `--draft-modules-only`. It requires an operator-owned mode-0600
   manifest pinned by exact SHA-256 and a separate private journal directory.
 - Supported write allowlist: an explicit nonempty subset of
@@ -60,12 +63,10 @@ coordination; a readback change is a hold, not rollback or automatic retry.
   reconcile before preparing a replacement manifest; do not merely refresh the
   baseline to bypass an uncertain creation. Concurrent external creates remain
   a race requiring single-owner coordination and outcome reconciliation.
-- Provide a privacy-safe preimage reader and teacher-review manifest; qualify
-  journal ownership, permissions, retention and uncertain-operation reconciliation
-  through the normal operator route. No live qualification has been performed.
-- Independent source review, full applicable suite and isolated installation
-  qualification are required before any promotion. No commit/push/deployment is
-  authorized by this patch.
+- For an installed connection, verify journal ownership, permissions, retention
+  and uncertain-operation reconciliation through the operator route. Use the
+  exact runtime binding, loaded registry and applicable qualification receipt
+  for the requested effect.
 
 ## Next slices
 
@@ -74,9 +75,8 @@ publication or notification. Ungraded discussions: add a real unpublished
 adapter; the current general create tool hardcodes publication. Do not include
 announcements, graded discussions or replies in this first expansion.
 
-Module content links: independently preflight/read back parent, item and target;
-allow only verified same-course unpublished targets. Do not infer visibility
-from item state alone. Preserve the installed two-writer profile unchanged.
+Additional module content link types need their own parent, item and target
+checks. The current profile supports the positioned module items below.
 
 Classic quizzes: new adapter using `/api/v1/courses/:course_id/quizzes`, strict
 `quiz[published]=false`, exact quiz ID and associated assignment binding. Question
@@ -102,15 +102,15 @@ Files, LTI tools, imports/migrations, shared question banks, rubric associations
 grade pushes and publication remain separate capabilities. Stage outside Canvas
 when private visibility cannot be verified.
 
-## Candidate profile invocation (not installed)
+## Source invocation
 
 `canvas-mcp-server --role educator --draft-content-only
 --draft-content-manifest /private/absolute/manifest.json
 --draft-content-sha256 <exact-byte-sha256>
 --draft-content-journal /private/absolute/journal`
 
-The operator supplies `ALLOWED_WRITE_TOOLS=apply_prepared_draft_assignment`.
-No changes to the active launcher or configuration are included. The manifest is
+For assignment drafts, the operator supplies
+`ALLOWED_WRITE_TOOLS=apply_prepared_draft_assignment`. The manifest is
 `{"schema_version":1,"assignments":{"entry-key":{...}}}`. Each entry has
 `operation_id`, numeric-string `course_id`, `content`, literal `published:false`,
 and either create inventory IDs or `assignment_id` plus `expected_sha256`.
@@ -118,10 +118,11 @@ Existing-object edits support only name/description. Creation requires canonical
 points, group and one all-course due setting as described below. Assignments to
 individual students, grade pushes and Published transitions remain unsupported.
 
-## Positioned module items (source-only extension)
+## Positioned module items
 
-Optional `module_items` manifest entries select only `SubHeader` (a prepared test
- date/title) or `Assignment` (exact existing assignment ID), a numeric course and
+With `apply_prepared_draft_module_item` explicitly allowed, optional
+`module_items` entries select only `SubHeader` (a prepared title)
+or `Assignment` (exact existing assignment ID), a numeric course and
 module ID, integer position, literal unpublished state, and complete reviewed
 `existing_item_ids`. Entries use their own durable operation IDs. The server
 checks the parent's unpublished status, exact assignment course/ID/unpublished
@@ -132,8 +133,8 @@ No module update, Published transition, completion requirement, date calculation
 quiz creation or assignment-content invention is implemented by this capability.
 Position insertion may reorder subsequent items as part of Canvas's normal insert
 operation; preview that intended position in the prepared manifest. Cross-object
-races remain and require single-owner coordination. Requirements await exact
-Module 3 semantics and are not inferred from names.
+races remain and require single-owner coordination. Completion requirements
+need a separate reviewed capability.
 
 ## Canonical new-assignment metadata
 
@@ -155,8 +156,8 @@ SIS integration and LTI configuration remain unsupported and are rejected. This
 slice supports one explicitly reviewed all-course due date only. Where section
 specific due dates are required, do not substitute a common date: hold that
 assignment pending a separately designed section-bound preview/write/readback
-contract. Existing-object edits still accept name/description only and preserve
-points/groups/dates. No live qualification has occurred.
+contract. Existing-object edits accept name/description only and preserve
+points, groups and dates.
 
 ## Platform boundary
 

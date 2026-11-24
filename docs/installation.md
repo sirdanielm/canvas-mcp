@@ -100,9 +100,12 @@ change the registered tool set.
 
 - `CANVAS_ROLE` selects student, educator or all tools; it does not increase
   Canvas permissions.
-- `ALLOWED_WRITE_TOOLS` controls main-server side effects. Unset HTTP is read-only;
-  stdio retains configured tools. `none` removes writes. Disabled tools are
-  boundaries, not invitations to use direct requests.
+- `ALLOWED_WRITE_TOOLS` controls main-server side effects. In the maintained
+  1.18 fork, HTTP is read-only when unset and standard stdio retains its legacy
+  default. Set `none` for a read-only connection or name only the approved
+  writers. Dedicated authoring profiles have their own
+  [admission rules](sdm-canvas-authoring-workflow.md#choose-the-authoring-profile).
+  Review the upstream 1.19 default change before switching a connection's source.
 - `execute_typescript` is off by default and requires separate privileged-action
   authorization when enabled.
 - The public hosted endpoint is retired. Authenticated self-hosting uses
