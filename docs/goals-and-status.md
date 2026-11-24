@@ -188,8 +188,8 @@ and the affected profiles.
 
 The November 24 formative worksheet policy also specifies visual review when
 the timing rule cannot establish full participation. Verify the assigned
-worksheet and a visibly filled name field, then count each required prompt
-with visible handwriting once. At least half earns full credit. Some
+worksheet and a visibly filled name field without transcribing or comparing
+the name. Count each required prompt with visible handwriting once. At least half earns full credit. Some
 handwriting below half earns the existing half-credit floor. Preserve unknowns
 when the evidence is obscured. The operator's revised private sweep candidate
 passed fixture tests. Adoption requires verification in the actual sweep.
