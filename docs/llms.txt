@@ -6,10 +6,11 @@ Canvas MCP enables AI assistants to query courses, assignments, grades, discussi
 
 ## Key Features
 
-- Latest release: v1.18.0 (upstream; MIT license). Fork source updates do not establish an installed package or deployment.
+- Latest release: v1.19.0 (upstream; MIT license). Fork source updates do not establish an installed package or deployment.
 - Natural language interface for Canvas LMS
 - Up to 129 MCP tools, subject to role, operator write policy and feature gates
 - 8 reusable agent skills (workflow recipes) installable into 40+ agents via skills.sh
+- Read-only standard stdio and HTTP defaults; explicitly allowlisted tools retain their authorization and preview contracts
 - Optional student identity anonymization
 - Code execution API for bulk grading and operations
 - Works with Claude, ChatGPT (via MCP plugins), Cursor, Zed, Windsurf, and other MCP clients

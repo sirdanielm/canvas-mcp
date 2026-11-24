@@ -9,7 +9,7 @@ all. These tests pin that boundary.
 - Every registered tool has an explicit effect class, and ``read`` agrees with
   ``read_only_hint`` (so a mis-annotated writer cannot slip into the read set).
 - On the HTTP transport, no side-effect tool exists unless the operator names it.
-- On stdio, behaviour is unchanged unless the operator sets the allowlist.
+- On stdio, side effects also require an explicit operator allowlist.
 - A removed tool cannot be called by name.
 - Misconfiguration fails at startup rather than being guessed at.
 """
@@ -122,9 +122,10 @@ def test_http_default_allows_no_side_effect_tools():
     assert policy.allowed == frozenset()
 
 
-def test_stdio_default_is_unrestricted():
+def test_stdio_default_is_read_only():
     policy = resolve_tool_policy(None, "stdio")
-    assert policy.enforced is False
+    assert policy.enforced is True
+    assert policy.allowed == frozenset()
 
 
 @pytest.mark.parametrize("raw", ["", "   ", " , ", ",,,"])
@@ -190,12 +191,12 @@ async def test_http_default_leaves_only_read_tools(all_flags_on):
 
 
 @pytest.mark.asyncio
-async def test_stdio_default_removes_nothing(all_flags_on):
+async def test_stdio_default_removes_writers(all_flags_on):
     mcp = _registry()
     before = await _names(mcp)
     removed = await apply_tool_policy(mcp, resolve_tool_policy(None, "stdio"))
-    assert removed == []
-    assert await _names(mcp) == before
+    assert set(removed) == before & SIDE_EFFECT
+    assert await _names(mcp) == before & READ
 
 
 @pytest.mark.asyncio
@@ -209,13 +210,16 @@ async def test_allowlist_only_removes_never_adds(all_flags_on, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_removed_tool_cannot_be_called_by_name(all_flags_on):
+@pytest.mark.parametrize(("raw", "transport"), [
+    (None, "stdio"), (None, "http"), ("update_page_settings", "http"),
+])
+async def test_removed_tool_cannot_be_called_by_name(all_flags_on, raw, transport):
     mcp = _registry()
-    await apply_tool_policy(mcp, resolve_tool_policy("update_page_settings", "http"))
+    await apply_tool_policy(mcp, resolve_tool_policy(raw, transport))
     async with Client(mcp) as client:
         names = {tool.name for tool in await client.list_tools()}
         assert "send_conversation" not in names
-        assert "update_page_settings" in names
+        assert ("update_page_settings" in names) is (raw is not None)
         with pytest.raises(ToolError, match="Unknown tool"):
             await client.call_tool(
                 "send_conversation",
@@ -350,14 +354,14 @@ def test_stdio_none_server_says_read_only_without_local_install_hint(monkeypatch
     assert "install" not in text.lower(), "a stdio server is already local"
 
 
-def test_stdio_default_server_adds_no_policy_instructions(monkeypatch):
+def test_stdio_default_server_explains_read_only(monkeypatch):
     mcp = _served_server(monkeypatch, [], {"CANVAS_API_TOKEN": "x" * 24})
-    assert not mcp.instructions
+    assert "read-only" in (mcp.instructions or "")
 
 
-def test_main_stdio_default_keeps_writes(monkeypatch):
+def test_main_stdio_default_removes_writes(monkeypatch):
     names = _served_registry(monkeypatch, [], {"CANVAS_API_TOKEN": "x" * 24})
-    assert "send_conversation" in names
+    assert not names & SIDE_EFFECT
 
 
 def test_main_stdio_none_removes_writes(monkeypatch):

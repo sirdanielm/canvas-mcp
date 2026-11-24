@@ -51,7 +51,7 @@ Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence o
 ## Operator write policy
 
 `ALLOWED_WRITE_TOOLS` controls which side-effect tools are registered. With the
-setting unset, HTTP is read-only and stdio retains its existing registered tools.
+setting unset, both HTTP and stdio are read-only.
 An empty value or `none` removes side-effect tools; an explicit list admits only
 those named. `all` excludes `execute_typescript`, which requires an explicit name
 and its separate feature flag. A missing tool is an operator boundary, not a
@@ -411,6 +411,7 @@ not authorize replay. See the [tool contract](../tools/README.md#delete_announce
 To change one fragment without reverting anyone else's edits:
    → edit_page_content(course_id, "week-1", find="Monday 2pm", replace="Tuesday 3pm",
                        expect_updated_at="<updated_at you read>")
+Read the page timestamp with get_page_details before each edit.
 The tool fetches the object, refuses (writing nothing) if it changed since
 you read it, if find matches 0 or 2+ times, or if a `require` string is
 missing; then writes once and reads back. Success means the read-back proves

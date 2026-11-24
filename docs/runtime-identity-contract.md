@@ -46,12 +46,10 @@ request this fixed software metadata, including callers using student/read-only
 profiles. Existing authentication and all other tool classifications and write
 protections remain unchanged and are not qualified by this source work.
 
-The explicit READ entry preserves the tool in both stdio and HTTP modes: unset
-policy, explicit none/empty, all, and valid explicit side-effect-tool lists.
-The stdio unset default remains unenforced; unknown names are still filtered
-whenever policy is enforced. Invalid policies still reject startup. Naming this
-READ tool in `ALLOWED_WRITE_TOOLS` remains invalid; do not add it there. No
-resolver/filter function or existing side-effect membership changes.
+The explicit READ entry keeps this diagnostic available on HTTP and stdio for
+every valid write policy. Both transports enforce a read-only default and
+filter unclassified tools. Explicit lists accept side-effect tools only.
+Naming this READ tool in `ALLOWED_WRITE_TOOLS` therefore rejects startup.
 
 The dedicated `canvas_mcp.gradebook.server` entrypoint does not register discovery
 and is excluded. This diagnostic does not change it or provide identity for all

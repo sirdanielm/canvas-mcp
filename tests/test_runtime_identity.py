@@ -561,22 +561,18 @@ class IntegrationTests(unittest.TestCase):
                         registry.extra_names = set(self.baseline_effects) | {"fictional_unclassified"}
                         resolved = policy.resolve_tool_policy(raw, transport)
                         removed = asyncio.run(policy.apply_tool_policy(registry, resolved))
-                        if raw is None and transport == "stdio":
-                            expected = set(self.baseline_effects) | {"get_runtime_identity", "fictional_unclassified"}
-                            self.assertFalse(resolved.enforced)
-                            self.assertEqual(resolved.allowed, baseline_side)
-                        else:
-                            allowed = set()
-                            if raw in ("all", "all create_assignment"):
-                                allowed = all_keyword
-                            elif raw == "create_assignment":
-                                allowed = {"create_assignment"}
-                            elif raw == "create_assignment,execute_typescript":
-                                allowed = {"create_assignment", "execute_typescript"}
-                            expected = baseline_reads | allowed | {"get_runtime_identity"}
-                            self.assertTrue(resolved.enforced)
-                            self.assertEqual(resolved.allowed, allowed)
-                            self.assertIn("fictional_unclassified", removed)
+                        allowed = set()
+                        if raw in ("all", "all create_assignment"):
+                            allowed = all_keyword
+                        elif raw == "create_assignment":
+                            allowed = {"create_assignment"}
+                        elif raw == "create_assignment,execute_typescript":
+                            allowed = {"create_assignment", "execute_typescript"}
+                        expected = baseline_reads | allowed | {"get_runtime_identity"}
+                        self.assertTrue(resolved.enforced)
+                        self.assertEqual(resolved.allowed, allowed)
+                        self.assertEqual(set(removed),
+                                         (baseline_side - allowed) | {"fictional_unclassified"})
                         self.assertEqual(registry.names, expected)
                         self.assertIn("get_runtime_identity", registry.names)
                         self.assertEqual(registry.names & set(self.baseline_effects), expected & set(self.baseline_effects))

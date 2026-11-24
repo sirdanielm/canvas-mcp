@@ -29,7 +29,7 @@ separate facts.
 | [`main`](src/canvas_mcp/server.py#L662) | CLI arguments/environment → configured server. Parses `--help` before loading configuration; validates transport/auth, registers tools, applies write policy and starts serving. Ordinary startup is a live service operation. |
 | [`RequestBodyLimitMiddleware.__call__`](src/canvas_mcp/server.py#L184) | HTTP stream → complete bounded body or fixed error before credentials/MCP parsing. Caps general requests at 1 MiB and the public confirmation form at 8 KiB; preserves disconnect/lifespan behavior. Source repair is separate from installed adoption. |
 | [`register_all_tools`](src/canvas_mcp/server.py#L524) | FastMCP instance + role → registrations. Installs result contracts, shared tools, role-specific tools and resources. A registered tool can still be removed by policy. |
-| [`resolve_tool_policy`](src/canvas_mcp/core/tool_policy.py#L222) | Raw `ALLOWED_WRITE_TOOLS` + transport → policy or error. Unset HTTP defaults to no writes; unset stdio retains legacy behavior. Explicit `none` is the safe read-only choice. |
+| [`resolve_tool_policy`](src/canvas_mcp/core/tool_policy.py#L222) | Raw `ALLOWED_WRITE_TOOLS` + transport → policy or error. An unset allowlist defaults to read-only on both HTTP and stdio. Set `none` to select read-only explicitly. |
 | [`apply_tool_policy`](src/canvas_mcp/core/tool_policy.py#L313) | Registered server + policy → removed tool names. Removes disallowed side-effect tools; unknown effect classifications fail closed when policy is enforced. This is not the separate gradebook push gate. |
 | [`validate_params`](src/canvas_mcp/core/validation.py#L355) | Tool decorator → asynchronous argument-validation wrapper. Uses `validate_parameter` before invoking the tool. This checks shape/type, not academic correctness or human permission. |
 | [`make_canvas_request`](src/canvas_mcp/core/client.py#L491) | Method/path/parameters/payload → decoded result or explicit failure. Resolves per-request versus stdio credentials, rejects path smuggling, bounds concurrency, classifies write outcomes and applies endpoint-specific anonymization. Mutation calls require their owning tool's authorization. |
@@ -153,8 +153,8 @@ proofs have a separately pinned Lean/Java/TLC toolchain; follow
   token; callers supply `X-Canvas-Token` through the configured authentication
   boundary. Do not use `--test` as an offline check: it contacts Canvas.
 - For a separately authorized read-only server, explicitly set
-  `ALLOWED_WRITE_TOOLS=none` and keep code execution disabled. An unset stdio
-  allowlist is not read-only. Do not broaden an installed deployment's allowlist.
+  `ALLOWED_WRITE_TOOLS=none` and keep code execution disabled. An unset allowlist also defaults to
+  read-only on stdio and HTTP. Do not broaden an installed deployment's allowlist.
 - Gradebook launchers use separate local bindings, artifacts and optional Keychain
   dependencies. Follow the [gradebook runbook](docs/sdm-gradebook-workflow.md)
   and [worker runbook](docs/sdm-gradebook-worker.md); a repository update is not an

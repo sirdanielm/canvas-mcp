@@ -18,6 +18,11 @@ flags. The main MCP server, local gradebook worker and course mirror are separat
 interfaces. The main-server source defines **up to 129 tools** and
 **8 agent skills**; operator and feature gates determine actual availability.
 
+Version 1.19.0 defaults standard stdio and HTTP connections to read-only.
+For authorized write access, configure the exact approved tools before switching
+a connection to this source; see [enable specific write tools](#enable-specific-write-tools).
+Existing installed services keep their loaded source until separately updated.
+
 ## Choose the workflow
 
 For a gradebook update, refresh Core GET and Adv GET in the central workbook
@@ -84,6 +89,30 @@ them.
 `canvas-mcp-server --test` checks the Canvas connection; `--config` displays
 configuration. Do not include tokens or student records in a support report.
 
+### Enable specific write tools
+
+Set `ALLOWED_WRITE_TOOLS` for each main-server process that needs authorized
+write access. For example, `ALLOWED_WRITE_TOOLS=edit_page_content` enables edits
+to existing pages; use only the tool names approved for that connection. An unset,
+empty or `none` value is read-only. Unknown names stop startup. Tool admission
+does not replace the human authorization, preview and readback required for an
+individual action.
+
+For Codex, add the environment table under the existing server entry:
+
+```toml
+[mcp_servers.canvas-api.env]
+ALLOWED_WRITE_TOOLS = "edit_page_content"
+```
+
+Other local clients can set the variable in their server environment or private
+`.env`. The upstream v1.19 desktop extension exposes **Allowed write tools** with
+a default of `none`; older bundles can predate that setting. Hosted operators
+set their server allowlist. After a configuration change, reconnect only the
+affected connection at an idle checkpoint and inspect its loaded tool list.
+Dedicated SDM authoring and gradebook profiles retain their separate admission
+and installation contracts.
+
 ## Tools and workflows
 
 <a id="available-tools"></a>
@@ -131,8 +160,8 @@ own data policies still apply. Private local student copies use the registry-bou
 four-digit text PIN from `Student Info`, preserving leading zeros and holding
 unmatched/conflicting identities. See the [PIN policy](docs/STUDENT-PIN-POLICY.md).
 
-`ALLOWED_WRITE_TOOLS` governs the main server's side-effect tools. HTTP is
-read-only when it is unset; stdio retains its configured tools. Writes require
+`ALLOWED_WRITE_TOOLS` governs the main server's side-effect tools. Standard
+stdio and HTTP connections are read-only when it is unset or empty. Writes require
 explicit human authorization and each tool's preview/readback contract. Scores
 and feedback have separate delivery evidence. Never replay an uncertain comment
 send.
@@ -169,8 +198,9 @@ and verified delivery are distinct states. A documentation/source merge does not
 restart a service, deploy the menu, release a package or send classroom grades.
 Tags and deployment/paid-review actions require separate authorization.
 
-The refreshed source incorporates upstream v1.18.0, including the stricter
-TypeScript sandbox network guard, alongside strict course identifiers, guarded
+The refreshed source incorporates upstream v1.19.0, including read-only
+main-server defaults and a desktop-extension write allowlist. It retains the
+stricter TypeScript sandbox network guard, strict course identifiers, guarded
 rubric creation and accessibility source validation.
 Upstream package releases and this fork's source or installed runtimes have
 separate release histories. This update alone installs no runtime.

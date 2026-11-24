@@ -95,10 +95,10 @@ supports only `th_scope`, `low_contrast`, `legacy_designplus` and
 captions or meaningful link wording:
 
 **For missing alt text:**
-1. Call `get_page_content(course_identifier, page_url)` to retrieve the HTML
+1. Call `get_page_content(course_identifier, page_url)` to retrieve the HTML, and `get_page_details(course_identifier, page_url)` for its `updated_at` (ISO 8601; `get_page_content` does not return it)
 2. Identify the `<img>` tags without alt attributes
 3. Inspect the image and relevant context; write a supported description within the remediation scope. Ask only when the image meaning cannot be established; never infer it from the filename alone
-4. Call `edit_page_content(course_identifier, page_url, new_content)` with corrected HTML
+4. Call `edit_page_content(course_identifier, page_url, find="<the img tag>", replace="<the tag with alt>", expect_updated_at="<updated_at you read>")` once per fix, so a concurrent edit is refused instead of overwritten. Each edit changes `updated_at`: call `get_page_details` again before the next fix (or make all the page's fixes in one call)
 
 **For non-descriptive links:**
 1. Retrieve the page content
@@ -191,7 +191,7 @@ Manual review of color contrast and multimedia is recommended before publishing.
 - **Requires separate review:** Contrast outside the supported white-on-orange pattern, video captions, PDF accessibility, audio descriptions, keyboard navigation
 - **These are flagged** as "manual review required" in every report
 - **Remediation is per-page:** Each fix requires a full page content read and write cycle
-- **Recovery:** This workflow exposes no dedicated undo tool. Retain preimages; restore the agent’s own failed edit within the same authorization only when current state still matches that edit. Preserve intervening user changes and reconcile uncertain writes first
+- **Recovery:** Canvas keeps page revisions. Save preimages for assignment and syllabus bodies. Restore an authorized edit only after verifying the current state still matches that edit. Reconcile uncertain writes and preserve intervening changes.
 
 ## Notes
 

@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import tomllib
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -277,3 +278,72 @@ def test_normal_launcher_keeps_normal_arguments_and_operator_policy(monkeypatch)
         launcher.main()
     assert captured['argv'][1:] == ['--role', 'educator']
     assert captured['env']['ALLOWED_WRITE_TOOLS'] == 'none'
+
+
+@pytest.mark.parametrize("example_name", ["sdm-authoring.toml.example", "sdm-readonly.toml.example"])
+def test_documented_profile_preserves_exact_client_ceiling(monkeypatch, example_name):
+    """Exercise the example's env through the launcher and actual server startup."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from fastmcp import FastMCP
+
+    import canvas_mcp.core.audit as audit
+    import canvas_mcp.core.config as config
+    import canvas_mcp.server as server
+    from canvas_mcp.core.tool_policy import TOOL_EFFECTS, Effect
+
+    example = Path(__file__).parents[1] / "config" / example_name
+    profile = tomllib.loads(example.read_text(encoding="utf-8"))["mcp_servers"]["canvas-authoring"]
+    client_ceiling = set(profile["enabled_tools"])
+    expected_writers = {
+        "create_assignment", "update_assignment", "delete_assignment_with_confirmation",
+        "create_rubric", "associate_rubric", "create_module", "update_module",
+        "delete_module", "add_module_item", "update_module_item", "delete_module_item",
+    }
+    if example_name == "sdm-readonly.toml.example":
+        expected_writers = set()
+    monkeypatch.delenv("ALLOWED_WRITE_TOOLS", raising=False)
+    for name, value in profile.get("env", {}).items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr("sys.argv", ["launcher", *profile["args"][1:]])
+    monkeypatch.setattr(launcher, "read_connection", lambda: "https://school.example")
+    monkeypatch.setattr(launcher, "keychain", lambda: SimpleNamespace(
+        get_password=lambda *_: "synthetic-token-for-offline-test"))
+    monkeypatch.setattr(launcher.os, "chdir", lambda *_: None)
+    captured = {}
+
+    def fake_exec(executable, argv, environment):
+        captured.update(argv=argv, env=environment)
+        raise _CapturedExec()
+
+    monkeypatch.setattr(launcher.os, "execve", fake_exec)
+    with pytest.raises(_CapturedExec):
+        launcher.main()
+    for name in ("CANVAS_API_URL", "CANVAS_API_TOKEN", "CANVAS_ROLE",
+                 "EXECUTE_TYPESCRIPT_ENABLED", "STUDENT_WRITE_TOOLS",
+                 "PYTHON_DOTENV_DISABLED", "ENABLE_DATA_ANONYMIZATION",
+                 "ALLOWED_WRITE_TOOLS"):
+        value = captured["env"].get(name)
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+    config.reset_config()
+    monkeypatch.setattr("sys.argv", captured["argv"])
+    monkeypatch.setattr(server, "_validate_token", AsyncMock(return_value=(True, "fixture")))
+    monkeypatch.setattr(audit, "init_audit_logging", lambda: None)
+    observed = set()
+
+    def capture_run(mcp):
+        async def names():
+            return {tool.name for tool in await mcp.list_tools(run_middleware=False)}
+        observed.update(asyncio.run(names()))
+
+    monkeypatch.setattr(FastMCP, "run", capture_run)
+    server.main()
+    assert {name for name in observed if TOOL_EFFECTS[name] is not Effect.READ} == expected_writers
+    assert observed & client_ceiling == client_ceiling
+    assert expected_writers <= client_ceiling
+    assert "execute_typescript" not in observed

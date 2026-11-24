@@ -369,9 +369,8 @@ class Config:
         self.canvas_role = os.getenv("CANVAS_ROLE", "all").lower()
 
         # Operator allowlist for tools with side effects (GHSA-hmr8). Kept raw:
-        # its meaning depends on the transport, so core/tool_policy.py resolves
-        # it at startup. Unset on HTTP means read-only; unset on stdio means
-        # unrestricted.
+        # core/tool_policy.py resolves it at startup. An unset value means
+        # read-only on both HTTP and stdio.
         self.allowed_write_tools: str | None = os.getenv("ALLOWED_WRITE_TOOLS")
 
         # --- Student write tools (#170) ---
