@@ -53,10 +53,12 @@ goal changes no installed pin, pause, provider budget or classroom authority.
 
 New model work is eligible only when Canvas is ungraded **and** no applicable
 successful durable model result exists. Eligibility alone does not clear source,
-policy, tool or spending limits. Preserve the existing **15-minute participation
-window**; use the actual governing policy for its timing and calculation rather
-than inferring those rules from this page. Retain Edpuzzle exclusions and teacher
-decisions. Numeric `0` and `EX` are meaningful states, not missing evidence.
+policy, tool or spending limits. Apply the timing rule for the specific route.
+For the official Canvas formative worksheet sweep, the November 24 operator
+policy measures 24 elapsed hours from that section's class start and also
+requires original capture timing and all expected distinct pages. Preserve
+any separately bound 15-minute participation window in its own workflow.
+Retain Edpuzzle exclusions and teacher decisions. Numeric `0` and `EX` are meaningful states, not missing evidence.
 Keep **all published Canvas grades unchanged** unless the exact change is approved.
 
 ### Proposed layered intake — retained November 14, 2026
@@ -176,11 +178,21 @@ EDIT contract and verify formatting across newly allocated single-column tails.
 
 Local November 24 worker evidence matched the source and interpreter recorded
 at the GET-only worker's startup and found zero unresolved local operations.
-Check the current queue, heartbeat and exact operation receipt before using the
-worker. Other MCP profiles and the classroom menu have their own qualification
+A separate finalized operation on November 24 verified Core GET and Adv GET
+in the central workbook. Its receipt recorded a clear queue and zero Canvas
+writes. Check the current queue, heartbeat and the new operation's receipt
+when verifying a later refresh. Other MCP profiles and the classroom menu have their own qualification
 records. The upstream 1.19 release changes the default stdio write policy.
 Integrate it through a separate migration review covering explicit allowlists
 and the affected profiles.
+
+The November 24 formative worksheet policy also specifies visual review when
+the timing rule cannot establish full participation. Verify the assigned
+worksheet and a visibly filled name field, then count each required prompt
+with visible handwriting once. At least half earns full credit. Some
+handwriting below half earns the existing half-credit floor. Preserve unknowns
+when the evidence is obscured. The operator's revised private sweep candidate
+passed fixture tests. Adoption requires verification in the actual sweep.
 
 ## Next work and ownership
 

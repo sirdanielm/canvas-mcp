@@ -187,6 +187,28 @@ Typed Unit 1 mapping supports its admitted policy and explicit scale, including 
 
 Teacher acceptance, local staging and Canvas delivery are separate outcomes. For a summative pair retain one reviewed result's score and full feedback together, then verify the two outbound channels independently. Participation publication remains score-only, with analysis/provenance private.
 
+### Individual Canvas feedback
+
+For an individual comment on submitted work, use the configured
+`canvas-writer` connection. Resolve the course, assignment, recipient and
+actual attempt privately. Check previous receipts and existing comments, then
+use `preview_canvas_comment` with the exact text. After the teacher approves
+that recipient, assignment and full comment, send the preview once with
+`send_canvas_preview` on the same connection. Use `get_canvas_send_status`
+and `recheck_canvas_send` to verify the response-linked comment ID, author,
+text and attempt. Confirm grade, posting and visibility fields against the
+private preimage. For a repeat request, inspect the original receipt first.
+Reconcile uncertain sends before taking further action on that target.
+
+Previously graded and posted paper work with a null attempt uses the
+operator's separately scoped posted-paper comment profile. Preserve the null
+attempt and verify the existing posted grade, scope and feedback before
+preview. Use the paper profile's own send, receipt and readback under the same
+exact teacher approval. The private operator runbook and installed
+`canvas-grade-feedback` skill identify the available profiles on SDM's Mac.
+
+### Gradebook review and delivery
+
 `preview_gradebook_changes(course, snapshot_id, edits_filename)` compares a private inbox JSON/XLSX edit file with its immutable baseline and fresh Canvas. Native EDIT review provides a separate workbook-backed route. Reviews save private HTML and structured artifacts. Blank, decreased, stale, excused, unsupported or over-maximum changes hold; formulas and duplicate identities are not proposals. Review exact rows and reasons privately, not just a count.
 
 `prepare_gradebook_push(course, review_id)` creates a concrete preview and one-use ten-minute confirmation. Default service configuration omits `confirm_gradebook_push`; actual score publication needs `--enable-push`, the relevant client allowlist when using an external MCP client, and exact teacher approval. The direct CLI still needs its enablement flag but no Codex client allowlist. A token binds the request; it is not evidence that a person reviewed it.
