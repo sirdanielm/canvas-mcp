@@ -52,7 +52,7 @@ def _allowlist_examples() -> list[tuple[str, str]]:
                 # Only lists that name at least one real tool are allowlist
                 # examples; other comma lists in backticks are unrelated.
                 if any(n in TOOL_EFFECTS for n in names):
-                    where = f"{path.relative_to(REPO_ROOT)}:{lineno}"
+                    where = f"{path.relative_to(REPO_ROOT).as_posix()}:{lineno}"
                     examples.append((where, match.group(1)))
     return examples
 
