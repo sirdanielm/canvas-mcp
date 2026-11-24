@@ -270,10 +270,13 @@ For a fresh capture of the two registered courses, use the archive owner's
 `--expected-baseline CAPTURE_ID:SHA256` using the directory name in
 `LATEST.txt` and the SHA-256 of the **pointer file's exact bytes**. The
 owner checks both under its lock, downloads changed versions, reuses matching
-originals, and verifies the capture before advancing the pointer. If another
-request advanced the pointer, inspect that capture first. After completion,
-read back the accepted pointer and run `--verify-existing ABSOLUTE_CAPTURE_PATH`
-through the same command. Keep downloaded work and private paths local.
+originals, and verifies the capture before advancing the pointer. Record the
+request and baseline privately before starting. Exit 75 means another archive
+owner holds the lock. Inspect the active run or a newly accepted capture
+before retrying. After completion, read back the accepted pointer and run
+`--verify-existing ABSOLUTE_CAPTURE_PATH` through the same command. It hashes
+individual files and checks archived ZIP member identity and size. Keep
+downloaded work and private paths local.
 
 The MCP tool `get_private_submission_archive_status` reads the accepted
 receipt. A receipt alone cannot establish today's freshness or current file
