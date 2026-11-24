@@ -366,8 +366,8 @@ def _new_column_blank_tail_styles(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Check native blank-tail formatting against the preserved right edge.
 
-    Keep the historical one- and two-column contracts. For wider growth, the
-    entire contiguous band must match by row across all new columns.
+    Keep the historical short-tail contracts. A longer single-column tail
+    and wider growth require the entire contiguous preimage band to match.
     """
     compared = copy.deepcopy(actual)
     admitted: list[dict[str, Any]] = []
@@ -384,28 +384,22 @@ def _new_column_blank_tail_styles(
             native._shape(native._literal_cells(want))[0],
         )
         grid_rows = want["properties"]["gridProperties"]["rowCount"]
-        tail_end = min(body_end + 2, grid_rows)
-        required_count = None
-        if growth == 1:
-            rule = "new-column-blank-tail-style-v1"
-        elif growth == 2:
-            rule = "two-new-columns-four-blank-tail-styles-v1"
-            required_count = 4
-        else:
-            # Select the entire candidate band from the preimage. The native
-            # comparison below still checks every cell outside this rectangle.
-            rule = "new-columns-complete-blank-tail-style-band-v1"
-            tail_end = body_end
-            while tail_end < grid_rows and prior["cells"].get(
-                f"{tail_end}:{old_cols - 1}", {}
+        short_end = min(body_end + 2, grid_rows)
+        band_end = body_end
+        if growth != 2:
+            # Bound the candidate by the old right edge; observed formatting
+            # must never determine which cells can be admitted.
+            while band_end < grid_rows and prior["cells"].get(
+                f"{band_end}:{old_cols - 1}", {}
             ).get("userEnteredFormat", {}).get("textFormat"):
-                tail_end += 1
-            required_count = growth * (tail_end - body_end)
-            if required_count > len(got["cells"]):
-                continue
+                band_end += 1
+        band_count = growth * (band_end - body_end)
+        if growth > 2 and band_count > len(got["cells"]):
+            continue
+        comparison_end = max(short_end, band_end) if growth <= 2 else band_end
 
-        pending: list[tuple[str, dict[str, Any]]] = []
-        for row in range(body_end, tail_end):
+        pending: list[tuple[int, str, dict[str, Any]]] = []
+        for row in range(body_end, comparison_end):
             for column in range(old_cols, new_cols):
                 address, anchor = f"{row}:{column}", f"{row}:{old_cols - 1}"
                 original = copy.deepcopy(prior["cells"].get(anchor, {}))
@@ -432,6 +426,7 @@ def _new_column_blank_tail_styles(
                     continue
                 pending.append(
                     (
+                        row,
                         address,
                         {
                             "sheet_id": sid,
@@ -440,15 +435,27 @@ def _new_column_blank_tail_styles(
                             "expected": copy.deepcopy(want["cells"].get(address, {})),
                             "actual": copy.deepcopy(got["cells"][address]),
                             "anchor_before": copy.deepcopy(prior["cells"][anchor]),
-                            "rule": rule,
                         },
                     )
                 )
-        if required_count is not None and len(pending) != required_count:
+        if growth > 2 and len(pending) != band_count:
             continue
-        for address, evidence in pending:
+        if growth > 2 or (
+            growth == 1 and band_end > short_end and len(pending) == band_count
+        ):
+            rule = "new-columns-complete-blank-tail-style-band-v1"
+        elif growth == 2:
+            if len(pending) != 4:
+                continue
+            rule = "two-new-columns-four-blank-tail-styles-v1"
+        else:
+            # An incomplete band can only match the previously allowed first
+            # two rows. The final comparison still checks every remaining cell.
+            pending = [item for item in pending if item[0] < short_end]
+            rule = "new-column-blank-tail-style-v1"
+        for _, address, evidence in pending:
             compared["sheets"][sid]["cells"].pop(address, None)
-            admitted.append(evidence)
+            admitted.append({**evidence, "rule": rule})
     return compared, admitted
 
 
