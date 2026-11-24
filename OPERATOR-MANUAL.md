@@ -141,6 +141,13 @@ Default private configuration is `~/.config/canvas-authoring/gradebook-worker.js
 
 Keep `--get-only` before the subcommand. Omitting it selects the older full-sync mode, which has different preservation assumptions. Do not launch another worker alongside the installed one.
 
+From chat on the configured Mac, call `request_gradebook_get_refresh` once
+on `canvas-gradebook-get`. Keep the returned request ID and poll
+`get_gradebook_get_refresh_status` for that ID. Completion requires a
+finalized `VERIFIED` receipt for both Core GET and Adv GET with EDIT
+preservation. If a request is already running or its result is uncertain,
+inspect that request before starting another.
+
 For daily operation, save and pause worksheet edits. Require mode-correct READY no more than 90 seconds old and a clear queue. Use the installed **Canvas Gradebook → Refresh both courses (Canvas GET only)** menu once, the installed **Canvas - Fresh GET** shortcut, or:
 
 ```sh
@@ -187,18 +194,22 @@ Typed Unit 1 mapping supports its admitted policy and explicit scale, including 
 
 Teacher acceptance, local staging and Canvas delivery are separate outcomes. For a summative pair retain one reviewed result's score and full feedback together, then verify the two outbound channels independently. Participation publication remains score-only, with analysis/provenance private.
 
-### Individual Canvas feedback
+### Individual Canvas scores and feedback
 
-For an individual comment on submitted work, use the configured
-`canvas-writer` connection. Resolve the course, assignment, recipient and
-actual attempt privately. Check previous receipts and existing comments, then
-use `preview_canvas_comment` with the exact text. After the teacher approves
-that recipient, assignment and full comment, send the preview once with
-`send_canvas_preview` on the same connection. Use `get_canvas_send_status`
-and `recheck_canvas_send` to verify the response-linked comment ID, author,
-text and attempt. Confirm grade, posting and visibility fields against the
-private preimage. For a repeat request, inspect the original receipt first.
-Reconcile uncertain sends before taking further action on that target.
+Use the configured `canvas-writer` connection. Resolve the course, assignment,
+recipient and actual attempt privately. Check previous receipts and the current
+submission. For a score, call `preview_canvas_score` with the exact value.
+For feedback, call `preview_canvas_comment` with the complete text. Use the
+teacher's approval for that exact target and payload, then call
+`send_canvas_preview` once in the same connection. Read `get_canvas_send_status`
+and `recheck_canvas_send`. Independently read the submission again. For scores,
+check the exact value, attempt and prior comments. For comments, verify the
+response-linked ID, teacher author, text, attempt and preserved grade.
+Compare protected posting and visibility fields with the private preimage.
+For a repeat request, inspect the original receipt first. The ordinary
+writer's historical recheck can match the same text on a different comment.
+Use the saved exact ID and teacher author for independent readback. An
+uncertain send stays held even if matching text is visible.
 
 Previously graded and posted paper work with a null attempt uses the
 operator's separately scoped posted-paper comment profile. Preserve the null
@@ -248,6 +259,29 @@ Before maintenance stop new requests, let active work finish and require no unre
 Back up private configuration, immutable snapshots/plans/receipts, original exports and original staging/publisher/worker history as one consistent recovery set. Quiesce writers and use a consistent SQLite backup method; copying only the main database while active sidecars exist can lose evidence. Default private state is `local_gradebooks/`, directories 0700 and files 0600. It includes `push-ledger.sqlite3` and `refresh-worker/operations.sqlite3`. A new empty store cannot resolve existing `_Sync!B2` references or uncertain sends. Retain credentials separately in their approved stores. Restoration is a recovery operation, never a reason to replay completed work.
 
 ## 9. Downloads, local archives and reconciliation
+
+### Download submission files
+
+On the configured Mac, use the installed private library for Chemistry
+submission attachments. For an existing download, resolve the exact course,
+assignment and attempt in the accepted capture and verify the saved bytes.
+For a fresh capture of the two registered courses, use the archive owner's
+`local_gradebooks/canvas_archive/tools/refresh-and-index.command`. Supply
+`--expected-baseline CAPTURE_ID:SHA256` using the directory name in
+`LATEST.txt` and the SHA-256 of the **pointer file's exact bytes**. The
+owner checks both under its lock, downloads changed versions, reuses matching
+originals, and verifies the capture before advancing the pointer. If another
+request advanced the pointer, inspect that capture first. After completion,
+read back the accepted pointer and run `--verify-existing ABSOLUTE_CAPTURE_PATH`
+through the same command. Keep downloaded work and private paths local.
+
+The MCP tool `get_private_submission_archive_status` reads the accepted
+receipt. A receipt alone cannot establish today's freshness or current file
+integrity. The operator's private registration identifies the installed
+checkout. The [submission library guide](docs/grass-workflow-integration.md#retained-canvas-submission-library)
+covers retained-file lookup and provider-only gaps.
+
+### Download course materials
 
 The content mirror works without a conversational client:
 
