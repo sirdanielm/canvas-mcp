@@ -14,6 +14,9 @@
 | Task | Reference |
 | --- | --- |
 | Change repository code | [CLAUDE.md](CLAUDE.md); relevant [architecture](internal/architecture.md) or [developer reference](internal/dev-reference.md) sections |
+| Send or verify one Canvas score or feedback comment | Use the configured `canvas-writer` and [individual score and feedback procedure](OPERATOR-MANUAL.md#individual-canvas-scores-and-feedback). The installed `canvas-grade-feedback` skill also covers posted paper work. |
+| Refresh the Chemistry Sheet mirror | Request one refresh on `canvas-gradebook-get` and follow its request ID through final verification. See [gradebook refresh](OPERATOR-MANUAL.md#5-refresh-the-local-gradebook-without-overwriting-edit). |
+| Download Canvas submission attachments | Run the installed [private submission archive](OPERATOR-MANUAL.md#download-submission-files). Its status tool reads the accepted capture. |
 | Use general Canvas tools | [Tool usage](docs/agent-usage.md), [tool catalog](tools/README.md), or the selected skill |
 | Create/edit curriculum drafts | [Authoring workflow](docs/sdm-canvas-authoring-workflow.md) |
 | Refresh/review/publish grades | [Gradebook workflow](docs/sdm-gradebook-workflow.md); [worker recovery](docs/sdm-gradebook-worker.md) only when needed |

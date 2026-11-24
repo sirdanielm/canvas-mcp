@@ -53,10 +53,12 @@ goal changes no installed pin, pause, provider budget or classroom authority.
 
 New model work is eligible only when Canvas is ungraded **and** no applicable
 successful durable model result exists. Eligibility alone does not clear source,
-policy, tool or spending limits. Preserve the existing **15-minute participation
-window**; use the actual governing policy for its timing and calculation rather
-than inferring those rules from this page. Retain Edpuzzle exclusions and teacher
-decisions. Numeric `0` and `EX` are meaningful states, not missing evidence.
+policy, tool or spending limits. Apply the timing rule for the specific route.
+For the official Canvas formative worksheet sweep, the November 24 operator
+policy measures 24 elapsed hours from that section's class start and also
+requires original capture timing and all expected distinct pages. Preserve
+any separately bound 15-minute participation window in its own workflow.
+Retain Edpuzzle exclusions and teacher decisions. Numeric `0` and `EX` are meaningful states, not missing evidence.
 Keep **all published Canvas grades unchanged** unless the exact change is approved.
 
 ### Proposed layered intake — retained November 14, 2026
@@ -111,7 +113,8 @@ route requires its own actual qualification.
 | Ordinary participation receiver | Reusable receiver and owner/executor integration are maintained source from [PR52](https://github.com/sirdanielm/canvas-mcp/pull/52). Native reader pins, private owner/provider bindings, installation qualification and exact-case admission remain separate. |
 | Canvas score/comment publishers | Distinct approval, durable-intent and readback gates; local EDIT is not Canvas publication. |
 | Unit 3 feedback export staging | Offline validators and the explicit stdin CLI retain exact source order, native seals and held cases in private unapproved receipts. Missing source authentication, producer closure, QC, teacher acceptance, current target/attempt and supported comment-profile adoption remain separate holds. No publisher envelope or confirmation token is constructed by staging. |
-| Runtime identity and read-only access | The latest retained November 15 protocol qualification passed with 52 authoring tools and three gradebook tools, all read-only. Native client adoption is partial; older active clients retain their prior qualified runtime. Exact bindings and dated receipts stay private; neither source nor a past health check proves current service readiness. The general-server diagnostic excludes the dedicated gradebook server, whose [read-only profile](gradebook-read-only-profile.md) omits refresh coordination. |
+| Runtime identity and read-only access | The November 15 protocol qualification covered 52 authoring tools and three gradebook tools in its fixed read-only profiles. Check the current loaded registry and exact runtime for each connection. The dedicated gradebook [read-only profile](gradebook-read-only-profile.md) omits refresh coordination. |
+| Curriculum authoring profiles | Maintained source provides [prepared draft content](draft-content-foundation.md) and [scoped module authoring](module-authoring-profile.md). Each profile has its own operator admission and tool list. Exact publication approval and readback apply to the supported module publication effect. |
 | Older accepted-pair RELEASE prototype | Offline and unconnected; separate from the native EDIT routes. |
 
 ### November 11 source alignment
@@ -160,6 +163,36 @@ reconnection. Keep exact pins, current process/queue observations and recovery
 receipts in the private operator record. Source staging still establishes no
 producer closure, academic admission, teacher acceptance or comment/publication
 authority.
+
+### November 24 source and runtime alignment
+
+The maintained fork remains at source version 1.18.0. It includes prepared
+draft assignments and module items ([PR #79](https://github.com/sirdanielm/canvas-mcp/pull/79)),
+scoped module edits and a separate publication gate
+([PR #80](https://github.com/sirdanielm/canvas-mcp/pull/80)), and
+[authoring profile routing](sdm-canvas-authoring-workflow.md#choose-the-authoring-profile).
+The GET-only refresh repairs
+([PR #82](https://github.com/sirdanielm/canvas-mcp/pull/82) and
+[PR #86](https://github.com/sirdanielm/canvas-mcp/pull/86)) preserve the protected
+EDIT contract and verify formatting across newly allocated single-column tails.
+
+Local November 24 worker evidence matched the source and interpreter recorded
+at the GET-only worker's startup and found zero unresolved local operations.
+A separate finalized operation on November 24 verified Core GET and Adv GET
+in the central workbook. Its receipt recorded a clear queue and zero Canvas
+writes. Check the current queue, heartbeat and the new operation's receipt
+when verifying a later refresh. Other MCP profiles and the classroom menu have their own qualification
+records. The upstream 1.19 release changes the default stdio write policy.
+Integrate it through a separate migration review covering explicit allowlists
+and the affected profiles.
+
+The November 24 formative worksheet policy also specifies visual review when
+the timing rule cannot establish full participation. Verify the assigned
+worksheet and a visibly filled name field without transcribing or comparing
+the name. Count each required prompt with visible handwriting once. At least half earns full credit. Some
+handwriting below half earns the existing half-credit floor. Preserve unknowns
+when the evidence is obscured. The operator's revised private sweep candidate
+passed fixture tests. Adoption requires verification in the actual sweep.
 
 ## Next work and ownership
 
