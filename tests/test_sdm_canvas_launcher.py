@@ -295,7 +295,7 @@ def test_documented_profile_preserves_exact_client_ceiling(monkeypatch, example_
     from canvas_mcp.core.tool_policy import TOOL_EFFECTS, Effect
 
     example = Path(__file__).parents[1] / "config" / example_name
-    profile = tomllib.loads(example.read_text())["mcp_servers"]["canvas-authoring"]
+    profile = tomllib.loads(example.read_text(encoding="utf-8"))["mcp_servers"]["canvas-authoring"]
     client_ceiling = set(profile["enabled_tools"])
     expected_writers = {
         "create_assignment", "update_assignment", "delete_assignment_with_confirmation",
