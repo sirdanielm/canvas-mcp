@@ -79,7 +79,8 @@ def test_pinned_policy_validates_checklist_factory(tmp_path, factory):
         "from canvas_mcp.gradebook.owner_config import OwnerPolicy\n"
         "def create_owner_policy():\n"
         "    return OwnerPolicy(lambda *args: True, lambda *args: False, "
-        f"checklist_score_owner_factory={factory})\n"
+        f"checklist_score_owner_factory={factory})\n",
+        encoding="utf-8",
     )
     path.chmod(0o600)
     pin = hashlib.sha256(path.read_bytes()).hexdigest()
