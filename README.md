@@ -52,6 +52,7 @@ owns observations, GET/EDIT integrity and installed Canvas bindings.
 | --- | --- |
 | Read Canvas or use enabled MCP tools | [Installation](docs/installation.md), [tool guide](tools/README.md) |
 | Send or verify one Canvas score or comment | [Individual scores and feedback](OPERATOR-MANUAL.md#individual-canvas-scores-and-feedback) |
+| Correct a posted zero for an approved paper checklist | [Manual paper-credit reconciliation](docs/sdm-gradebook-workflow.md#manual-paper-credit-reconciliation) |
 | Download new or changed submission files | [Private submission archive](OPERATOR-MANUAL.md#download-submission-files) |
 | Refresh/compare gradebook GET and EDIT | [Gradebook workflow](docs/sdm-gradebook-workflow.md), [worker](docs/sdm-gradebook-worker.md) |
 | Inspect gradebook snapshots, comparisons and historical status without writer controls | [Read-only gradebook connection](docs/gradebook-read-only-profile.md) |

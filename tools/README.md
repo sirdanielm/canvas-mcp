@@ -11,6 +11,11 @@ receipts; it does not write Canvas or change EDIT proposals. These controls
 provide no publication authority; grade and comment delivery retain their
 separate enablement, exact approval and readback requirements.
 
+The optional gradebook checklist connection exposes four score commands
+for the exact approved paper review. Use its
+[manual paper-credit procedure](../docs/sdm-gradebook-workflow.md#manual-paper-credit-reconciliation)
+for command signatures, status and reconciliation.
+
 ## Table of Contents
 
 - [Student Tools](#student-tools)

@@ -41,6 +41,10 @@ version boundaries. Do not use CI-skipping markers to avoid required validation.
 | [deploy-prod.yml](deploy-prod.yml) | `v*` tag push; manual dispatch (job accepts `main` or `v*` refs) | Builds/pushes the container and deploys the configured production target |
 | [deploy-staging.yml](deploy-staging.yml) | Push to `staging`, excluding documentation/tool-only paths; manual dispatch | Builds/pushes the container and deploys the configured staging target |
 
+The SDM fork retired its copy of `staging` on November 25, 2026, after
+verifying zero recorded staging runs or deployments in the fork. Upstream
+retains the branch and its deployment workflow. [Successful upstream staging run](https://github.com/vishalsachdev/canvas-mcp/actions/runs/29817559984).
+
 `create-release.yml` does **not** edit README, push documentation commits or open
 a fallback PR. Update release documentation in the reviewed source change.
 Merging to `main` does not deploy production. A tag can trigger publication and

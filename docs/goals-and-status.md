@@ -197,6 +197,17 @@ handwriting below half earns the existing half-credit floor. Preserve unknowns
 when the evidence is obscured. The operator's revised private sweep candidate
 passed fixture tests. Adoption requires verification in the actual sweep.
 
+### November 25 checklist score qualification
+
+[PR #89](https://github.com/sirdanielm/canvas-mcp/pull/89) added the exclusive
+checklist score profile and its protected readback verifier.
+[PR #90](https://github.com/sirdanielm/canvas-mcp/pull/90) carried the same
+capability to the installation-compatible branch. The local qualification
+verified 11 closed score receipts against 22 retained Canvas observations.
+The operator closed that publisher after verification and qualified the
+installed verifier to audit the retained evidence.
+[Paper-credit workflow](sdm-gradebook-workflow.md#manual-paper-credit-reconciliation).
+
 ## Next work and ownership
 
 | Lane | Owner and next proof |
