@@ -216,6 +216,22 @@ identities or criteria remain held. A missing scan is not proof of no paper work
 and a check mark is not permission to invent a score. Save the private evidence
 and target mapping; source acceptance and delivery need separate approvals.
 
+A separately installed checklist score publisher can correct a posted zero
+when the teacher accepts the exact paper evidence and points. It preserves the
+observed null Canvas attempt. The private owner binds each target to its
+approved review, checks the authenticated teacher, active enrollment, current
+grade and prior sends, and applies the existing protected-target policies.
+The client can select only an admitted review or an operation belonging to it.
+See the [owner configuration](operational-source-boundaries.md#owner-policy).
+
+Verify the native score receipt and independently read the score, posting state,
+attempt, comments and submission history. Canvas can increment the version in
+its submission preview URL after a grade change. Verify that the link in the
+submission and its history still names the same origin, course, assignment and
+student, and that the version stayed fixed or advanced exactly once. Retain the
+preimages and the observed result. Use the original operation for reconciliation
+after an uncertain send. Close the scoped publisher after delivery.
+
 ## Grade preview and confirmed push
 
 Preview compares original, current Canvas and proposed values. Blank, decreased,
