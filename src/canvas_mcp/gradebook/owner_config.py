@@ -30,11 +30,12 @@ class OwnerPolicy:
     score_handler_factory: Callable[[Any], Any] | None = None
     pair_score_handler_factory: Callable[[Any], Any] | None = None
     comment_release_factory: Callable[[Any], Any] | None = None
+    checklist_score_owner_factory: Callable[..., Any] | None = None
 
     def server_options(
         self, *, enable_qualified_comments: bool = False
     ) -> dict[str, Any]:
-        return {
+        options: dict[str, Any] = {
             "unit1_score_handler_factory": self.score_handler_factory,
             "unit1_pair_score_handler_factory": self.pair_score_handler_factory,
             "source_score_scope": self.source_score_scope,
@@ -45,6 +46,9 @@ class OwnerPolicy:
                 and self.comment_release_factory is not None
             ),
         }
+        if self.checklist_score_owner_factory is not None:
+            options["checklist_score_owner_factory"] = self.checklist_score_owner_factory
+        return options
 
 
 def _held_owner(_publisher: Any) -> Any:
@@ -163,6 +167,7 @@ def load_owner_policy(
                 policy.score_handler_factory,
                 policy.pair_score_handler_factory,
                 policy.comment_release_factory,
+                policy.checklist_score_owner_factory,
             )
         )
     ):
