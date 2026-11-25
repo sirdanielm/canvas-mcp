@@ -17,12 +17,19 @@ from .publish import Publisher
 class ChecklistScoreOwner(Protocol):
     """The private owner verifies approval, history and the final transport guard."""
 
-    async def prepare(self, course: str, review_id: str) -> dict[str, Any]: ...
+    async def prepare(self, course: str, review_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
     async def confirm(
         self, course: str, operation_id: str, token: str
-    ) -> dict[str, Any]: ...
-    def status(self, course: str, operation_id: str) -> dict[str, Any]: ...
-    async def reconcile(self, course: str, operation_id: str) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def status(self, course: str, operation_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    async def reconcile(self, course: str, operation_id: str) -> dict[str, Any]:
+        raise NotImplementedError
 
 
 class ChecklistOwnerFactory(Protocol):
@@ -32,7 +39,8 @@ class ChecklistOwnerFactory(Protocol):
         *,
         assert_active: Callable[[], None],
         assert_target_authority: Callable[[str, str, dict[str, Any]], None],
-    ) -> ChecklistScoreOwner: ...
+    ) -> ChecklistScoreOwner:
+        raise NotImplementedError
 
 
 def _require(condition: bool) -> None:
