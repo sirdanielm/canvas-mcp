@@ -28,6 +28,17 @@ supply trusted callbacks directly to `create_server`; MCP arguments cannot selec
 an adapter, private path, owner callback or raw release body. Batch execution must
 apply the same source-owner boundary as individual score operations.
 
+A private checklist profile can register a `checklist_score_owner_factory`
+through the same pinned `OwnerPolicy`. Its launcher enables both
+`enable_push` and `enable_exact_checklist_profile` on `create_server` and supplies
+`checklist_activation_check` to verify the release is still active. The profile
+exposes only `prepare_gradebook_push`, `confirm_gradebook_push`,
+`get_gradebook_push_status` and `reconcile_gradebook_push`. Keep the client's
+allowlist to those four tools. The owner must use the canonical ledger, enforce
+the exact source and target classifiers through dispatch, and retain the
+independent protected readback. Keep the release's scope, student records and
+approval material in the operator's private store.
+
 ## Other private references
 
 - `TextCommentDelivery` and its fresh-completion subclass require an explicit

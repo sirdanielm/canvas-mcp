@@ -1,6 +1,7 @@
 """Separate local MCP service with private artifacts and aggregate responses."""
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,6 +11,11 @@ from mcp.types import ToolAnnotations
 
 from .batch_publish import BatchPublisher
 from .capture import save_capture
+from .checklist_registration import (
+    ChecklistOwnerFactory,
+    assert_checklist_active,
+    register_checklist_score_tools,
+)
 from .client import GradebookClient, GradebookError
 from .ledger import Ledger
 from .model import compare_edits, summary
@@ -52,12 +58,55 @@ def create_server(
     source_score_scope: Any | None = None,
     comment_approval_seconds: int = 600,
     protected_score_scope: Any | None = None,
+    checklist_score_owner_factory: ChecklistOwnerFactory | None = None,
+    enable_exact_checklist_profile: bool = False,
+    checklist_activation_check: Callable[[], object] | None = None,
 ) -> FastMCP:
     server = FastMCP("canvas-gradebook")
     publisher_options = (
         {} if type(comment_approval_seconds) is int and comment_approval_seconds == 600
         else {"comment_approval_seconds": comment_approval_seconds}
     )
+    if (
+        enable_exact_checklist_profile is not False
+        or checklist_score_owner_factory is not None
+        or checklist_activation_check is not None
+    ):
+        if (
+            enable_exact_checklist_profile is not True
+            or enable_push is not True
+            or not callable(checklist_score_owner_factory)
+            or not callable(checklist_activation_check)
+            or not callable(source_score_scope)
+            or not callable(protected_score_scope)
+            or enable_comments is not False
+            or enable_qualified_comments is not False
+            or any(
+                option is not None
+                for option in (
+                    unit1_score_handler_factory,
+                    unit1_pair_score_handler_factory,
+                    comment_release_factory,
+                    comment_releases,
+                    get_refresh_control,
+                )
+            )
+        ):
+            raise GradebookError(
+                "A separately enabled exclusive checklist score owner is required."
+            )
+        # An inactive release cannot initialize or migrate a publication ledger.
+        assert_checklist_active(checklist_activation_check)
+        register_checklist_score_tools(
+            server,
+            Publisher(client, store, Ledger(store.root), **publisher_options),
+            courses,
+            checklist_score_owner_factory,
+            checklist_activation_check,
+            source_score_scope,
+            protected_score_scope,
+        )
+        return server
     publisher = Publisher(client, store, Ledger(store.root), **publisher_options)
     batches = BatchPublisher(publisher)
     comment_runtime = capture_comment_runtime(Publisher)

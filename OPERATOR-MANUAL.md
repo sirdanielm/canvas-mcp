@@ -31,6 +31,12 @@ below. These later source capabilities have their own maintained procedures:
 
 ## 1. Choose the correct surface
 
+For teacher-accepted checklist credit on previously posted zeros with a null
+Canvas attempt, use the separately enabled checklist score profile. It requires
+a current private release for the exact reviews and score values. Retrieve the
+original receipt for a completed release. The [gradebook procedure](docs/sdm-gradebook-workflow.md#manual-paper-credit-reconciliation)
+covers the evidence, confirmation and independent readback.
+
 Canvas MCP contains several distinct systems. Choosing the right one prevents a content refresh from becoming a gradebook synchronization or a local draft from being mistaken for delivered feedback.
 
 | Surface | Human access without ChatGPT | Main purpose and boundary |

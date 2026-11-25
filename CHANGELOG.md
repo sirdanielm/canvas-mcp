@@ -48,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### SDM fork maintenance
 
+- Added an opt-in gradebook owner for exact checklist score reviews and a
+  verifier for protected Canvas readbacks. The verifier checks the grade,
+  comments, posting state, submission history and the exact preview link after
+  a score update.
+
 - Added offline, source-bound Unit 3 feedback staging and disabled comment-
   connection proposals. Closed exports retain malformed cases beside valid
   neighbors. Private receipt writing requires POSIX ownership support; pure
