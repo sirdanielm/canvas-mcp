@@ -222,21 +222,30 @@ identities or criteria remain held. A missing scan is not proof of no paper work
 and a check mark is not permission to invent a score. Save the private evidence
 and target mapping; source acceptance and delivery need separate approvals.
 
-A separately installed checklist score publisher can correct a posted zero
-when the teacher accepts the exact paper evidence and points. It preserves the
-observed null Canvas attempt. The private owner binds each target to its
-approved review, checks the authenticated teacher, active enrollment, current
-grade and prior sends, and applies the existing protected-target policies.
-The client can select only an admitted review or an operation belonging to it.
-See the [owner configuration](operational-source-boundaries.md#owner-policy).
+The separately installed checklist score publisher handles a graded, posted
+zero on a published points assignment when the teacher approves full credit
+for the exact paper evidence. It preserves the observed null Canvas attempt
+and submission timestamp. The private owner binds each target to one approved
+review and rechecks the authenticated teacher, active enrollment, current
+grade, protected fields and prior sends. Use the [exclusive owner profile](operational-source-boundaries.md#checklist-score-profile).
 
-Verify the native score receipt and independently read the score, posting state,
-attempt, comments and submission history. Canvas can increment the version in
-its submission preview URL after a grade change. Verify that the link in the
-submission and its history still names the same origin, course, assignment and
-student, and that the version stayed fixed or advanced exactly once. Retain the
-preimages and the observed result. Use the original operation for reconciliation
-after an uncertain send. Close the scoped publisher after delivery.
+| Command | Effect |
+| --- | --- |
+| `prepare_gradebook_push(course, review_id)` | Save the preview for one admitted review in the private ledger. This step sends no grade. |
+| `confirm_gradebook_push(course, operation_id, confirmation_token)` | Submit the exact approved operation once. |
+| `get_gradebook_push_status(course, operation_id)` | Read the saved receipt for the same operation. |
+| `reconcile_gradebook_push(course, operation_id)` | Read Canvas and reconcile the private receipt for the original operation. |
+
+If a send is uncertain, inspect its original receipt and reconcile that
+operation before considering another send for the same target. Compare the
+independent Canvas readback against the original and final pre-send
+observations. Verify the exact score, posting state, attempt, comments and
+submission history. The preview URL
+in the submission and its history must retain the same origin, course,
+assignment and recipient. Its version may stay fixed or advance exactly once.
+Require the two comparisons to agree and retain the native score receipt, both
+preimages and the observed result. Close the scoped publisher after verified
+delivery. For a closed release, use its retained private audit and receipt.
 
 ## Grade preview and confirmed push
 
@@ -454,6 +463,11 @@ the gradebook server over MCP stdio against an in-process mock Canvas transport.
 The test verifies one score write and one comment write at the fictional
 destination. It restarts the server to verify readback and checks that replaying
 consumed confirmations adds no writes.
+
+For the separate checklist path, run
+`python -m pytest -q tests/test_gradebook_checklist_registration.py tests/test_checklist_score_readback.py`.
+These fictional tests cover profile admission, activation withdrawal, exact
+target routing and protected readback, including allowed preview URL changes.
 
 Tests, source synchronization and old activation receipts do not establish live
 READY, fresh source, teacher approval or delivery. Preserve the exact result of

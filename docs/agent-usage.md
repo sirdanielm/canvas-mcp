@@ -41,12 +41,14 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # 52 tools by default (student + shared), 63 with every student write tool enabled
-CANVAS_ROLE=educator   # 97 tools by default, 99 with every gated tool enabled
-CANVAS_ROLE=all        # Default profile; 116 tools by default, 129 with all feature-gated tools enabled
+CANVAS_ROLE=student    # Student and shared tool groups
+# CANVAS_ROLE=educator # Educator and shared tool groups
+# CANVAS_ROLE=all      # Default role
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
+The loaded tool list also depends on the transport, feature flags and write
+allowlist. Inspect the live connection for its exact tool set.
 
 ## Operator write policy
 
@@ -70,6 +72,10 @@ outside the main server's tool manifest. A GET request writes only bound Sheets
 coordination metadata and private local intent receipts; it writes no Canvas
 data and does not change EDIT proposals. These controls grant no publication
 authority; retain the separate enablement, exact approval and readback gates.
+
+For an approved full-credit paper checklist correction to a posted zero with
+a null Canvas attempt, use the separate owner connection and its saved review.
+See [manual paper-credit reconciliation](sdm-gradebook-workflow.md#manual-paper-credit-reconciliation).
 
 ## Tool Categories
 

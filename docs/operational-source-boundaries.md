@@ -28,16 +28,24 @@ supply trusted callbacks directly to `create_server`; MCP arguments cannot selec
 an adapter, private path, owner callback or raw release body. Batch execution must
 apply the same source-owner boundary as individual score operations.
 
-A private checklist profile can register a `checklist_score_owner_factory`
-through the same pinned `OwnerPolicy`. Its launcher enables both
-`enable_push` and `enable_exact_checklist_profile` on `create_server` and supplies
-`checklist_activation_check` to verify the release is still active. The profile
-exposes only `prepare_gradebook_push`, `confirm_gradebook_push`,
-`get_gradebook_push_status` and `reconcile_gradebook_push`. Keep the client's
-allowlist to those four tools. The owner must use the canonical ledger, enforce
-the exact source and target classifiers through dispatch, and retain the
-independent protected readback. Keep the release's scope, student records and
-approval material in the operator's private store.
+## Checklist score profile
+
+A private checklist launcher can supply `checklist_score_owner_factory` through
+the pinned `OwnerPolicy`. It calls `create_server` with `enable_push=True`,
+`enable_exact_checklist_profile=True`, the two configured course bindings,
+the source and protected-target classifiers, and a synchronous
+`checklist_activation_check`. The check returns `None` for an active scope
+and raises otherwise. The server runs it before opening the ledger and on
+every tool call. The ordinary launcher's `--enable-push` flag serves the
+ordinary gradebook profile.
+
+Initialization rejects a combined checklist and refresh, comment, or other
+score-owner configuration. The exclusive profile exposes four
+[checklist commands](sdm-gradebook-workflow.md#manual-paper-credit-reconciliation).
+The owner uses the canonical ledger, checks the exact stored review and target
+at dispatch, enforces teacher approval and prior-send history, and retains the
+independent protected readback. Keep scope, student records and approval
+material in the operator's private store.
 
 ## Other private references
 

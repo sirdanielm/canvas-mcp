@@ -226,6 +226,12 @@ exact teacher approval. The private operator runbook and installed
 
 ### Gradebook review and delivery
 
+For a teacher-approved full-credit correction to a posted zero with a null
+Canvas attempt, use the separately scoped checklist score profile. Review the
+exact paper evidence and approved points, then use the profile's own
+confirmation and independent readback. Retrieve the private closure record
+when verifying a completed release. [Checklist procedure](docs/sdm-gradebook-workflow.md#manual-paper-credit-reconciliation).
+
 `preview_gradebook_changes(course, snapshot_id, edits_filename)` compares a private inbox JSON/XLSX edit file with its immutable baseline and fresh Canvas. Native EDIT review provides a separate workbook-backed route. Reviews save private HTML and structured artifacts. Blank, decreased, stale, excused, unsupported or over-maximum changes hold; formulas and duplicate identities are not proposals. Review exact rows and reasons privately, not just a count.
 
 `prepare_gradebook_push(course, review_id)` creates a concrete preview and one-use ten-minute confirmation. Default service configuration omits `confirm_gradebook_push`; actual score publication needs `--enable-push`, the relevant client allowlist when using an external MCP client, and exact teacher approval. The direct CLI still needs its enablement flag but no Codex client allowlist. A token binds the request; it is not evidence that a person reviewed it.
