@@ -56,7 +56,9 @@ Representative tests: [Python transport](tests/core/test_client.py),
 
 | Function and source | Input → result; connection and annotation |
 | --- | --- |
-| [`gradebook.server.create_server`](src/canvas_mcp/gradebook/server.py#L39) | Dedicated client/store/course map and gates → full `canvas-gradebook` MCP profile. Legacy score/comment confirmation requires separate `enable_push`/`enable_comments`; legacy previews and reconciliation remain available. Owner-configured text releases need `enable_qualified_comments` and a qualified release map. The launcher also offers a separate fixed read-only profile. |
+| [`gradebook.server.create_server`](src/canvas_mcp/gradebook/server.py#L45) | Builds the ordinary gradebook profile or the exclusive checklist profile. In the ordinary profile, legacy previews and reconciliation are available. Score confirmation uses `enable_push` and comment confirmation uses `enable_comments`. Qualified text tools require `enable_qualified_comments` and a release map supplied directly or by a factory. The launcher also offers a separate fixed read-only profile. |
+| [`register_checklist_score_tools`](src/canvas_mcp/gradebook/checklist_registration.py#L61) | Routes preparation, confirmation, status and reconciliation to one private owner. The target guard reloads the saved review, checks its single assignment and recipient against the requested target, and rechecks the source and protected-target classifiers. |
+| [`validate_checklist_score_readback`](src/canvas_mcp/gradebook/checklist_score_readback.py#L104) | Compares one pre-send observation with the independent post-send observation. Returns the preview-version change after verifying the score and protected fields, or raises on a mismatch. The private owner checks agreement across both pre-send observations and retains the send receipt. |
 | [`GradebookClient.snapshot`](src/canvas_mcp/gradebook/client.py#L127) | Course ID → complete normalized snapshot. Dedicated GET-only methods retain exact identities only in private artifacts. One deadline covers discovery, pagination and rate-limit waits; partial snapshots are rejected. |
 | [`Store.save`](src/canvas_mcp/gradebook/store.py#L22) / [`Store.load`](src/canvas_mcp/gradebook/store.py#L50) | Kind + artifact or digest → immutable private file/reference or verified artifact. Digest-checked storage is provenance, not live freshness or teacher acceptance. |
 | [`compare_edits`](src/canvas_mcp/gradebook/model.py#L174) | Trusted baseline + fresh snapshot + proposed edits → classified review. Separates eligible changes, no-ops and review-required cases. It neither grades work nor sends updates. |
@@ -104,7 +106,9 @@ Reviewed score publication (separately enabled)
   → verified outcome; uncertain result → Publisher.reconcile, never blind resend
 ```
 
-Registration and policy happen at startup; they are not repeated by each tool.
+Startup selects the registered tools. The checklist profile also checks that
+its release is active before each call reaches the private owner, including
+status and reconciliation. See the [checklist procedure](docs/sdm-gradebook-workflow.md#manual-paper-credit-reconciliation).
 The refresh worker and publisher share private artifact contracts, not mutation
 authority. General MCP confirmation tokens and gradebook operation tokens are
 also different mechanisms. Never substitute one service's token/gate for another.
