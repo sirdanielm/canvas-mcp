@@ -48,10 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### SDM fork maintenance
 
-- Added an opt-in gradebook owner for exact checklist score reviews and a
-  verifier for protected Canvas readbacks. The verifier checks the grade,
-  comments, posting state, submission history and the exact preview link after
-  a score update.
+- On November 25, 2026, revision `9403ecf` added the opt-in checklist score
+  profile and a verifier for posted paper-credit corrections. The operator
+  recorded the [qualification of the closed release](docs/goals-and-status.md#november-25-checklist-score-qualification).
+- On November 27, 2026, clarified which commands need an active release and
+  how to verify a closed release from its retained evidence. The 71 fictional
+  registration and readback tests passed locally against source revision
+  `7cb3837`, including activation withdrawal and changes to protected fields.
+  The [paper-credit procedure](docs/sdm-gradebook-workflow.md#manual-paper-credit-reconciliation)
+  explains how the owner checks the readback against both pre-send observations.
 
 - Added offline, source-bound Unit 3 feedback staging and disabled comment-
   connection proposals. Closed exports retain malformed cases beside valid

@@ -108,12 +108,13 @@ def validate_checklist_score_readback(
     *,
     origin: str,
 ) -> PreviewTransition:
-    """Verify a zero-to-full-credit change against one independent preimage.
+    """Verify a posted zero-to-full-credit change and return the preview transition.
 
-    Supply the trusted Canvas HTTPS origin and raw assignment and submission
-    observations (including comments, history, teacher, sections and read windows).
-    Call this on both the original and final pre-send observations and require
-    agreement. Only the exact preview URL may stay at its version or advance once.
+    Compare one pre-send observation with the independent post-send readback
+    using the trusted Canvas HTTPS origin. Each observation includes the raw
+    assignment, submission, comments, history, teacher, sections and read window.
+    The caller compares the same readback with both the original and final
+    pre-send observations and requires the same preview transition from each.
     """
     try:
         parsed = urlsplit(origin)

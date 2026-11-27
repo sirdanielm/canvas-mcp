@@ -229,6 +229,10 @@ and submission timestamp. The private owner binds each target to one approved
 review and rechecks the authenticated teacher, active enrollment, current
 grade, protected fields and prior sends. Use the [exclusive owner profile](operational-source-boundaries.md#checklist-score-profile).
 
+Use the course alias configured on the checklist connection. Preparation takes
+the saved review ID. Confirmation, status and reconciliation take the ID of the
+prepared operation.
+
 | Command | Effect |
 | --- | --- |
 | `prepare_gradebook_push(course, review_id)` | Save the preview for one admitted review in the private ledger. This step sends no grade. |
@@ -236,16 +240,23 @@ grade, protected fields and prior sends. Use the [exclusive owner profile](opera
 | `get_gradebook_push_status(course, operation_id)` | Read the saved receipt for the same operation. |
 | `reconcile_gradebook_push(course, operation_id)` | Read Canvas and reconcile the private receipt for the original operation. |
 
-If a send is uncertain, inspect its original receipt and reconcile that
-operation before considering another send for the same target. Compare the
-independent Canvas readback against the original and final pre-send
-observations. Verify the exact score, posting state, attempt, comments and
-submission history. The preview URL
-in the submission and its history must retain the same origin, course,
-assignment and recipient. Its version may stay fixed or advance exactly once.
-Require the two comparisons to agree and retain the native score receipt, both
-preimages and the observed result. Close the scoped publisher after verified
-delivery. For a closed release, use its retained private audit and receipt.
+If a send is uncertain, inspect its receipt and reconcile the original operation.
+All four commands check that the release is active, including status and
+reconciliation. Once a release is closed, its retained private receipt and audit
+are the source for historical verification. The [November 25 qualification](goals-and-status.md#november-25-checklist-score-qualification)
+records one such closure.
+
+The private owner compares the independent Canvas readback twice, once against
+the original observation and once against the final observation before sending.
+Each comparison checks the approved score and verifies that posting state,
+attempt and comments stayed unchanged. The preview URL in the submission and
+every history entry must keep the same origin, course, assignment and recipient.
+Both comparisons must agree on whether its version stayed fixed or advanced
+by one. Canvas's `seconds_late` counter can increase if the change fits the
+time between reads, a cached due date is present and neither observation has
+a late-time override.
+The native score receipt, both pre-send observations and the readback together
+provide the audit record.
 
 ## Grade preview and confirmed push
 
